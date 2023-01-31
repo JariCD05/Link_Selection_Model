@@ -14,15 +14,13 @@ from tudatpy.kernel.astro import element_conversion, frame_conversion
 from tudatpy.kernel import constants
 from tudatpy.util import result2array
 
-import constants as cons
+from constants import *
 
 # Load spice kernels
 spice.load_standard_kernels()
 
 class constellation:
     def __init__(self,
-                 simulation_start_epoch = 0.0,
-                 simulation_end_epoch = constants.JULIAN_DAY,
                  sat_setup = "LEO_1",
                  number_of_planes = 72,
                  number_sats_per_plane = 1,
@@ -30,6 +28,8 @@ class constellation:
                  inc_init = 53.0,  # 53.0 for Starlink phase 0,
                  RAAN_init = 240.0,
                  TA_init = 0.0,
+                 ECC_init = 0.0,
+                 omega_init = 237.5
                  ):
 
 
@@ -39,20 +39,22 @@ class constellation:
 
         # Set simulation start and end epochs
         self.sat_setup = sat_setup
-        self.simulation_start_epoch = simulation_start_epoch
-        self.simulation_end_epoch = simulation_end_epoch
         self.number_of_planes = number_of_planes
         self.number_sats_per_plane = number_sats_per_plane
         self.height_init = height_init
         self.inc_init = inc_init
         self.RAAN_init = RAAN_init
         self.TA_init = TA_init
+        self.ECC_init = ECC_init
+        self.omega_init = omega_init
 
 
     def propagate(self,
+                  simulation_start_epoch: float,
+                  simulation_end_epoch: float,
                   method = "tudat",
                   propagator = "Runge-Kutta 4",
-                  fixed_step_size=10.0
+                  fixed_step_size=10.0,
                   ):
 
         if method == "tudat":
@@ -67,7 +69,7 @@ class constellation:
 
             # Create default body settings for "Earth"
             bodies_to_create = ["Earth", "Moon", "Mars"]
-            Earth_radius = cons.R_earth #m
+            Earth_radius = R_earth #m
 
             # Create default body settings for bodies_to_create, with "Earth"/"J2000" as the global frame origin and orientation
             global_frame_origin = "Earth"
@@ -95,9 +97,9 @@ class constellation:
 
             # Define accelerations acting on sat
             acceleration_settings_sat = dict(
-                Earth=[propagation_setup.acceleration.point_mass_gravity()],
-                # Mars =[propagation_setup.acceleration.point_mass_gravity()],
-                # Moon = [propagation_setup.acceleration.point_mass_gravity()]
+                Earth=[propagation_setup.acceleration.spherical_harmonic_gravity(2,2)],
+                Mars =[propagation_setup.acceleration.point_mass_gravity()],
+                Moon = [propagation_setup.acceleration.point_mass_gravity()]
                 )
             acceleration_settings = {"sat": acceleration_settings_sat}
             # Create acceleration models
@@ -127,13 +129,20 @@ class constellation:
                     # Keplerian elements and later on converted to Cartesian elements
                     earth_gravitational_parameter = self.bodies.get("Earth").gravitational_parameter
                     initial_state = element_conversion.keplerian_to_cartesian_elementwise(
-                        gravitational_parameter=earth_gravitational_parameter,
-                        semi_major_axis             =(self.height_init+cons.R_earth),
-                        eccentricity                =0.0,
+                        gravitational_parameter     =earth_gravitational_parameter,
+                        semi_major_axis             =(self.height_init + R_earth),
+                        eccentricity                =np.deg2rad(self.ECC_init),
                         inclination                 =np.deg2rad(self.inc_init),
-                        argument_of_periapsis       =np.deg2rad(235.7),
+                        argument_of_periapsis       =np.deg2rad(self.omega_init),
                         longitude_of_ascending_node =np.deg2rad(RAAN_init),
                         true_anomaly                =np.deg2rad(TA_init))
+                        # gravitational_parameter = earth_gravitational_parameter,
+                        # semi_major_axis = self.height_init + R_earth,
+                        # eccentricity = np.deg2rad(self.ECC_init),
+                        # inclination = np.deg2rad(self.inc_init),
+                        # argument_of_periapsis = np.deg2rad(self.omega_init),
+                        # longitude_of_ascending_node = np.deg2rad(RAAN_init),
+                        # true_anomaly = np.deg2rad(TA_init))
 
                     #------------------------------------------------------------------------
                     #--------------------PROPAGATOR/INTEGRATOR-SETTINGS----------------------
@@ -148,7 +157,7 @@ class constellation:
                     ]
 
                     # Create termination settings
-                    termination_condition = propagation_setup.propagator.time_termination(self.simulation_end_epoch)
+                    termination_condition = propagation_setup.propagator.time_termination(simulation_end_epoch)
 
                     # Create propagation settings
                     propagator_settings = propagation_setup.propagator.translational(
@@ -164,10 +173,10 @@ class constellation:
                     # And create numerical integrator settings
                     if propagator == "Runge-Kutta 4":
                         integrator_settings = propagation_setup.integrator.runge_kutta_4(
-                            self.simulation_start_epoch, fixed_step_size)
+                            simulation_start_epoch, fixed_step_size)
                     else:
                         integrator_settings = propagation_setup.integrator.runge_kutta_4(
-                            self.simulation_start_epoch, fixed_step_size)
+                            simulation_start_epoch, fixed_step_size)
 
                 #------------------------------------------------------------------------
                 #-----------------------------PROPAGATE-ORBIT----------------------------

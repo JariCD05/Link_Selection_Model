@@ -1,101 +1,89 @@
 import numpy as np
 from matplotlib import pyplot as plt
+from tudatpy.kernel import constants
 
-import constants as cons
+from constants import *
 
 class aircraft:
     def __init__(self,
-                 t,
-                 states_array,
-                 height = 10.0E3,
                  lat_init = 0.0,
                  lon_init = 0.0,
-                 fixed_step_size = 10.0,
+                 simulation_start_epoch=0.0,
+                 simulation_end_epoch=constants.JULIAN_DAY,
                  ):
 
-        # Initial position
-        self.R   = states_array[:,0] * 0
-        self.lat = states_array[:,0] * 0
-        self.lon = states_array[:,0] * 0
-        self.pos = np.zeros((len(states_array[:,0]), 3))
+        # Initial and terminal time
+        self.lat_init = lat_init
+        self.lon_init = lon_init
 
-        self. R[0] = cons.R_earth + height
-        self.lat[0] = np.deg2rad(lat_init)
-        self.lon[0] = np.deg2rad(lon_init)
-        self.pos[0] = np.transpose(np.array((np.cos(self.lat[0]) * np.cos(self.lon[0]),
-                                             np.cos(self.lat[0]) * np.sin(self.lon[0]),
-                                             np.sin(self.lat[0]))) * self.R[0])
-        self.t = t
 
     def propagate(self,
-                  v = np.array([0.0, 0.0, 0.0]), # Velocity profile array (North, East, Down)
-                  propagator_type = "straight"  # Type of propagation
+                  simulation_start_epoch: float,
+                  simulation_end_epoch: float,
+                  v: np.array,  # Velocity profile array (North, East, Down)
+                  states_array: np.array,
+                  height: float,
+                  propagator_type = "straight",  # Type of propagation
+                  fixed_step_size = 10.0
                   ):
 
         # Propgation model for a straight flight with velocity profile v = [vx, vy, vz]
         # And with initial longitude, latitude and height
         if propagator_type == "straight":
-            for i in range(1, len(self.pos)):
 
-                latdot = v[0] /  self.R[i-1]
-                londot = v[1] / (self.R[i-1] * np.cos(self.lat[i-1]))
+            # Initial position
+            R = states_array[:, 0] * 0
+            lat = states_array[:, 0] * 0
+            lon = states_array[:, 0] * 0
+            pos = np.zeros((len(states_array[:, 0]), 3))
+            R[0] = (R_earth + height)
+            lat[0] = np.deg2rad(self.lat_init)
+            lon[0] = np.deg2rad(self.lon_init)
+            pos[0] = np.transpose(np.array((np.cos(lat[0]) * np.cos(lon[0]),
+                                            np.cos(lat[0]) * np.sin(lon[0]),
+                                            np.sin(lat[0]))) * R[0])
+
+
+            interval = simulation_end_epoch - simulation_start_epoch
+            for i in np.arange(1, int(interval/fixed_step_size)):
+
+                latdot = v[0] /  R[i-1]
+                londot = v[1] / (R[i-1] * np.cos(lat[i-1]))
                 Rdot   = v[2]
 
-                dt = self.t[i] - self.t[i-1]
-                dlat = latdot * dt
-                dlon = londot * dt
-                dR   = Rdot * dt
+                dlat = latdot * fixed_step_size
+                dlon = londot * fixed_step_size
+                dR   = Rdot * fixed_step_size
+                lat[i] = lat[i-1] + dlat
+                lon[i] = lon[i-1] + dlon
+                R[i]   = R[i-1]   + dR
+                pos[i] = np.transpose(np.array((np.cos(lat[i]) * np.cos(lon[i]),
+                                                 np.cos(lat[i]) * np.sin(lon[i]),
+                                                 np.sin(lat[i]))) * R[i])
 
-                self.lat[i] = self.lat[i-1] + dlat
-                self.lon[i] = self.lon[i-1] + dlon
-                self.R[i]   = self.R[i-1]   + dR
-                self.pos[i] = np.transpose(np.array((np.cos(self.lat[i]) * np.cos(self.lon[i]),
-                                                     np.cos(self.lat[i]) * np.sin(self.lon[i]),
-                                                     np.sin(self.lat[i]))) * self.R[i])
-
-            self.heights = self.R - cons.R_earth
+            heights = R - R_earth
 
             # Correct for BC conditions (-pi < lat < pi)
-            for i in range(len(self.lat)):
-                if self.lat[i] > np.pi:
-                    self.lat[i] -= 2*np.pi
-                elif self.lat[i] < -np.pi:
-                    self.lat[i] += 2*np.pi
+            for i in range(len(lat)):
+                if lat[i] > np.pi:
+                    lat[i] -= 2*np.pi
+                elif lat[i] < -np.pi:
+                    lat[i] += 2*np.pi
 
             # Correct for BC conditions (-pi < lon < pi)
-            for i in range(len(self.lon)):
-                if self.lon[i] > np.pi:
-                    self.lon[i] -= 2*np.pi
-                elif self.lon[i] < -np.pi:
-                    self.lon[i] += 2*np.pi
+            for i in range(len(lon)):
+                if lon[i] > np.pi:
+                    lon[i] -= 2*np.pi
+                elif lon[i] < -np.pi:
+                    lon[i] += 2*np.pi
 
-            return self.pos, self.heights, self.lat, self.lon, self.R
+            return pos, heights, lat, lon
 
         # Other propagation methods can be added to this class
         elif propagator_type == "other":
             # Propagation model ...
             return
 
-
-
-# #------------------------------------------------------------------------
-# #------------------------POST-PROCESS-&-VISUALIZATION--------------------
-# #------------------------------------------------------------------------
-#
-# fig = plt.figure(figsize=(6,6), dpi=125)
-# ax = fig.add_subplot(111, projection='3d')
-# ax.set_title(f'AC trajectory around Earth')
-#
-# # Plot the positional state history
-# ax.plot(pos_AC[:, 0], pos_AC[:, 1], pos_AC[:, 2], color='orange', label='aircraft')
-# ax.scatter(0.0, 0.0, 0.0, label="Earth", marker='o', color='blue')
-#
-# # Add the legend and labels, then show the plot
-# ax.set_xlabel('x [m]')
-# ax.set_ylabel('y [m]')
-# ax.set_zlabel('z [m]')
-# ax.legend()
-# plt.show()
 
 
 
