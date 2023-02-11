@@ -49,7 +49,7 @@ class terminal_properties:
     # ------------------------------------------------------------------------
     def Np_func(self, P_r):
         # REF: FREE-SPACE LASER COMMUNICATIONS, PRINCIPLES AND ADVANCES, A.MAJUMDAR, 2008, CH.3 EQ.29
-        self.Np = Np(P_r, self.BW, self.eff_quantum)
+        self.Np = Np_func(P_r, data_rate, self.eff_quantum)
         return self.Np
 
     # ------------------------------------------------------------------------
@@ -80,6 +80,9 @@ class terminal_properties:
             self.noise_beat = 0.0
             return self.noise_beat
 
+        elif noise_type == "total":
+            return self.M**2*self.F*(self.noise_sh+self.noise_bg) + self.noise_th
+
     # ------------------------------------------------------------------------
     # --------------------------------THRESHOLD-------------------------------
     # ------------------------------------------------------------------------
@@ -94,7 +97,6 @@ class terminal_properties:
         if self.modulator == "OOK-NRZ":
             self.SNR_thres = ( np.sqrt(2) * erfcinv(2*BER_thres) )**2
             self.Q_thres   = ( np.sqrt(2) * erfcinv(2*BER_thres) )
-
         elif self.modulator == "2-PPM" or self.modulator == "2PolSK":
             self.SNR_thres = -2 * np.log(2*self.BER_thres)
             self.Q_thres = 0.0
@@ -115,7 +117,7 @@ class terminal_properties:
         if self.detection == "PIN":
             self.P_r_thres = np.sqrt(self.SNR_thres * self.noise_th) / self.R
         elif self.detection == "ADP":
-            self.P_r_thres = np.sqrt(self.SNR_thres * (self.M**2*self.F*(self.noise_sh+self.noise_bg) + self.noise_th)) / (self.M * self.R)
+            self.P_r_thres = np.sqrt(self.SNR_thres**2 * (self.M**2*self.F*(self.noise_sh+self.noise_bg) + self.noise_th)) / (self.M * self.R)
 
         # if self.detection == "PIN" and self.modulator == "OOK-NRZ":
         #     self.P_r_thres = self.Q_thres * self.noise_th / self.R
@@ -139,7 +141,7 @@ class terminal_properties:
         self.Np_shot_limit = self.SNR_thres / self.eff_quantum
 
         # REF: FREE-SPACE LASER COMMUNICATIONS, PRINCIPLES AND ADVANCES, A.MAJUMDAR, 2008, CH.3 EQ.29
-        self.Np_thres = (self.P_r_thres / (Ep * self.BW) / self.eff_quantum)
+        self.Np_thres = Np_func(self.P_r_thres, data_rate, self.eff_quantum)
 
         return self.SNR_thres, self.P_r_thres, self.Np_thres
 
@@ -228,12 +230,12 @@ class terminal_properties:
                  dist_type="rayleigh",
                  jitter_variance=0.5,
                  steps = 1000,
-                 D_t = 0.15,
+                 w0 = 0.15,
                  angle_divergence = angle_div_ac,
                  r0 = 0.0):
 
-        w0, w_r = beam_spread(D_t, ranges)
-        w_LT = beam_spread_turbulence(r0, D_ac, w_r)
+        w_r = beam_spread(w0, ranges)
+        w_LT = beam_spread_turbulence(r0, w0, w_r)
 
         self.r_pe = np.zeros((len(zenith_angles), steps))
         self.h_pe = np.zeros((len(zenith_angles), steps))
@@ -260,9 +262,9 @@ class terminal_properties:
 
 
 
-    def plot(self, t, plot = "BER & SNR"):
+    def plot(self, t, data: np.array, plot = "BER & SNR"):
 
-        if plot == "BER & SNR":
+        if plot == "BER & SNR vs. time":
             fig_ber, axs = plt.subplots(3, 1)
             axs[0].plot(t, self.BER[0])
             axs[0].set_title(f'BER (OOK & PIN) with scintillation')
@@ -282,6 +284,24 @@ class terminal_properties:
             axs[2].set_yscale('log')
             axs[2].set_xlabel('SNR')
             axs[2].set_xscale('log')
+
+        if plot == "data vs elevation":
+            fig_data_vs_elevation, axs = plt.subplots(3, 1)
+            axs[0].plot(data[:, 0], data[:, 6])
+            axs[0].set_title(f'BER vs elevation')
+            axs[0].set_ylabel('BER')
+            axs[0].set_ylim(1.0E-9, 1.0)
+            axs[0].set_yscale('log')
+            axs[0].invert_yaxis()
+
+            axs[1].plot(data[:, 0], data[:, 5])
+            axs[1].set_title(f'SNR vs elevation')
+            axs[1].set_ylabel('SNR')
+
+            axs[2].plot(data[:, 0], data[:, 1])
+            axs[2].set_title(f'Pr vs elevation')
+            axs[2].set_ylabel('Pr')
+
 
         elif plot == "pointing":
             fig_point_1, axs = plt.subplots(3, 1)

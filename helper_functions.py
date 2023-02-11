@@ -6,10 +6,13 @@ from constants import *
 
 
 def gaussian_beam(I0, r, w0, w_z):
-    return I0 * (w0 / w_z)**2 * np.exp(-2 * r ** 2 / w0 ** 2)
+    return I0 * (w0 / w_z)**2 * np.exp(-2 * r ** 2 / w_z ** 2)
 
-def I_to_P(I0, r, w0, w_z):
-    return I0 * (w0 / w_z)**2 * np.trapz(np.exp(-2 * r ** 2 / w0 ** 2), x=r)
+def I_to_P(I, r, w_z):
+    return I * np.trapz(np.exp(-2 * r ** 2 / w_z ** 2), x=r)
+
+def P_to_I(P, r, w_z):
+    return P / np.trapz(np.exp(-2 * r ** 2 / w_z ** 2), x=r)
 
 def acquisition():
     # Add latency due to acquisition process (a reference value of 50 seconds is taken)
@@ -19,11 +22,10 @@ def acquisition():
     return acquisition_time, acquisition_indices
 
 
-def beam_spread(D_t, ranges):
-    w0 = D_t/2
+def beam_spread(w0, ranges):
     z_r = np.pi * w0 ** 2 * n_index / wavelength
     w_r = w0 * np.sqrt(1 + (ranges / z_r) ** 2)
-    return w0, w_r
+    return w_r
 
 
 def beam_spread_turbulence(r0, w_0, w_r):
@@ -39,9 +41,16 @@ def beam_spread_turbulence(r0, w_0, w_r):
 
     return w_LT
 
-def Np(P_r, BW, eff_quantum):
+def Np_func(P_r, data_rate, eff_quantum):
     # REF: FREE-SPACE LASER COMMUNICATIONS, PRINCIPLES AND ADVANCES, A.MAJUMDAR, 2008, CH.3 EQ.29
-    return P_r / (Ep * BW) / eff_quantum
+    # REF: DEEP SPACE OPTICAL COMMUNICATIONS, H.HEMMATI, 2004, EQ.4.1-1
+    return P_r / (Ep * data_rate) / eff_quantum
+
+def data_rate_func(P_r, N_p, eff_quantum):
+    # REF: FREE-SPACE LASER COMMUNICATIONS, PRINCIPLES AND ADVANCES, A.MAJUMDAR, 2008, CH.3 EQ.29
+    # REF: DEEP SPACE OPTICAL COMMUNICATIONS, H.HEMMATI, 2004, EQ.4.1-1
+    # data_rate = P_r / (Ep * N_p) / eff_quantum
+    return P_r / (Ep * N_p) / eff_quantum
 
 
 
@@ -152,7 +161,7 @@ def connect_dim1_dim2(terminal, P_r_0, I_r_0, zenith_angles_dim1, zenith_angles_
 
 def get_data(metric, index = 0):
     try:
-        con = sqlite3.connect('link_data.db')
+        con = sqlite3.connect('link_data_16_param.db')
         cur = con.cursor()
 
         # cur.execute('SELECT * FROM performance_metrics')
@@ -162,11 +171,15 @@ def get_data(metric, index = 0):
             cur.execute('SELECT elevation FROM performance_metrics')
             data = cur.fetchall()
             data = np.array(data).flatten()
+            print(np.shape(data))
 
         elif metric == "all":
             cur.execute('SELECT * FROM performance_metrics')
             data = cur.fetchall()
-            data = np.array(data).flatten().reshape(-1, len(data))[index, :]
+            print(len(data))
+            print(len(index))
+            print(np.shape(np.array(data).flatten().reshape(len(data),-1)))
+            data = np.array(data).flatten().reshape(len(data), -1)[index, :]
 
         return data
 

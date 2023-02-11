@@ -88,7 +88,7 @@ I_sky = 0.2 #* ureg.watt / ureg.centimeter**2 / ureg.micrometer / ureg.steradian
 n_index = 1.002
 
 # Performance
-BER_thres = 1.0E-9
+BER_thres = 1.0E-6
 latency = 10.0 #* ureg.second
 h_tracking = 0.9 # During communications, about 10 percent of incoming light is reserved for tracking control
 
@@ -96,10 +96,12 @@ h_tracking = 0.9 # During communications, about 10 percent of incoming light is 
 constellation_type = "LEO_cons"
 h_SC = 550.0E3 #* ureg.meter
 inc_SC = 55.98 #* ureg.degree
-number_of_planes = 3
-number_sats_per_plane = 1
+number_of_planes = 10
+number_sats_per_plane = 10
 
 # Geometric constraints
+method_AC = "straight"
+method_SC = "tudat"
 h_AC = 10.0E3 #* ureg.meters
 vel_AC = np.array([0.0, 150.0, 0.0])
 speed_AC = np.sqrt(vel_AC[0]**2 + vel_AC[1]**2 + vel_AC[2]**2)
@@ -121,13 +123,19 @@ Ep = h * v
 k_number = 2 * np.pi / wavelength
 
 diff_limit_ac = wavelength / D_ac
-angle_div_ac  = 2.44 * diff_limit_ac #rad
 diff_limit_sc = wavelength / D_sc
+# angle_div_ac = 10.0E-6
+# angle_div_sc = 10.0E-6
+w0_ac = D_ac/2
+w0_sc = D_sc/2
+angle_div_ac  = 2.44 * diff_limit_ac #rad
 angle_div_sc  = 2.44 * diff_limit_sc #rad
+# w0_ac = np.pi * angle_div_ac / wavelength
+# w0_sc = np.pi * angle_div_sc / wavelength
 
 # Time scales
 start_time = 0.0
-end_time = cons_tudat.JULIAN_DAY
+end_time = 3600.0 * 6.0
 step_size_dim1 = 1 / data_rate
 step_size_dim2 = 10.0
 
@@ -163,6 +171,13 @@ T_fs2 = wavelength / (4 * np.pi * range2) ** 2
 # print(T_fs2, T_fs1, 1-T_fs1/T_fs2)
 
 
+
+
+
+
+
+
+
 # Simple PPB analysis
 data_rate = 2.5E9
 Pr = -58.43
@@ -177,10 +192,12 @@ m = 1.3452E23
 G = 6.67430E-11
 mu = m * G
 
-T = 2*np.pi * np.sqrt(a**3/mu) / 3600
+T = 2*np.pi * np.sqrt(a**3/mu) / 60
 
 alpha = np.arccos(R/a)
 delta_T = (np.pi - 2*alpha) / (2*np.pi) * T
+
+print(T, np.rad2deg(np.pi-2*alpha), delta_T, T-delta_T)
 
 R = 0.875
 M = 100
@@ -213,8 +230,8 @@ SNR = np.sqrt( (R*P)**2 /noise_th )
 # SNR_norm = np.sqrt( (R*P_norm*M)**2 /(M**2*F*(noise_sh_norm+noise_bg)+noise_th) )
 # SNR = np.sqrt( (R*P*M)**2 /(M**2*F*(noise_sh+noise_bg)+noise_th) )
 
-print(M**2*F*noise_sh / (M**2*F*(noise_sh+noise_bg)+noise_th))
-print(noise_sh)
+# print(M**2*F*noise_sh / (M**2*F*(noise_sh+noise_bg)+noise_th))
+# print(noise_sh)
 # print(SNR_ADP, SNR_PIN)
 
 
@@ -223,5 +240,12 @@ BER_norm = 1/2 * erfc( np.sqrt(SNR_norm)/np.sqrt(2) )
 
 
 
-print(SNR, SNR_norm, SNR_norm*P0)
-print(BER, BER_norm, BER_norm * erfc(np.sqrt(P0)))
+# print(SNR, SNR_norm, SNR_norm*P0)
+# print(BER, BER_norm, BER_norm * erfc(np.sqrt(P0)))
+
+
+
+
+
+
+

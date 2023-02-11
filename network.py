@@ -30,7 +30,7 @@ class network():
 
     def hand_over_strategy(self, number_of_planes, number_sats_per_plane, geometrical_output, time):
         index = 0
-        self.handover_output = {}
+        self.geometrical_output = {}
 
         pos_SC = np.zeros((len(time), 3))
         vel_SC = np.zeros((len(time), 3))
@@ -46,13 +46,13 @@ class network():
 
         elevation_angles = geometrical_output['elevation']
 
-        while time[index] < end_time:
+        while index < len(time):
             # The handover time is initiated with t=0, then the handover procedure starts
             t_handover = 0
             start_elev = []
             start_sat = []
             # Find a new satellite to start new connection
-            while len(start_elev) == 0 and time[index] < end_time:
+            while len(start_elev) == 0 and index < len(time):
                 for plane in range(number_of_planes):
                     for sat in range(number_sats_per_plane):
 
@@ -100,9 +100,11 @@ class network():
             # -------LOOP-THROUGH-DIFFERENT-SATELLITES-&-ADD-DATA---------------------
             # ------------------------------------------------------------------------
             index_start_window = index
-            while current_elevation > elevation_min and time[index] < end_time:
-                index += 1
+            if index > len(time):
+                break
+            while current_elevation > elevation_min and index < len(time):
                 current_elevation = elevation_angles[current_plane][current_sat][index]
+                index += 1
 
             pos_SC[index_start_window:index] = geometrical_output['pos SC'][current_plane][current_sat][index_start_window:index]
             heights_SC[index_start_window:index] = geometrical_output['heights SC'][current_plane][current_sat][index_start_window:index]
@@ -115,25 +117,22 @@ class network():
             azimuth[index_start_window:index] = geometrical_output['azimuth'][current_plane][current_sat][index_start_window:index]
             radial[index_start_window:index] = geometrical_output['radial'][current_plane][current_sat][index_start_window:index]
 
-        # print(elevation[index_start_window:index])
-        # print(1/0)
-        self.handover_output['pos SC'] = pos_SC
-        self.handover_output['heights SC'] = heights_SC
-        self.handover_output['vel SC'] = vel_SC
-        self.handover_output['ranges'] = ranges
-        self.handover_output['slew rates'] = slew_rates
-        self.handover_output['angular rates'] = angular_rates
-        self.handover_output['zenith'] = zenith
-        self.handover_output['elevation'] = elevation
-        self.handover_output['azimuth'] = azimuth
-        self.handover_output['radial'] = radial
-        print(elevation[200:300])
-        return self.handover_output
+        self.geometrical_output['pos SC'] = pos_SC
+        self.geometrical_output['heights SC'] = heights_SC
+        self.geometrical_output['vel SC'] = vel_SC
+        self.geometrical_output['ranges'] = ranges
+        self.geometrical_output['slew rates'] = slew_rates
+        self.geometrical_output['angular rates'] = angular_rates
+        self.geometrical_output['zenith'] = zenith
+        self.geometrical_output['elevation'] = elevation
+        self.geometrical_output['azimuth'] = azimuth
+        self.geometrical_output['radial'] = radial
+        return self.geometrical_output
 
 
-    def save_data(self, data_dim1, data_dim2):
+    def save_data(self, data_dim2):
 
-        data_elevation = get_data('elevation')
+        data_dim1 = get_data('elevation')
 
         a_s = (data_dim1[-1] - data_dim1[0]) / len(data_dim1)
         a_0 = data_dim1[1]
@@ -143,86 +142,31 @@ class network():
                 mapping[i] = 0
         mapping = list(mapping)
 
-        data_metrics = ['elevation', 'P_r_0', 'h_scint', 'h_pe', 'h_bw', 'SNR', 'BER', 'number of fades', 'fade time',
-                        'fractional fade time']
-        self.output = get_data('all', mapping)
+        data_metrics = ['elevation', 'P_r', 'h_scint', 'h_pe', 'h_bw', 'SNR', 'BER',
+                        'number of fades', 'fade time', 'fractional fade time',
+                        'P_r threshold', 'SNR threshold', 'Np threshold', 'Data rate', 'noise']
 
-    #------------------------------------------------------------------------
-    #------------------------PRINT-DATA-&-VISUALIZATION----------------------
-    #------------------------------------------------------------------------
+        self.performance_output = get_data('all', mapping)
+        return self.performance_output
 
+    def variable_data_rate(self):
+        # Pr threshold
+        N_p_thres = self.performance_output[:, -4]
+        SNR_thres = self.performance_output[:, -5]
+        P_r_thres = self.performance_output[:, -6]
 
-    def plot(self, type="trajectories"):
-        number_of_planes = self.SC.number_of_planes
-        number_of_sats = self.number_sats_per_plane
+        data_rate_thres = data_rate_func(P_r_thres, N_p_thres, eff_quantum_sc)
+        # Pr
+        P_r = self.performance_output[:, 1]
+        SNR = self.performance_output[:, 5]
+        BER = self.performance_output[:, 6]
+        N_p = self.performance_output[:, -2]
+        data_rate = self.performance_output[:, -3]
 
-        if type == "trajectories":
-            # Define a 3D figure using pyplot
-            fig = plt.figure(figsize=(6,6), dpi=125)
-            ax = fig.add_subplot(111, projection='3d')
-            # ax.set_title(f'Starlink initial phase configuration', fontsize=40)
-
-            # Plot fist satellite with label
-            # ax.plot(self.states_cons[0][0][:, 1],
-            #         self.states_cons[0][0][:, 2],
-            #         self.states_cons[0][0][:, 3],
-            #             linestyle='-.', linewidth=0.5, color='orange', label='constellation')
-            # Plot first satellite filtered data with label
-            ax.scatter(self.pos_SC_filtered[0][0][:, 0],
-                       self.pos_SC_filtered[0][0][:, 1],
-                       self.pos_SC_filtered[0][0][:, 2],
-                    linestyle='-.', linewidth=0.5, color='g', label='window \epsilon > '+str(np.rad2deg(elevation_min)))
-
-            # Plot all other satellites in constellation
-            for plane in range(1, number_of_planes):
-                # ax.plot(self.states_cons[plane][0][:, 1],
-                #         self.states_cons[plane][0][:, 2],
-                #         self.states_cons[plane][0][:, 3],
-                #         linestyle='-.', linewidth=0.5, color='orange')
-                ax.scatter(self.pos_SC_filtered[plane][0][:, 0],
-                           self.pos_SC_filtered[plane][0][:, 1],
-                           self.pos_SC_filtered[plane][0][:, 2],
-                        linestyle='-.', linewidth=0.5)
-
-            # Plot aircraft
-            ax.plot(self.pos_AC[:, 0],
-                    self.pos_AC[:, 1],
-                    self.pos_AC[:, 2], color='black', label='aircraft')
-            # Draw Earth as a blue dot in origin
-            ax.scatter(0.0, 0.0, 0.0, label="Earth", marker='o', color='blue', s=100)
-
-            # # Add the legend and labels, then show the plot
-            ax.legend()
-            ax.set_xlabel('x [m]', fontsize=15)
-            ax.set_ylabel('y [m]', fontsize=15)
-            ax.set_zlabel('z [m]', fontsize=15)
-
-        # Plot elevation angles
-        elif type == "angles":
-            fig_elev, axs_elev = plt.subplots(2, 1, figsize=(6, 6), dpi=125)
-
-            for plane in range(number_of_planes):
-                    for sat in range(number_of_sats):
-                        axs_elev[0].set_title(f'Elevation angles vs time')
-                        # axs_elev[0].plot(self.time_filtered[plane][sat], np.rad2deg(self.elevation_filtered[plane][sat]))
-                        # axs_elev[1].plot(self.time_filtered[plane][sat], np.rad2deg(self.azimuth_filtered[plane][sat]))
-                        # axs_elev[2].plot(self.time_filtered[plane][sat], np.rad2deg(self.radial_filtered[plane][sat]))
-                        # axs_elev[1].plot(self.time, np.rad2deg(self.ranges[plane][sat]))
-
-                        axs_elev[0].plot(self.time, np.ones(len(self.time))*elevation_min)
-                        axs_elev[0].plot(self.time, np.rad2deg(self.elevation[plane][sat]))
-                        axs_elev[1].plot(self.time, self.ranges[plane][sat])
-
-                        axs_elev[0].set_ylabel('elevation (degrees)')
-                        axs_elev[0].set_xlabel('time (seconds)')
-
-
-    def print(self, plane, sat, index):
-
-        print('------------------------------------------------')
-        print('LINK GEOMETRY')
-        print('------------------------------------------------')
-        print('Range [km]         : ', self.ranges[plane][sat][index])
-        print('Zenith angle [deg] : ', np.rad2deg(self.zenith[plane][sat][index]))
-        print('Elev. angle  [deg] : ', np.rad2deg(self.elevation[plane][sat][index]))
-        print('Slew rate [deg/s]  : ', self.slew_rates[plane][sat][index])
+        # Convert data rate output from constant to variable
+        self.performance_output[:,-3] = data_rate_thres
+        self.performance_output[:, 1] = P_r_thres
+        self.performance_output[:,-2] = N_p_thres
+        self.performance_output[:, 5] = SNR_thres
+        self.performance_output[:, 6] = BER_thres
+        return self.performance_output

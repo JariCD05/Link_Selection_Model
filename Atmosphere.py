@@ -24,14 +24,12 @@ class turbulence:
                  h_cruise = 10.0E3,
                  wavelength = 1550E-9,
                  D_r = 0.15,
-                 D_t = 0.15,
                  angle_iso = 7.0E-6,        # HVB 5/7 model
                  link = 'up',
                  h_sc = 1000.0E3,
                  ):
 
         # Terminal properties
-        self.D_t = D_t
         self.D_r = D_r
 
         # Turbulence parameters
@@ -104,6 +102,7 @@ class turbulence:
     def r0(self, zenith_angles):
         self.r0 = np.zeros(len(zenith_angles))
 
+        print(len(zenith_angles))
         # print(0.423 * k_number ** 2 / abs(np.cos(zenith_angles[0])))
         for i in range(len(zenith_angles)):
             r0 = (0.423 * k_number ** 2 / abs(np.cos(zenith_angles[i])) *
@@ -165,10 +164,10 @@ class turbulence:
     # ------------------------------------------------------------------------
     # -------------------------------PDF-MODELS-------------------------------
     # ------------------------------------------------------------------------
-    def PDF(self, ranges, D_t, zenith_angles = 0.0, PDF_type="lognormal", steps=1000, effect = "scintillation"):
+    def PDF(self, ranges, w0, zenith_angles = 0.0, PDF_type="lognormal", steps=1000, effect = "scintillation"):
         # VERIFICATION REF: FREE SPACE OPTICAL COMMUNICATION, B. MUKHERJEE, 2017, FIG.5.1
-        w0, w_r = beam_spread(D_t, ranges)
-        w_LT = beam_spread_turbulence(self.r0, D_ac, w_r)
+        w_r = beam_spread(w0, ranges)
+        w_LT = beam_spread_turbulence(self.r0, w0, w_r)
 
         if effect == "scintillation":
             self.h_scint = np.zeros((len(zenith_angles), steps))
@@ -219,13 +218,13 @@ class turbulence:
 
             return self.r_bw, self.h_bw
 
-    def plot(self, t, plot = "scint pdf", zenith=0.0, P_r = 0.0):
+    def plot(self, t, plot = "scint pdf", elevation=0.0, P_r = 0.0):
 
         fig_turb, ax1 = plt.subplots(1, 1, dpi=125)
 
         if plot == "scint pdf":
             fig_scint, axs = plt.subplots(3, 1, dpi=125)
-            axs[0].plot(self.x_scint[0], self.pdf_scint[0], label="variance: "+str(self.var_scint[0]))
+            axs[0].plot(self.x_scint[0], self.pdf_scint[0], label="\epsilon: "+str(elevation[0])+", variance: "+str(self.var_scint[0]))
             axs[0].set_title(f'Intensity with scintillation - Lognorm distribution')
             axs[0].set_ylabel('Probability [-]')
             axs[0].set_xlabel('Normalized intensity [-]')
@@ -273,14 +272,14 @@ class turbulence:
             axs.set_xlabel('heights (m)')
             axs.set_ylabel('wind speed (m/s)')
 
-        elif plot == "scint vs. zenith":
+        elif plot == "scint vs. elevation":
             fig_scint_zen, axs = plt.subplots(1, 1, dpi=125)
-            axs.plot(np.rad2deg(zenith), self.var_rytov)
+            axs.plot(np.rad2deg(elevation), self.var_rytov)
             axs.set_title(f'Scintillation variance VS. Zenith angle')
             axs.set_ylabel('Rytov variance [-]')
             axs.set_xlabel('Zenith angle [deg]')
 
-            axs.plot(np.rad2deg(zenith), self.var_scint, linestyle= "--")
+            axs.plot(np.rad2deg(elevation), self.var_scint, linestyle= "--")
             axs.set_ylabel('Scintillation index [-]')
             axs.set_xlabel('Zenith angle [deg]')
 

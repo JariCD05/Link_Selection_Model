@@ -14,7 +14,8 @@ class link_budget:
                  eff_r = 0.5,               # 0.7 receiver efficiency
                  eff_coupling = 0.8,        # Coupling efficiency receiver
                  D_t = 0.1,                 # 10 cm transmitter aperture
-                 D_r = 0.1,                 # 10 cm receiver aperture
+                 D_r = 0.1,                 # 10 cm receiver aperture,
+                 w0 = 0.1,
                  angle_pe_t = 5E-6,        # 5 micro rad jitter error transmitter
                  angle_pe_r = 5E-6,        # 5 micro rad jitter error receiver
                  var_pj_t = 0.5,
@@ -33,17 +34,20 @@ class link_budget:
         self.diff_limit = wavelength / self.D_r
         self.angle_div = 2.44 * self.diff_limit #rad
 
+
         self.var_pj_t = var_pj_t #rad
         self.var_pj_r = var_pj_r  # rad
         self.angle_pe_t = angle_pe_t
         self.angle_pe_r = angle_pe_r
 
-        self.w0, self.w_r = beam_spread(self.D_t, self.range)
+        self.w0 = w0
+        self.w_r = beam_spread(self.w0, self.range)
 
         # Transmitter power
         self.P_t = P_t #W
         # REF: AE4880 LASER SATELLITE COMMUNICATIONS II, R.SAATHOF, 2021, SLIDE 19
-        self.I_t_0 = self.P_t / (np.pi/4 * self.D_t**2) #W/m^2
+        # self.I_t_0 = self.P_t / (np.pi/4 * self.D_t**2) #W/m^2
+        self.I_t_0 = P_to_I(self.P_t, np.linspace(0, self.D_t/2, 1000), self.w0)
 
         # Gains
         # REF: PERFORMANCE LIMITATOIN OF LASER SAT COMMUNICATION..., S.ARNON, 2003, EQ.14
@@ -81,15 +85,15 @@ class link_budget:
     # -----------------------RECEIVED-POWER-&-INTENSITY-----------------------
     # ------------------------------------------------------------------------
 
-    def P_r_func(self):
-        self.P_r = self.P_t * \
+    def P_r_0_func(self, beam_spread="YES", T_WFE=1.0):
+        self.T_WFE = T_WFE
+        self.P_r_0 = self.P_t * \
               self.G_t * self.G_r * self.G_c * self.eff_t * self.eff_r * self.eff_coupling * self.T_tracking *\
-              self.T_fs * self.T_point_t * self.T_point_r
-              # * self.T_atm_att
+              self.T_fs * self.T_point_t * self.T_point_r #\
+                     # * self.T_beamspread * self.T_WFE
 
-        self.P_r = self.P_r
         # print(self.G_t * self.G_r * self.G_c * self.eff_t * self.eff_r * self.T_fs * self.T_atm_att)s
-        return self.P_r
+        return self.P_r_0
 
     # def I_t(self, r):
     #     # REF: OPTICAL SCINTILLATIONS AND FADE STATISTICS..., L.ANDREWS, EQ.12
@@ -98,18 +102,13 @@ class link_budget:
     #     self.I_t = I_t
     #     return I_t
 
-    def I_r_0_func(self, beam_spread="YES", T_WFE=1.0):
-        if beam_spread == "YES":
-            w_r = self.w_LT
-        else:
-            w_r = self.w_r
-
+    def I_r_0_func(self, T_WFE=1.0):
         self.T_WFE = T_WFE
 
         # REF: LONG TERM IRRADIANCE STATISTICS FOR OPTICAL GEO..., T.KAPSIS, 2019, EQ.1
-        self.I_r_0 = (self.w0 / w_r)**2 * self.I_t_0 * \
+        self.I_r_0 = (self.w0 / self.w_r)**2 * self.I_t_0 * \
                       self.G_t * self.G_r * self.G_c * \
-                      self.eff_t * self.eff_r * self.T_fs * T_WFE * self.T_point_t * self.T_point_r
+                      self.eff_t * self.eff_r * self.T_fs * self.T_WFE * self.T_point_t * self.T_point_r
                       # * self.T_atm_att * self.T_atm_turb_scint
 
         return self.I_r_0
@@ -119,13 +118,18 @@ class link_budget:
         self.LM = self.P_turb / P_r_thres
         return self.LM
 
+
+
+
     # ------------------------------------------------------------------------
     # -------------------------------BEAM-SPREAD------------------------------
     # ------------------------------------------------------------------------
 
     def beam_spread(self, r0):
         self.w_LT = beam_spread_turbulence(r0, self.D_r, self.w_r)
-        return self.w_LT
+        self.T_beamspread = (self.w_r / self.w_LT)**2
+        self.w_r = self.w_LT
+        return self.w_r, self.T_beamspread
 
         # # REF: LASER BEAM PROPAGATION THROUGH RANDOM MEDIA, L.ANDREWS, 2005, EQ.12.48
         # self.w_LT = np.zeros(len(r0))
@@ -144,9 +148,6 @@ class link_budget:
 
         self.T_WFE = self.eff_coupling * np.exp(-WFE)
         return self.T_WFE
-
-    def FWHM(self, z):
-        return np.sqrt(2*np.log(2)) * link_budget.w(z)
 
 
     def plot(self, r_t=0.0, r_r=0.0, t = 0.0, ranges=0.0, type= "time-series"):
@@ -234,8 +235,8 @@ class link_budget:
             # print('WFE loss           (dBW) : ', cons.W2dB(self.T_WFE[index]))
             print('________________________')
             print('RECEIVER')
-            print('Received signal      (dBW): ', W2dB(self.P_r[index]))
-            print('Received signal      (PPB): ', Np(self.P_r[index], BW_sc, eff_quantum_sc))
+            print('Received signal      (dBW): ', W2dB(self.P_r_0[index]))
+            print('Received signal      (PPB): ', Np_func(self.P_r_0[index], BW_sc, eff_quantum_sc))
             print('Beam width w/o turb  (m) : ', self.w_r[index])
             print('Beam width with turb (m) :' , self.w_LT[index])
             print('________________________')

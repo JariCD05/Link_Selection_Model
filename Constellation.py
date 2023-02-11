@@ -26,10 +26,10 @@ class constellation:
                  number_sats_per_plane = 1,
                  height_init = 550.0E3,  # 550.0E3 for Starlink phase 0
                  inc_init = 53.0,  # 53.0 for Starlink phase 0,
-                 RAAN_init = 240.0,
+                 RAAN_init = 120.0,
                  TA_init = 0.0,
                  ECC_init = 0.0,
-                 omega_init = 237.5
+                 omega_init = 120.0
                  ):
 
 
