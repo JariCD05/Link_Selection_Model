@@ -14,7 +14,7 @@ from tudatpy.kernel.astro import element_conversion, frame_conversion
 from tudatpy.kernel import constants
 from tudatpy.util import result2array
 
-from constants import *
+from input import *
 
 # Load spice kernels
 spice.load_standard_kernels()

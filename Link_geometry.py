@@ -2,8 +2,7 @@
 import Link_budget as LB
 import Constellation as SC
 import Aircraft as AC
-import Turbulence as turb
-from constants import *
+from input import *
 
 import numpy as np
 from matplotlib import pyplot as plt
@@ -268,12 +267,11 @@ class link_geometry:
                 # -----------------------------DOPPLER-SHIFT------------------------------
                 # ------------------------------------------------------------------------
 
-                print(v, speed_of_light)
-                print(heights_SC_per_sat)
-                print(slew_rates_per_sat)
-                # delta_v_per_sat = v * (R_earth + heights_SC_per_sat) * (R_earth + self.heights_AC) * slew_rates_per_sat * np.sin(slew_rates_per_sat * self.time) / (speed_of_light * np.sqrt((R_earth + heights_SC_per_sat) ** 2 + (R_earth + self.heights_AC) ** 2 - 2 * (R_earth + heights_SC_per_sat)(R_earth + self.heights_AC) * np.cos(slew_rates_per_sat * self.time)))
+                delta_v_per_sat = v * (R_earth + heights_SC_per_sat) * (R_earth + self.heights_AC) * slew_rates_per_sat * np.sin(slew_rates_per_sat * self.time) / \
+                                  (speed_of_light * np.sqrt((R_earth + heights_SC_per_sat) ** 2 + (R_earth + self.heights_AC) ** 2 -
+                                                            2 * (R_earth + heights_SC_per_sat) * (R_earth + self.heights_AC) * np.cos(slew_rates_per_sat * self.time)))
 
-                delta_v_per_plane[sat] = 0.0
+                delta_v_per_plane[sat] = delta_v_per_sat
 
                 # ------------------------------------------------------------------------
                 # --------------FILTER-DATA-FOR-MINIMUM-ELEVATION-REQUIREMENT-------------

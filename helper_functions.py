@@ -2,7 +2,7 @@ import numpy as np
 import sqlite3
 from tudatpy.kernel import constants as cons_tudat
 from matplotlib import pyplot as plt
-from constants import *
+from input import *
 
 
 def gaussian_beam(I0, r, w0, w_z):
@@ -95,73 +95,20 @@ def hand_over_strategy(number_of_planes, number_sats_per_plane, index, elevation
 
     return current_plane, current_sat, t_handover, index
 
-
-
-def connect_dim1_dim2(terminal, P_r_0, I_r_0, zenith_angles_dim1, zenith_angles_dim2, dim_1_results):
-    BER_avg_array = np.ones(len(zenith_angles_dim1))
-    noise_array = np.ones(len(zenith_angles_dim1))
-    h_avg_array = np.ones(len(zenith_angles_dim1))
-
-    for i in range(len(zenith_angles_dim1)):
-        current_zenith = zenith_angles_dim1[i]
-        current_elev = np.pi / 2 - current_zenith
-        index_dim1 = np.argmin(np.abs(current_zenith- zenith_angles_dim2))
-
-        # Take
-        current_P_r_0 = P_r_0[index_dim1]
-        current_I_r_0 = I_r_0[index_dim1]
-        # -----------------------------------------------------------------------
-        # --------STATISTICAL-PARAMETERS-&-POWER/INTENSITY-FLUCTUATIONS----------
-        # -----------------------------------------------------------------------
-        # t = dim_1_results[i][0]
-        h_tot = dim_1_results[i][1]
-        r_tot = dim_1_results[i][2]
-        P_r_fluct = current_P_r_0 * h_tot
-        I_r_0_fluct = current_I_r_0 * h_tot
-
-        h_avg = np.mean(h_tot)
-
-        # -----------------------------------------------------------------------
-        # -----------------------------NOISE-BUDGET-------------------------------
-        # ------------------------------------------------------------------------
-
-        noise_sh = terminal.noise(noise_type="shot", P_r=P_r_fluct)
-        noise_th = terminal.noise(noise_type="thermal")
-        noise_bg = terminal.noise(noise_type="background", P_r=P_r_fluct, I_sun=I_sun)
-
-        # ------------------------------------------------------------------------
-        # --------------------------THRESHOLD-AT-RECEIVER-------------------------
-        # ------------------------------------------------------------------------
-        SNR_thres_sc, P_r_thres_sc, Np_thres_sc = terminal.threshold()
-        # ------------------------------------------------------------------------
-        # -----------------------FLUCTUATING-SNR-&-BER----------------------------
-        # ------------------------------------------------------------------------
-        # SNR & BER at receiver
-        SNR = terminal.SNR_func(P_r_fluct)
-        BER = terminal.BER_func()
-
-        BER_avg = np.mean(BER)
-        # Average out BER values!
-
-        # ------------------------------------------------------------------------
-        # ----------------------------FADE-STATISTICS-----------------------------
-        # ------------------------------------------------------------------------
-        number_of_fades = np.count_nonzero(P_r_fluct < P_r_thres_sc)
-        fade_time = number_of_fades * step_size_dim1
-
-        # ------------------------------------------------------------------------
-        # -----------------------ADD-OBTAINED-VALUES-TO-ARRAY---------------------
-        # ------------------------------------------------------------------------
-        BER_avg_array[i] = BER_avg
-        noise_array[i]   = np.mean(noise_sh + noise_th + noise_bg)
-        h_avg_array[i]   = h_avg
-
-    return h_avg_array, noise_array, BER_avg_array, fade_time
-
+def save_data(data):
+    # Save data to sqlite3 database, 14 metrics are saved for each elevation angle (14 columns and N rows)
+    con = sqlite3.connect("link_data_18_metrics.db")
+    cur = con.cursor()
+    cur.execute("CREATE TABLE performance_metrics(elevation, P_r, P_r_0, h_tot, h_att, h_scint, h_pj, h_bw, SNR, BER, number_of_fades, fade_time, fractional_fade_time, P_r_threshold, SNR_threshold, Np_threshold, data_rate, N_p, noise)")
+    cur.executemany("INSERT INTO performance_metrics VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)", data)
+    con.commit()
+    cur.close()
+    con.close()
 
 def get_data(metric, index = 0):
     try:
-        con = sqlite3.connect('link_data_16_param.db')
+        filename = 'link_data_18_metrics.db'
+        con = sqlite3.connect(filename)
         cur = con.cursor()
 
         # cur.execute('SELECT * FROM performance_metrics')
@@ -171,20 +118,19 @@ def get_data(metric, index = 0):
             cur.execute('SELECT elevation FROM performance_metrics')
             data = cur.fetchall()
             data = np.array(data).flatten()
-            print(np.shape(data))
 
         elif metric == "all":
             cur.execute('SELECT * FROM performance_metrics')
             data = cur.fetchall()
-            print(len(data))
-            print(len(index))
-            print(np.shape(np.array(data).flatten().reshape(len(data),-1)))
             data = np.array(data).flatten().reshape(len(data), -1)[index, :]
 
         return data
 
     except sqlite3.Error as error:
         print("Failed to read data from table", error)
+    # if data == None:
+    #     raise LookupError(("No database file found with name: "+str(filename)))
+
     finally:
         if con:
             con.close()

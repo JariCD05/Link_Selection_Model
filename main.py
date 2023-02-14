@@ -1,17 +1,10 @@
 import Link_budget as LB
-import Turbulence as turb
 import network as network
-import Terminal as term
-import Atmosphere as atm
-from constants import *
-from helper_functions import *
-import Constellation as SC
+from input import *
 from Link_geometry import link_geometry
+import Atmosphere as atm
 
-import numpy as np
-import sqlite3
 from matplotlib import pyplot as plt
-from tudatpy.kernel import constants as cons_tudat
 
 
 #------------------------------------------------------------------------
@@ -25,7 +18,7 @@ link_geometry = link_geometry(constellation_type=constellation_type)
 link_geometry.propagate(start_time, end_time)
 link_geometry.geometrical_outputs()
 
-# Initiate time for entire communicatin period
+# Initiate time for entire communication period
 time = link_geometry.time
 
 #------------------------------------------------------------------------
@@ -58,6 +51,62 @@ performance_output = network.save_data(geometrical_output['elevation'])
 # computing the corresponding data rate that is needed to increase/decrease this power.
 network.variable_data_rate()
 
+#------------------------------------------------------------------------
+#-------------------------------TURBULENCE-------------------------------
+#------------------------------------------------------------------------
+
+# The turbulence class is initiated here. Inside the turbulence class, there are multiple functions that are run.
+turbulence_main = atm.turbulence(range=geometrical_output['ranges'], link=link)
+
+# Firstly, a windspeed profile is calculated, which is used for the Cn^2 model. This will then be used for the r0 profile.
+# With Cn^2 and r0, the variances for scintillation and beam wander are computed
+turbulence_main.windspeed(slew=np.mean(geometrical_output['slew rates']),
+                          Vg=speed_AC,
+                          wind_model_type=wind_model_type)
+turbulence_main.Cn_func(turbulence_model=turbulence_model)
+r0 = turbulence_main.r0_func(geometrical_output['elevation'])
+
+# ------------------------------------------------------------------------
+# -------------------------LINK-BUDGET-ANALYSIS---------------------------
+# ------------------------------------------------------------------------
+# The link budget class is initiated here.
+link_budget_main = LB.link_budget(geometrical_output['ranges'])
+w_r = link_budget_main.beam_spread(r0)
+
+# The power and intensity at the receiver is computed from the link budget.
+# All gains, losses and efficiencies are given in the link budget class.
+P_r_0 = link_budget_main.P_r_0_func()
+I_r_0 = link_budget_main.I_r_0_func()
+data_metrics = ['elevation', 'P_r' 'P_r_0', 'h_tot', 'h_att', 'h_scint', 'h_pj', 'h_bw', 'SNR', 'BER',
+                'number of fades', 'fade time', 'fractional fade time',
+                'P_r threshold', 'SNR threshold', 'Np threshold', 'Data rate', 'Np', 'noise']
+# Here, dynamic contributions and the power threshold are added to the static link budget
+P_r = performance_output[:, 1]
+P_r_0_db = performance_output[:, 2]
+Np_r = performance_output[:, -2]
+h_att = performance_output[:, 4]
+h_scint = performance_output[:, 5]
+h_pj = performance_output[:, 6]
+h_bw = performance_output[:, 7]
+P_r_threshold = performance_output[:, -6]
+Np_r_threshold = performance_output[:, -4]
+link_budget_main.dynamic_contributions(h_scint,
+                                       h_pj,
+                                       h_bw,
+                                       P_r,
+                                       P_r_threshold,
+                                       Np_r,
+                                       Np_r_threshold)
+
+# print('test-----------------------')
+# for i in range(len(P_r_0)):
+#     print(P_r_0[i], P_r_0_db[i], W2dB(P_r_threshold[i]), np.rad2deg(geometrical_output['elevation'][i]), performance_output[i, 0])
+
+# With the dynamic contributions and the threshold power, the resulting link margin is computed
+link_budget_main.link_margin()
+
+
+
 # # ------------------------------------------------------------------------
 # # ------------------------PLOT-RESULTS-(OPTIONAL)-------------------------
 # # ------------------------------------------------------------------------
@@ -73,5 +122,7 @@ link_geometry.plot()
 
 # terminal_sc.plot(t = t, plot="pointing")
 # terminal_sc.plot(t = t, plot="BER & SNR")
+
+link_budget_main.print(t=time, index = plot_time_index, type="link budget", elevation = geometrical_output['elevation'])
 
 plt.show()

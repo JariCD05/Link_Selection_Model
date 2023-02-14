@@ -1,15 +1,8 @@
 
-import Link_budget as LB
-import Constellation as SC
-import Aircraft as AC
-import Turbulence as turb
-from constants import *
+from input import *
 from helper_functions import *
 
 import numpy as np
-from matplotlib import pyplot as plt
-from tudatpy.kernel import constants as cons_tudat
-
 
 class network():
     def __init__(self, time):
@@ -17,12 +10,6 @@ class network():
         self.total_handover_time = 0 # seconds
         self.total_acquisition_time = 0 # seconds
         self.acquisition = np.zeros(len(time))
-
-        self.h_stat = np.zeros(len(time))
-        self.Pr_data = np.zeros(len(time))
-        self.Ir_data = np.zeros(len(time))
-        self.BER_data = np.zeros(len(time))
-        self.latency = 0.0
 
     # ------------------------------------------------------------------------
     # -----------------------------FUNCTIONS----------------------------------
@@ -74,18 +61,19 @@ class network():
                 current_sat = start_sat[np.argmin(start_elev)][1]
                 current_elevation = start_elev[np.argmin(start_elev)]
 
-                print('------------------------------------------------')
-                print('HAND OVER: ', self.number_of_handovers)
-                print('------------------------------------------------')
-                print('Chosen satellite to in LOS: plane = ', current_plane, ', sat in plane = ', current_sat,
-                      ', elevation = ', current_elevation)
-                print('Handover time: ', t_handover / 60, 'minutes, Current time: ', time[index])
+                # print('------------------------------------------------')
+                # print('HAND OVER: ', self.number_of_handovers)
+                # print('------------------------------------------------')
+                # print('Chosen satellite to in LOS: plane = ', current_plane, ', sat in plane = ', current_sat,
+                #       ', elevation = ', current_elevation)
+                # print('Handover time: ', t_handover / 60, 'minutes, Current time: ', time[index])
 
             else:
                 print('------------------------------------------------')
                 print('HAND OVER')
                 print('------------------------------------------------')
-                print('No satellites found, or propagation time has exceeded, t = ', time[index], ', t_end = ', time[-1])
+                print('No satellites found, or propagation time has exceeded, t = ', time[index-1], ', t_end = ', time[-1])
+
 
             self.number_of_handovers += 1
             # ------------------------------------------------------------------------
@@ -133,8 +121,7 @@ class network():
     def save_data(self, data_dim2):
 
         data_dim1 = get_data('elevation')
-
-        a_s = (data_dim1[-1] - data_dim1[0]) / len(data_dim1)
+        a_s = (data_dim1[-1] - data_dim1[1]) / len(data_dim1)
         a_0 = data_dim1[1]
         mapping = ((np.rad2deg(data_dim2) - a_0) / a_s).astype(int) + 1
         for i in range(len(mapping)):
@@ -142,11 +129,13 @@ class network():
                 mapping[i] = 0
         mapping = list(mapping)
 
-        data_metrics = ['elevation', 'P_r', 'h_scint', 'h_pe', 'h_bw', 'SNR', 'BER',
-                        'number of fades', 'fade time', 'fractional fade time',
-                        'P_r threshold', 'SNR threshold', 'Np threshold', 'Data rate', 'noise']
-
         self.performance_output = get_data('all', mapping)
+
+        # print('TEST')
+        # print(data_dim1[-1], data_dim1[0])
+        # print(a_0, a_s)
+        # for i in range(len(data_dim2)):
+        #     print(np.rad2deg(data_dim2[i]), self.performance_output[i, 0])
         return self.performance_output
 
     def variable_data_rate(self):

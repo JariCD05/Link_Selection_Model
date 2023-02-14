@@ -1,39 +1,21 @@
-# Load standard modules
-import numpy as np
-from scipy.stats import lognorm
-from matplotlib import pyplot as plt
-from constants import *
+from input import *
 from helper_functions import *
 from PDF import dist
 
 import numpy as np
-from scipy.stats import lognorm, gamma
-from scipy.special import kv, kn as kv, kn
-from scipy.special import gamma as gamma_function
 from scipy.stats import rice, rayleigh
 
-from constants import *
 from matplotlib import pyplot as plt
-from sympy import Symbol, S
-from sympy.stats import DiscreteRV
 
 
 class turbulence:
     def __init__(self,
                  range,
-                 h_cruise = 10.0E3,
-                 wavelength = 1550E-9,
-                 D_r = 0.15,
-                 angle_iso = 7.0E-6,        # HVB 5/7 model
                  link = 'up',
-                 h_sc = 1000.0E3,
                  ):
 
         # Terminal properties
         self.D_r = D_r
-
-        # Turbulence parameters
-        self.angle_iso = angle_iso
 
         # Range and height
         self.range = range
@@ -44,11 +26,13 @@ class turbulence:
         # Create a height profile for computation of r0, Cn and wind speed
         self.heights = np.linspace(self.h_cruise, self.h_sc, 500)
         self.heights = self.heights[self.heights<self.h_limit]
+        if link == "down":
+            np.flip(self.heights)
 
     # ------------------------------------------h_------------------------------
     # --------------------------TURUBLENCE-ENVIRONMENT------------------------
     # --------------------------Cn^2--windspeed--r0--Stehl-Ratio--------------
-    def Cn(self, turbulence_model = "HVB", dim = 2):
+    def Cn_func(self, turbulence_model = "HVB", dim = 2):
 
         if turbulence_model == "HVB":
             self.Cn = 5.94E-53 * (self.windspeed_rms / 27) ** 2 * self.heights** 10 * \
@@ -72,10 +56,10 @@ class turbulence:
             self.Cn = 5.94*10**(-53) * (self.windspeed_rms/27)**2 * self.heights**10 * np.exp(-self.heights/ 1000.0)+ \
                       2.7E-16 * np.exp(-self.heights / 1500.0) + \
                       A * np.exp(-self.heights / 100)
-        return self.Cn
+        # return self.Cn
 
-    def windspeed(self, slew, Vg, wind_model_type = "Bufton"):
-        if wind_model_type == "Bufton":
+    def windspeed(self, slew, Vg, wind_model_type = "bufton"):
+        if wind_model_type == "bufton":
 
             # self.windspeed = np.zeros(len(self.heights[self.heights < self.h_limit]))
             self.windspeed = abs(slew) * self.heights + \
@@ -84,32 +68,11 @@ class turbulence:
 
             self.windspeed_rms = np.sqrt(1 / (self.h_limit - self.h_cruise) *
                                             np.trapz(self.windspeed ** 2, x=self.heights))
+            # return self.windspeed_rms
 
-            # elif dim == 2:
-            #     self.windspeed     = np.zeros(len(self.heights[self.heights < self.h_limit])).reshape((len(slew),-1))
-            #     self.windspeed_rms = np.zeros(len(slew))
-
-                # for i in range(len(slew)):
-                #     heights = self.heights[i]
-                #     self.windspeed[i] = abs(slew[i]) * heights[heights < self.h_limit] + np.ones(
-                #         np.shape(heights[heights < self.h_limit])) * Vg + \
-                #                         30 * np.exp(-((heights[heights < self.h_limit] - 9400.0 * ureg.meter).magnitude / 4800.0) ** 2) * ureg.meter / ureg.second
-                #     self.windspeed_rms[i] = np.sqrt(1 / (self.h_limit - self.h_cruise[i]) / ureg.seconds *
-                #                                     np.trapz(self.windspeed[i] ** 2, x=heights[heights < self.h_limit])).magnitude
-            # self.windspeed_rms = self.windspeed_rms * ureg.meter / ureg.second
-            return self.windspeed_rms
-
-    def r0(self, zenith_angles):
-        self.r0 = np.zeros(len(zenith_angles))
-
-        print(len(zenith_angles))
-        # print(0.423 * k_number ** 2 / abs(np.cos(zenith_angles[0])))
-        for i in range(len(zenith_angles)):
-            r0 = (0.423 * k_number ** 2 / abs(np.cos(zenith_angles[i])) *
+    def r0_func(self, zenith_angles):
+        self.r0 = (0.423 * k_number ** 2 / abs(np.cos(zenith_angles)) *
                           np.trapz(self.Cn, x=self.heights)) ** (-3 / 5)
-            self.r0[i] = r0
-
-        self.r0 = self.r0 #meter
         return self.r0
 
     def stehl_ratio(self, D):
@@ -119,13 +82,9 @@ class turbulence:
     # ------------------------------------------------------------------------
     # -------------------------------VARIANCES--------------------------------
     # ------------------------------------------------------------------------
-    def var_rytov(self, zenith_angles):
-        self.var_rytov = np.zeros(len(zenith_angles))
-        for i in range(len(zenith_angles)):
-            var_rytov = 2.25 * k_number ** (7 / 6) * (1 / np.cos(zenith_angles[i])) ** (11 / 6) * \
+    def var_rytov_func(self, zenith_angles):
+        self.var_rytov = 2.25 * k_number ** (7 / 6) * (1 / np.cos(zenith_angles)) ** (11 / 6) * \
                              np.trapz(self.Cn * (self.heights - self.h_cruise) ** (5 / 6), x=self.heights)
-            self.var_rytov[i] = var_rytov
-        return self.var_rytov
 
     def var_scint(self, zenith_angles: np.array, PDF_type="lognormal"):
         if PDF_type == "lognormal":
@@ -147,34 +106,28 @@ class turbulence:
         A = (1 + 1.1 * (self.D_r ** 2 / (wavelength * h0 * 1 / np.cos(zenith_angles))) ** (7 / 6)) ** -1
         self.var_scint = self.var_scint * A
 
-        return self.var_scint
-
     def var_bw(self, D_t, zenith_angles):
         #REF: LASER BEAM PROPAGATION THROUGH RANDOM MEDIA, L.ANDREWS, EQ.12.50
         # This reference computes the beam wander variance as a displacement at the receiver in meters (1 rms)
         w0 = D_t
         self.var_bw = 0.54 * (h_SC - h_AC)**2 * 1/np.cos(zenith_angles)**2 * (wavelength / (2*w0))**2 * (2*w0 / self.r0)**(5/3)
-        return self.var_bw
 
 
     def var_AoA(self, D_r):
         self.beta = 0.182 * (D_r/self.r0)**5/3 * (wavelength/D_r)**2
-        return self.beta
 
     # ------------------------------------------------------------------------
     # -------------------------------PDF-MODELS-------------------------------
     # ------------------------------------------------------------------------
-    def PDF(self, ranges, w0, zenith_angles = 0.0, PDF_type="lognormal", steps=1000, effect = "scintillation"):
+    def PDF(self, ranges, w_r, zenith_angles = 0.0, steps=1000, effect = "scintillation"):
         # VERIFICATION REF: FREE SPACE OPTICAL COMMUNICATION, B. MUKHERJEE, 2017, FIG.5.1
-        w_r = beam_spread(w0, ranges)
-        w_LT = beam_spread_turbulence(self.r0, w0, w_r)
 
         if effect == "scintillation":
             self.h_scint = np.zeros((len(zenith_angles), steps))
             self.x_scint = np.zeros((len(zenith_angles), steps))
             self.pdf_scint = np.zeros((len(zenith_angles), steps))
 
-            if PDF_type == "lognormal":
+            if PDF_scintillation == "lognormal":
                 #REF:
                 var = np.log(self.var_scint + 1)
                 bias = -1/2 * var
@@ -183,7 +136,7 @@ class turbulence:
                     self.x_scint[i], self.pdf_scint[i] = dist.lognorm_pdf(var=var[i], bias=bias[i], steps=steps)
                     self.h_scint[i] = dist.lognorm_rvs(var=var[i], bias=bias[i], steps=steps)
 
-            elif PDF_type == "gamma-gamma":
+            elif PDF_scintillation == "gamma-gamma":
 
                 self.cdf_scint = np.zeros((len(zenith_angles), steps))
 
@@ -204,17 +157,17 @@ class turbulence:
             self.x_bw = np.zeros((len(zenith_angles), steps))
             self.pdf_bw = np.zeros((len(zenith_angles), steps))
 
-            if PDF_type == "rayleigh":
+            if PDF_beam_wander == "rayleigh":
                 for i in range(len(zenith_angles)):
                     self.x_bw[i] = np.linspace(rayleigh.ppf(0.01), rayleigh.ppf(0.99), steps)
                     self.pdf_bw[i] = rayleigh.pdf(self.x_bw[i], scale=self.var_bw[i])
                     self.r_bw[i] = rayleigh.rvs(size=steps, scale=self.var_bw[i])
 
-            elif PDF_type == "gaussian":
+            elif PDF_beam_wander == "gaussian":
                 for i in range(len(zenith_angles)):
                     self.x_bw[i], self.pdf_bw[i] = dist.norm_pdf(var=self.var_bw[i], steps=steps)
-                    self.r_bw[i] = dist.norm_.rvs(var=self.var_bw[i], steps=steps)
-                    self.h_bw[i] = np.exp(-self.r_bw[i] ** 2 / w_LT[i] ** 2)
+                    self.r_bw[i] = dist.norm_rvs(var=self.var_bw[i], steps=steps)
+                    self.h_bw[i] = np.exp(-self.r_bw[i] ** 2 / w_r[i] ** 2)
 
             return self.r_bw, self.h_bw
 
@@ -323,8 +276,8 @@ class attenuation:
         self.b_abs_mol = 1.0
         self.b_v = att_coeff
 
-    def T_ext(self, zenith_angles, type="standard_atmosphere", steps = 1000.0):
-        if type == "standard_atmosphere":
+    def T_ext(self, zenith_angles, method="standard_atmosphere", steps = 1000.0):
+        if method == "standard_atmosphere":
             self.T_ext = np.zeros((len(zenith_angles), steps))
 
             for i in range(len(zenith_angles)):
