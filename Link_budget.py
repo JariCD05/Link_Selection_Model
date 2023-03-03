@@ -7,17 +7,25 @@ from helper_functions import *
 
 
 class link_budget:
-    def __init__(self, ranges: np.array):
+    def __init__(self,
+                 ranges: np.array,
+                 Strehl_ratio: float,
+                 w_ST: np.array,
+                 T_beamspread: np.array,
+                 T_att: float):
 
         # Range
         # ----------------------------------------------------------------------------
-        self.ranges = ranges
+        self.ranges = np.array(ranges)
 
-        # Power / intensity
+        # Laser profile
         # ----------------------------------------------------------------------------
         # REF: AE4880 LASER SATELLITE COMMUNICATIONS II, R.SAATHOF, 2021, SLIDE 19
         # self.I_t_0 = self.P_t / (np.pi/4 * self.D_t**2) #W/m^2
-        self.I_t_0 = P_to_I(P_t, np.linspace(0, D_t/2, 1000), w0)
+        self.P_t = P_t
+        # REF: Wikipedia: Gaussian Beam
+        self.I_t_0 = 2 * self.P_t / (np.pi * w0**2)
+        self.w_r = np.array(w_ST)
 
         # Gains
         #----------------------------------------------------------------------------
@@ -27,16 +35,27 @@ class link_budget:
         self.G_t = 8 / angle_div**2
         self.G_r = (np.pi*D_r / wavelength)**2
         # REF: OPTICAL ON-OFF KEYING FOR LOW EARTH ORBIT DOWNLINK APPLICATIONS, D.GIGGENBACH, TABLE 11.5
-        self.G_c = dB2W(4.0)
+        self.G_c = 1.0 #dB2W(4.0)
 
         # Losses
         # ----------------------------------------------------------------------------
+        self.T_att = T_att
+        self.Strehl_ratio = np.array(Strehl_ratio)
+        self.T_beamspread = np.array(T_beamspread)
+        self.T_clipping = np.exp(-2 * clipping_ratio ** 2 * obscuration_ratio ** 2) - np.exp(-2 * clipping_ratio_ac ** 2)
+        self.G_t = self.G_t * self.T_clipping
+
+
+
         # REF: AE4880 LASER SATELLITE COMMUNICATIONS I, R.SAATHOF, 2021, SLIDE 34
         self.T_fs = (wavelength / (4 * np.pi * self.ranges)) ** 2
-        print(np.shape(self.T_fs))
         for i in range(len(self.T_fs)):
             if self.ranges[i] == 0.0:
                 self.T_fs[i] = 0.0
+
+        # Divergence angle
+        # ----------------------------------------------------------------------------
+        self.angle_div = np.sqrt(8 / self.G_t)
 
 
         # # Transmitter pointing error loss
@@ -45,121 +64,148 @@ class link_budget:
         # self.T_point_r = np.exp(-self.G_r * self.angle_pe_r ** 2)
 
         # REF: AE4880 LASER SATELLITE COMMUNICATIONS II, R.SAATHOF, 2021, SLIDE 40
-        self.T_point_t = np.exp(-angle_pe_t**2 / angle_div**2)
-        self.T_point_r = np.exp(-angle_pe_r ** 2 / angle_div ** 2)
+        # self.T_point_t = np.exp(-angle_pe_t**2 / angle_div**2)
+        # self.T_point_r = np.exp(-angle_pe_r ** 2 / angle_div ** 2)
         self.T_div = D_r**2 / (D_t + angle_div*ranges)**2
-
-        # EXCEPTIONS
-        # ----------------------------------------------------------------------------
-        # Check for the correct type of the input variables
-
-        if type(self.ranges) is not np.ndarray or type(self.T_fs) is not np.ndarray or type(self.T_div) is not np.ndarray:
-            raise TypeError('input of the range must be of type ARRAY')
-
-        if type(self.G_t) is not float or type(self.G_r) is not float or type(self.G_c) is not float:
-            raise TypeError('input of the range must be of type FLOAT')
-
-        if type(self.T_point_r) is not np.float64 or type(self.T_point_r) is not np.float64 or \
-           type(self.I_t_0) is not np.float64:
-            raise TypeError('input of the range must be of type NP.FLOAT64')
 
     # ------------------------------------------------------------------------
     # -----------------------RECEIVED-POWER-&-INTENSITY-----------------------
     # ------------------------------------------------------------------------
 
     # This function computes the static power at the receiver without any turbulence losses
-    def P_r_0_func(self, beam_spread="YES", T_WFE=1.0):
-        self.T_WFE = T_WFE
+    def P_r_0_func(self):
         self.P_r_0 = P_t * \
-                     self.G_t * self.G_r * self.G_c * eff_t * eff_r * eff_coupling * h_tracking *\
-                     self.T_fs * self.T_point_t * self.T_point_r * self.T_beamspread #* self.T_WFE
-        self.Np_r_0 = Np_func(self.P_r_0, data_rate, eff_quantum)
+                     self.G_t * self.G_r * self.G_c * eff_t * eff_r * eff_coupling * h_splitting *\
+                     self.T_fs * self.T_beamspread * self.Strehl_ratio * self.T_att
         return self.P_r_0
 
     # This function computes the static intensity at the receiver without any turbulence losses
-    def I_r_0_func(self, T_WFE=1.0):
-        self.T_WFE = T_WFE
-
+    def I_r_0_func(self):
         # REF: LONG TERM IRRADIANCE STATISTICS FOR OPTICAL GEO..., T.KAPSIS, 2019, EQ.1
-        self.I_r_0 = (w0 / self.w_r)**2 * self.I_t_0 * \
-                      self.G_t * self.G_r * self.G_c * eff_t * eff_r * eff_coupling * h_tracking *\
-                      self.T_fs * self.T_point_t * self.T_point_r #* self.T_WFE
+        self.I_r_0 =  (w0 / self.w_r)**2 * self.I_t_0 * \
+                      self.G_t * self.G_r * self.G_c * eff_t * eff_r * eff_coupling * h_splitting *\
+                      self.T_fs * self.Strehl_ratio * self.T_att
         return self.I_r_0
 
     # Firstly, the static link budget is computed with 'P_r_0_func' and 'I_r_0_func'.
     # Then, this function implements all dynamic contributions of the link budget that are imported from the database,
     # which are scintillation loss (T_scint), pointing jitter loss (T_pj), beam wander loss (T_bw) and the resulting received power (P_r)
-    def dynamic_contributions(self, h_scint, h_pj, h_bw, P_r, P_r_threshold, Np_r, Np_r_threshold):
-        self.T_scint = h_scint
-        self.T_pj = h_pj
-        # self.T_pj_r = h_pj_r
-        self.T_bw = h_bw
-        self.P_r = P_r
-        self.P_r_threshold = P_r_threshold
-        self.Np_r = Np_r
-        self.Np_r_threshold = Np_r_threshold
+    def dynamic_contributions(self, performance_output):
+        if performance_output.ndim != 2:
+            raise ValueError('Incorrect argument dimension of performance_output')
+        if len(performance_output[:, 0]) != len(self.ranges)+1:
+            print(len(performance_output[:, 0]), len(self.ranges)+1)
+            raise ValueError('Incorrect argument shape of performance_output')
+
+        self.P_r = performance_output[1:, 1]
+        self.PPB = performance_output[1:, 2]
+        self.T_dyn_tot = performance_output[1:, 3]
+        self.T_scint = performance_output[1:, 4]
+        self.T_TX = performance_output[1:, 5]
+        self.T_RX = performance_output[1:, 6]
+
+    def P_r_tracking_func(self):
+        self.P_r_tracking = (1 - h_splitting) * self.P_r
+
 
     # This function computes the link margin
-    def link_margin(self):
-        self.LM_communication = self.P_r / self.P_r_threshold
+    def link_margin(self, P_r_thres, PPB_thres):
+        self.P_r_thres_BER9 = P_r_thres[0]
+        self.P_r_thres_BER6 = P_r_thres[1]
+        self.P_r_thres_BER3 = P_r_thres[2]
+        self.PPB_thres_BER9 = PPB_thres[0]
+        self.PPB_thres_BER6 = PPB_thres[1]
+        self.PPB_thres_BER3 = PPB_thres[2]
+
+        self.LM_tracking = self.P_r_tracking / sensitivity_acquisition
         self.LM_acquisition = self.P_r / sensitivity_acquisition
 
-
-    # ------------------------------------------------------------------------
-    # -------------------------STATIC-TURBULENCE-LOSSES-----------------------
-    # -----------------------BEAM-SPREAD-&-WAVE-FRONT-ERROR-------------------
-    # ------------------------------------------------------------------------
-
-    def beam_spread(self, r0):
-        self.w_r = beam_spread(w0, self.ranges)  # beam radius at receiver (without turbulence) (in m)
-
-        # Only during uplink is the turbulence beamspread considered significant.
-        # This is ignored for downlink
-        if link == 'up':
-            self.w_LT = beam_spread_turbulence(r0, D_r, self.w_r)
-            self.T_beamspread = (self.w_r / self.w_LT)**2
-            self.w_r = self.w_LT
-
-        elif link == 'down':
-            self.T_beamspread = 1.0
-
-        return self.w_r
-
-    def WFE(self, r0, tip_tilt="NO"):
-        D = 2**(3/2) * w0
-        if tip_tilt == "YES":
-            WFE = 1.03 * (D / r0) ** (5 / 3)
-        elif tip_tilt == "NO":
-            WFE = 0.134 * (D / r0) ** (5 / 3)
-
-        self.T_WFE = eff_coupling * np.exp(-WFE)
+        self.LM_comm_BER9 = self.P_r / self.P_r_thres_BER9
+        self.LM_comm_BER6 = self.P_r / self.P_r_thres_BER6
+        self.LM_comm_BER3 = self.P_r / self.P_r_thres_BER3
 
 
-    def plot(self, r_t=0.0, r_r=0.0, t = 0.0, ranges=0.0, type= "time-series"):
+    def save_data(self, time):
+        self.gains = np.array((self.G_t, self.G_r, self.G_c))
+
+        losses_metrics = ['T_fs', 'eff_t', 'pointing_jitter_t', 'eff_r', 'pointing_jitter_r', 'coupling_r', 'splitting_r', 'h_bw', 'h_scint', 'h_beamspread', 'h_att']
+        number_of_losses = len(losses_metrics)
+        self.losses = np.zeros((len(time), number_of_losses))
+        for i in range(len(time)):
+            self.losses[i, 0] = self.T_fs[i]
+            self.losses[i, 1] = self.T_att
+            self.losses[i, 2] = self.Strehl_ratio
+            self.losses[i, 3] = self.T_beamspread
+            self.losses[i, 4] = eff_t
+            self.losses[i, 5] = eff_r
+            self.losses[i, 6] = h_splitting
+            self.losses[i, 7] = eff_coupling
+
+            self.losses[i, 8] = self.T_TX[i]
+            self.losses[i, 9] = self.T_RX[i]
+            self.losses[i,10] = self.T_scint[i]
+
+
+    def plot(self, elevation = 0.0, index=0, t = 0.0,type= "time-series"):
 
         if type == "gaussian beam profile":
-            # fig_I = plt.figure(figsize=(6,6), dpi=125)
-            fig_I, ax1 = plt.subplots(3, 1)
-            ax1.set_title('Normalized Gaussian beam intensity at receiver, wr: ' + str(self.w_r))
-            ax1.plot(r_t, self.I_r_0, linestyle='-', label="Pt: " + str(P_t) + " W, " + str(W2dB(P_t) + 30) + " dBm")
-            ax1.plot(np.ones(2) * -D_t, np.array((0, 1)), color='orange', label='Telescope obstruction')
-            ax1.plot(np.ones(2) * D_t, np.array((0, 1)), color='orange')
+            r_t = np.linspace(-w0 * 1.5, w0 * 1.5, 1000)
+            I_t = gaussian_beam(self.I_t_0, r_t, w0)
 
-            ax1.set_xlabel('Radial position from beam center')
-            ax1.set_ylabel('Normalized intensity')
+            fig_I, (ax1, ax2) = plt.subplots(2, 1)
+            ax1.set_title('Gaussian beam intensity at transmitter , w0: ' + str(np.round(w0,2))+' m')
+            ax1.set_ylabel('Intensity (W/$m^2$)')
+            ax2.set_title('Normalized Gaussian beam intensity at receiver')
+            ax2.set_ylabel('Intensity (W/$m^2$)')
+            ax2.set_xlabel('Radial position from beam center (m)')
+            ax1.plot(np.ones(2) * -D_t, np.array((0, self.I_t_0)), color='orange', label='Telescope obstruction')
+            ax1.plot(np.ones(2) *  D_t, np.array((0, self.I_t_0)), color='orange', )
+            ax1.plot(np.ones(2) * -w0, np.array((0, self.I_t_0)), color='green', label='Beam waist $w0$ (1/$e^2$)')
+            ax1.plot(np.ones(2) * w0, np.array((0, self.I_t_0)), color='green', )
+            ax1.plot(r_t, I_t, linestyle='-', label="Pt: " + str(W2dBm(P_t)) + " dBm")
+
+            ax2.plot(np.ones(2) * -D_r, np.array((0, 1)), color='orange', label='Telescope obstruction')
+            ax2.plot(np.ones(2) * D_r, np.array((0, 1)), color='orange', )
+
+            for i in index:
+                r_r = np.linspace(-self.w_r[-1] * 1.5, self.w_r[-1] * 1.5, 1000)
+                I_r = gaussian_beam(self.I_r_0[i], r_r, self.w_r[i])
+                ax2.plot(r_r, I_r, linestyle='-', label="$W_r$="+str(np.round(self.w_r[i],2))+
+                                                        ' m (1/$e^2$), Pr=' + str(np.round(W2dBm(np.mean(self.P_r[i])),2)) +
+                                                        " dBm, $\epsilon$="+str(np.round(np.rad2deg(elevation[i]),2))+'$\degree$')
+
+            ax2.set_ylim(0.0, self.I_r_0.max()*1.2)
             ax1.legend()
+            ax2.legend()
 
         elif type == "time-series":
-            fig, (ax1, ax2) = plt.subplots(2, 1)
+            fig, (ax1, ax2, ax3, ax4) = plt.subplots(4, 1)
             ax1.set_title('Link budget time series')
-            ax1.plot(t/3600.0, self.P_r_0)
-            # ax2.plot(t, self.link_margin)
-            ax2.plot(t/3600.0, ranges)
+            ax1.plot(t/3600.0, W2dBm(self.P_r), label='Pr')
+            ax1.plot(t / 3600.0, W2dBm(self.P_r_thres), label='Sensitivty comm.')
 
-            ax2.set_xlabel('Time')
-            ax1.set_ylabel('Power (dBW)')
-            # ax2.set_ylabel('Link margin (dBW)')
-            ax2.set_ylabel('Range (m)')
+            ax1.plot(t / 3600.0, W2dBm(self.P_r_tracking), label='Pr tracking')
+            ax1.plot(t / 3600.0, W2dBm(np.ones(len(t)) * sensitivity_acquisition), label='Sensitivty tracking')
+            ax1.set_ylabel('Power (dBm)')
+
+            ax2.plot(t, self.LM_comm, label='Link margin comm.')
+            ax2.set_ylabel('Link margin comm. (dBm)')
+
+            ax2.plot(t, self.LM_tracking, label='Link margin tracking')
+            ax2.set_ylabel('Link margin tracking (dBm)')
+
+            ax3.plot(t/3600.0, self.data_rate/1.0E9)
+            ax3.set_ylabel('Data rate (Gb/s)')
+
+            ax4.plot(t / 3600.0, np.rad2deg(elevation))
+            ax4.set_ylabel('Elevation angles (deg)')
+
+            ax4.set_xlabel('Time')
+
+            ax1.legend()
+            ax2.legend()
+            ax3.legend()
+            ax4.legend()
 
     def print(self,
               t = 0.0,
@@ -174,55 +220,65 @@ class link_budget:
             print('------------------------------------------------')
             print('LASER LINK')
             print('Time                       (s) : ', t[index])
-            print('Range                     (km) : ', self.ranges[index])
+            print('Range                      (m) : ', self.ranges[index])
             print('Elevation                (deg) : ', np.rad2deg(elevation[index]))
             print('________________________')
             print('TRANSMITTER')
-            print('Divergence angle   (micro rad) : ', angle_div)
-            print('Pointing error T   (micro rad) : ', angle_pe_t )
-            print('Pointing error R   (micro rad) : ', angle_pe_r )
-            print('Power transmitter        (dB)  : ', W2dBm(P_t))
-            print('Wavelength         (micro rad) : ', wavelength)
-            print('Data rate             (Gbit/s) : ', data_rate)
+            print('Divergence angle         (rad) : ', angle_div)
+            print('Pointing error T         (rad) : ', angle_pe_t)
+            print('Jitter std T      (rad, 1 rms) : ', std_pj_t)
+            print('Pointing error R         (rad) : ', angle_pe_r)
+            print('Jitter std R      (rad, 1 rms) : ', std_pj_r)
+            print('Power transmitter        (dBm) : ', W2dBm(P_t))
+            print('Wavelength               (rad) : ', wavelength)
+            print('Data rate              (bit/s) : ', data_rate)
             print('________________________')
             print('GAINS')
             print('Transmitter gain          (dB) : ', W2dB(self.G_t))
             print('Receiver gain             (dB) : ', W2dB(self.G_r))
             print('Coding gain               (dB) : ', W2dB(self.G_c))
             print('________________________')
-            print('LOSSES')
-            print('Free space loss          (dBW) : ', W2dB(self.T_fs[index]))
-            print('Transmitter loss         (dBW) : ', W2dB(eff_t))
-            print('Receiver (optical)  loss (dBW) : ', W2dB(eff_r))
-            print('Receiver (coupling) loss (dBW) : ', W2dB(eff_coupling))
-            print('Receiver (tracking) loss (dBW) : ', W2dB(h_tracking))
-            print('Divergence loss          (dBW) : ', W2dB(self.G_t) + W2dB(self.G_r) + W2dB(self.T_fs[index]))
-            print('Divergence loss CHECK    (dBW) : ', W2dB(self.T_div[index]))
-            print('Static pointing loss t   (dBW) : ', W2dB(self.T_point_t))
-            print('Static pointing loss r   (dBW) : ', W2dB(self.T_point_r))
-            print('Pointing jitter loss t   (dBW) : ', W2dB(self.T_pj[index]))
-            # print('Pointing jitter loss r   (dBW) : ', W2dB(self.T_pj_r[index]))
-            print('Beam wander loss         (dBW) : ', W2dB(self.T_bw[index]))
-            print('Scintillation loss       (dBW) : ', W2dB(self.T_scint[index]))
-            print('Beam spread loss         (dBW) : ', W2dB(self.T_beamspread[index]))
-            # print('WFE loss               (dBW) : ', cons.W2dB(self.T_WFE[index]))
-            # print('Attenuation loss       (dBW) : ', W2dB(self.T_atm_att[index])
+            print('STATIC LOSSES')
+            print('Free space loss          (dB) : ', W2dB(self.T_fs[index]))
+            print('Transmitter loss         (dB) : ', W2dB(eff_t))
+            print('Receiver (system)  loss  (dB) : ', W2dB(eff_r))
+            print('Receiver (coupling) loss (dB) : ', W2dB(eff_coupling))
+            print('Receiver (splitting) loss (dB) : ', W2dB(h_splitting))
+            print('Divergence loss          (dB) : ', W2dB(self.G_t) + W2dB(self.G_r) + W2dB(self.T_fs[index]))
+            # print('Divergence loss CHECK    (dB) : ', W2dB(self.T_div[index]))
+            # print('Divergence loss CHECK    (dB) : ', W2dB((w0/self.w_r[index])**2))
+            # print('Static pointing loss t  (dB) : ', W2dB(self.T_point_t))
+            # print('Static pointing loss r  (dB) : ', W2dB(self.T_point_r))
+            print('Beam spread loss (ST)     (dB) : ', W2dB(self.T_beamspread[index]))
+            print('WFE loss (Strehl ratio)   (dB) : ', W2dB(self.Strehl_ratio[index]))
+            print('Attenuation loss          (dB) : ', W2dB(self.T_att[index]))
+            print('________________________')
+            print('DYNAMIC LOSSES')
+            print('TX loss (mech. jit and BW) (dB) : ', W2dB(self.T_TX[index]))
+            print('RX loss (mech. jit and AoA (dB) : ', W2dB(self.T_RX[index]))
+            print('Scintillation loss         (dB) : ', W2dB(self.T_scint[index]))
+            print('Total dynamic loss         (dB) : ', W2dB(self.T_dyn_tot[index]))
             print('________________________')
             print('RECEIVER')
-            print('Received static power   (dBW) : ', W2dB(self.P_r_0[index]))
-            print('Received static photons (PPB) : ', W2dB(self.Np_r_0[index]))
-            print('Received dynamic signal (dBW) : ', W2dB(self.P_r[index]))
-            print('Received dynamic signal (PPB) : ', W2dB(self.Np_r[index]))
+            print('Received static power   (dBm) : ', W2dBm(self.P_r_0[index]))
+            print('Received dynamic signal (dBm) : ', W2dBm(self.P_r[index]))
+            # print('Received dynamic signal (PPB) : ', self.PPB[index])
+            print('Received tracking signal (dBm): ', W2dBm(self.P_r_tracking[index]))
             print('Beam width at receiver  (m)   : ', self.w_r[index])
+
             print('________________________')
             print('LINK MARGIN')
-            print('Power threshold communication (dBW) : ', W2dB(self.P_r_threshold[index]))
-            print('Photon threshold communication (PPB): ', W2dB(self.Np_r_threshold[index]))
-            print('Power threshold acquisition   (dBW) : ', W2dB(sensitivity_acquisition))
-            print('Photon threshold acquisition  (PPB) : ', W2dB(Np_func(self.P_r_threshold[index],
-                                                                 data_rate, eff_quantum)))
-            print('Link margin communication     (dBW) : ', W2dB(self.LM_communication[index]))
-            print('Link margin acquisition       (dBW) : ', W2dB(self.LM_acquisition[index]))
+            print('Power threshold communication  (1.0E-9) (dBm) : ', W2dBm(self.P_r_thres_BER9))
+            print('Power threshold communication  (1.0E-6) (dBm) : ', W2dBm(self.P_r_thres_BER6))
+            print('Power threshold communication  (1.0E-3) (dBm) : ', W2dBm(self.P_r_thres_BER3))
+            print('Photon threshold communication (1.0E-9) (PPB) : ', W2dB(self.PPB_thres_BER9))
+            print('Power threshold acquisition             (dBm) : ', W2dBm(sensitivity_acquisition))
+            print( '')
+            print('Link margin communication (1.0E-9)      (dB)  : ', W2dB(self.LM_comm_BER9[index]))
+            print('Link margin communication (1.0E-6)      (dB)  : ', W2dB(self.LM_comm_BER6[index]))
+            print('Link margin communication (1.0E-3)      (dB)  : ', W2dB(self.LM_comm_BER3[index]))
+            print('Link margin tracking           (dB) : ', W2dB(self.LM_tracking[index]))
+            print('Link margin acquisition        (dB) : ', W2dB(self.LM_acquisition[index]))
 
 
 

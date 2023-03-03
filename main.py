@@ -6,16 +6,15 @@ import Atmosphere as atm
 
 from matplotlib import pyplot as plt
 
-
 #------------------------------------------------------------------------
 #-----------------------------LINK-GEOMETRY------------------------------
 #------------------------------------------------------------------------
 
 # Initiate LINK GEOMETRY class, with inheritance of AIRCRAFT class and CONSTELLATION class
-link_geometry = link_geometry(constellation_type=constellation_type)
+link_geometry = link_geometry()
 
 # link_geometry.setup()
-link_geometry.propagate(start_time, end_time)
+link_geometry.propagate()
 link_geometry.geometrical_outputs()
 
 # Initiate time for entire communication period
@@ -49,6 +48,7 @@ performance_output = network.save_data(geometrical_output['elevation'])
 # Here, the data rate is converted from a constant value to a variable value
 # This is done by setting the fluctuating received power equal to the threshold power and
 # computing the corresponding data rate that is needed to increase/decrease this power.
+
 network.variable_data_rate()
 
 #------------------------------------------------------------------------
@@ -60,18 +60,21 @@ turbulence_main = atm.turbulence(range=geometrical_output['ranges'], link=link)
 
 # Firstly, a windspeed profile is calculated, which is used for the Cn^2 model. This will then be used for the r0 profile.
 # With Cn^2 and r0, the variances for scintillation and beam wander are computed
-turbulence_main.windspeed(slew=np.mean(geometrical_output['slew rates']),
+turbulence_main.windspeed_func(slew=np.mean(geometrical_output['slew rates']),
                           Vg=speed_AC,
                           wind_model_type=wind_model_type)
 turbulence_main.Cn_func(turbulence_model=turbulence_model)
 r0 = turbulence_main.r0_func(geometrical_output['elevation'])
+turbulence_main.var_rytov_func(geometrical_output['zenith'])
+turbulence_main.var_scint_func(PDF_type="lognormal", zenith_angles=geometrical_output['zenith'])
+turbulence_main.var_bw(zenith_angles=geometrical_output['zenith'])
 
 # ------------------------------------------------------------------------
 # -------------------------LINK-BUDGET-ANALYSIS---------------------------
 # ------------------------------------------------------------------------
 # The link budget class is initiated here.
 link_budget_main = LB.link_budget(geometrical_output['ranges'])
-w_r = link_budget_main.beam_spread(r0)
+w_r = link_budget_main.beam_spread(turbulence_main.var_rytov, r0)
 
 # The power and intensity at the receiver is computed from the link budget.
 # All gains, losses and efficiencies are given in the link budget class.
@@ -81,22 +84,29 @@ data_metrics = ['elevation', 'P_r' 'P_r_0', 'h_tot', 'h_att', 'h_scint', 'h_pj',
                 'number of fades', 'fade time', 'fractional fade time',
                 'P_r threshold', 'SNR threshold', 'Np threshold', 'Data rate', 'Np', 'noise']
 # Here, dynamic contributions and the power threshold are added to the static link budget
-P_r = performance_output[:, 1]
-P_r_0_db = performance_output[:, 2]
-Np_r = performance_output[:, -2]
-h_att = performance_output[:, 4]
-h_scint = performance_output[:, 5]
-h_pj = performance_output[:, 6]
-h_bw = performance_output[:, 7]
-P_r_threshold = performance_output[:, -6]
-Np_r_threshold = performance_output[:, -4]
-link_budget_main.dynamic_contributions(h_scint,
-                                       h_pj,
-                                       h_bw,
-                                       P_r,
-                                       P_r_threshold,
-                                       Np_r,
-                                       Np_r_threshold)
+
+# heights_SC = geometrical_output['heights SC']
+# P_r = performance_output[:, 1]
+# P_r_0_db = performance_output[:, 2]
+# Np_r = performance_output[:, -2]
+# h_tot = performance_output[:, 3]
+# h_att = performance_output[:, 4]
+# h_scint = performance_output[:, 5]
+# h_pj_t = performance_output[:, 6]
+# h_pj_r = performance_output[:, 7]
+# h_coupling_r = performance_output[:, 8]
+# h_bw = performance_output[:, 9]
+# P_r_threshold = performance_output[:, -7]
+# Np_r_threshold = performance_output[:, -5]
+# ranges = performance_output[:, -1]
+#
+# for i in range(1483, 1493):
+#     print(heights_SC[i])
+#     print(geometrical_output['ranges'][i], ranges[i])
+#     print(W2dB(P_r_0_db[i]), performance_output[i, 0])
+#     print(W2dB(P_r_0[i]), np.rad2deg(geometrical_output['elevation'][i]))
+link_budget_main.dynamic_contributions(performance_output)
+link_budget_main.tracking()
 
 # print('test-----------------------')
 # for i in range(len(P_r_0)):
@@ -111,7 +121,7 @@ link_budget_main.link_margin()
 # # ------------------------PLOT-RESULTS-(OPTIONAL)-------------------------
 # # ------------------------------------------------------------------------
 
-plot_time_index = 10
+plot_time_index = 198
 link_geometry.plot(type = 'satellite sequence', sequence=geometrical_output['pos SC'])
 link_geometry.plot(type='angles')
 link_geometry.plot()
@@ -123,6 +133,8 @@ link_geometry.plot()
 # terminal_sc.plot(t = t, plot="pointing")
 # terminal_sc.plot(t = t, plot="BER & SNR")
 
+link_budget_main.plot(t=time, elevation=geometrical_output['elevation'], type="time-series")
 link_budget_main.print(t=time, index = plot_time_index, type="link budget", elevation = geometrical_output['elevation'])
+turbulence_main.print(index = plot_time_index)
 
 plt.show()

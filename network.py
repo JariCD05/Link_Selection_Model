@@ -121,15 +121,20 @@ class network():
     def save_data(self, data_dim2):
 
         data_dim1 = get_data('elevation')
-        a_s = (data_dim1[-1] - data_dim1[1]) / len(data_dim1)
+        a_s = (data_dim1[-1] - data_dim1[1]) / (len(data_dim1) - 1)
         a_0 = data_dim1[1]
-        mapping = ((np.rad2deg(data_dim2) - a_0) / a_s).astype(int) + 1
-        for i in range(len(mapping)):
-            if mapping[i] < 0.0:
-                mapping[i] = 0
-        mapping = list(mapping)
+        mapping_lb = ((np.rad2deg(data_dim2) - a_0) / a_s).astype(int)
+        mapping_ub = mapping_lb + 1
 
-        self.performance_output = get_data('all', mapping)
+        for i in range(len(mapping_lb)):
+            if mapping_lb[i] < 0.0:
+                mapping_lb[i] = 0
+                mapping_ub[i] = 0
+
+        mapping_lb = list(mapping_lb)
+        mapping_ub = list(mapping_ub)
+
+        self.performance_output = get_data('all', mapping_lb, mapping_ub)
 
         # print('TEST')
         # print(data_dim1[-1], data_dim1[0])
@@ -140,22 +145,18 @@ class network():
 
     def variable_data_rate(self):
         # Pr threshold
+        P_r = self.performance_output[:, 1]
+        Np_r = self.performance_output[:, -2]
         N_p_thres = self.performance_output[:, -4]
         SNR_thres = self.performance_output[:, -5]
         P_r_thres = self.performance_output[:, -6]
 
-        data_rate_thres = data_rate_func(P_r_thres, N_p_thres, eff_quantum_sc)
-        # Pr
-        P_r = self.performance_output[:, 1]
-        SNR = self.performance_output[:, 5]
-        BER = self.performance_output[:, 6]
-        N_p = self.performance_output[:, -2]
-        data_rate = self.performance_output[:, -3]
+        data_rate_thres = data_rate_func(P_r, N_p_thres, eff_quantum_sc)
 
         # Convert data rate output from constant to variable
         self.performance_output[:,-3] = data_rate_thres
         self.performance_output[:, 1] = P_r_thres
         self.performance_output[:,-2] = N_p_thres
-        self.performance_output[:, 5] = SNR_thres
-        self.performance_output[:, 6] = BER_thres
+        self.performance_output[:, 8] = SNR_thres
+        self.performance_output[:, 9] = BER_thres
         return self.performance_output

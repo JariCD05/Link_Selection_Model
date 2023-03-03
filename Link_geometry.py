@@ -29,7 +29,7 @@ from tudatpy.kernel import constants as cons_tudat
 
 
 class link_geometry:
-    def __init__(self, constellation_type = "LEO_cons"):
+    def __init__(self):
 
     # ------------------------------------------------------------------------
     # -----------------------------FUNCTIONS----------------------------------
@@ -63,9 +63,7 @@ class link_geometry:
         self.omega_init = 237.5 #* ureg.degree
 
 
-    def propagate(self,
-                  simulation_start_epoch,
-                  simulation_end_epoch):
+    def propagate(self):
 
         # ------------------------------------------------------------------------
         # ---------------------INITIATE-AIRCRAFT-CLASS-&-PROPAGATE----------------
@@ -76,8 +74,8 @@ class link_geometry:
                               lon_init=lon_init_AC
                               )
 
-        self.pos_AC, self.heights_AC, self.lat_AC, self.lon_AC, self.time = self.AC.propagate(simulation_start_epoch,
-                                                                                              simulation_end_epoch,
+        self.pos_AC, self.heights_AC, self.lat_AC, self.lon_AC, self.time = self.AC.propagate(start_time,
+                                                                                              end_time,
                                                                                               vel_AC,
                                                                                               # self.states_cons[0][0],
                                                                                               h_AC,
@@ -102,7 +100,6 @@ class link_geometry:
         self.states_cons, self.dep_var_cons, self.time_SC = self.SC.propagate(simulation_start_epoch = self.time[0],
                                                                                simulation_end_epoch = self.time[-1],
                                                                                method = method_SC,
-                                                                               propagator= "Runge-Kutta 4",
                                                                                fixed_step_size= step_size_dim2)
         # self.heights_SC = self.dep_var_cons[:, 0]
         # self.lat_SC = self.dep_var_cons[:, 1]
