@@ -1,15 +1,18 @@
+import matplotlib.pyplot as plt
 import numpy as np
 from scipy.signal import lsim, lsim2, bessel, butter, filtfilt, lfilter, lfilter_zi
 from scipy.fft import fft, rfft, ifft, fftfreq, rfftfreq
-from scipy.special import binom, i0, i1
-from scipy.stats import norm, lognorm, rayleigh, rice
+from scipy.special import binom, i0, i1, erfc, erfinv, erfcinv
+from scipy.stats import norm, lognorm, rayleigh, rice, rv_histogram
+from itertools import chain
 
 from input import *
 from helper_functions import *
 from Constellation import constellation
+from Atmosphere import attenuation, turbulence
 from LCT import terminal_properties
+from Link_budget import link_budget
 from PDF import dist
-from Atmosphere import turbulence
 
 # -------------------------------------------------------------------------------
 # Constellation modeling verification
@@ -165,13 +168,13 @@ def test_RS_coding(method):
 
 def test_sensitivity(method):
     BER_thres = 1.0E-9
-    modulation = "2-PPM"
+    modulation = "OOK-NRZ"
     detection = "APD"
     data_rate = 10.0E9
 
     LCT = terminal_properties()
 
-    P_r = np.linspace(dBm2W(-50), dBm2W(-20), 1000)
+    P_r = np.linspace(dBm2W(-40), dBm2W(-30), 1000)
     N_p = Np_func(P_r, data_rate)
     N_p = W2dB(N_p)
 
@@ -181,11 +184,12 @@ def test_sensitivity(method):
     noise_beat = LCT.noise(noise_type="beat")
     LCT.threshold(modulation=modulation, detection=detection)
 
-    SNR = LCT.SNR_func(P_r=P_r, detection=detection)
-    BER = LCT.BER_func()
+    SNR, Q = LCT.SNR_func(P_r=P_r, detection=detection,
+                          noise_sh=noise_sh, noise_th=noise_th, noise_bg=noise_bg, noise_beat=noise_beat)
+    BER = LCT.BER_func(Q=Q, modulation=modulation)
 
     if method == "BER/PPB":
-        plt.plot(N_p, BER)
+        plt.plot(W2dB(SNR), BER)
         plt.yscale('log')
         ax = plt.gca()
         # ax.invert_xaxis()
@@ -221,9 +225,9 @@ def test_sensitivity(method):
         noise_bg = LCT.noise(noise_type="background", P_r=P_r, I_sun=I_sun)
         noise_beat = LCT.noise(noise_type="beat")
 
-        LCT.PPB_func(P_r=P_r, data_rate=data_rate)
-        LCT.SNR_func(P_r=P_r, detection='APD')
-        LCT.BER_func()
+        SNR, Q = LCT.SNR_func(P_r=P_r, detection=detection,
+                              noise_sh=noise_sh, noise_th=noise_th, noise_bg=noise_bg, noise_beat=noise_beat)
+        BER = LCT.BER_func(Q=Q, modulation=modulation)
 
         # data_rates = [data_rate/100, data_rate/10, data_rate]
         detection = 'quantum limit'
@@ -399,6 +403,8 @@ def test_beamwander():
 # -------------------------------------------------------------------------------
 
 def test_jitter():
+    from LCT import terminal_properties
+    LCT = terminal_properties
     steps = 10000
     angle_div = np.linspace(2.0E-6, 100.0E-6, 1000)
         # [10.0E-6, 20E-6, 30E-6, 40E-6]
@@ -447,84 +453,126 @@ def test_PDF():
     samples = 100000
     f_sampling = 10E3
     f_cutoff = 1E3
+    f_cutoff_band = [100.0, 200.0]
     L = 500E3
     w_r = beam_spread(w0, L)
-    X1 = np.random.standard_normal(size=samples)
-    X2 = np.random.standard_normal(size=samples)
 
-    X1_norm = filtering(effect='TX jitter', order=5, data=X1, f_cutoff=f_cutoff,
+    X1 = np.empty((2, samples))
+    X2 = np.empty((2, samples))
+    for i in range(2):
+        X1[i] = np.random.standard_normal(size=samples)
+        X2[i] = np.random.standard_normal(size=samples)
+
+    X1_norm = filtering(effect='beam wander', order=2, data=X1, f_cutoff_low=f_cutoff,
                         filter_type='lowpass', f_sampling=f_sampling, plot='no')
 
-    X2_norm = filtering(effect='TX jitter', order=5, data=X2, f_cutoff=f_cutoff,
+    X2_norm = filtering(effect='beam wander', order=2, data=X2, f_cutoff_low=f_cutoff,
                         filter_type='lowpass', f_sampling=f_sampling, plot='no')
 
-    # Standard normal > normal distribution > rice distribution
+    X1_norm = X1_norm[0]
+    X2_norm = X2_norm[0]
+
+    # ----------------------------------------------------------------------------
+    # Standard normal > lognormal distribution
+    mean_lognorm = -0.5 *  np.log(std_normal**2+ 1)
+    std_lognorm  = np.sqrt(np.log(std_normal**2 + 1))
+    # mean_lognorm = np.exp(mean_normal + std_normal**2 / 2)
+    # std_lognorm = np.sqrt((np.exp(std_normal**2) - 1) * np.exp(std_normal**2))
+    X1_lognorm = np.exp(mean_lognorm + std_lognorm * X1_norm)
+
+    # ----------------------------------------------------------------------------
+    # Standard normal > normal distribution > rice distribution: for TX jitter and RX jitter
     X1_normal = std_normal * X1_norm + mean_normal
     X2_normal = std_normal * X2_norm + mean_normal
     mean_rice = np.sqrt(mean_normal**2 + mean_normal**2)
     std_rice = std_normal
     X_rice = np.sqrt(X1_normal**2 + X2_normal**2)
 
-    # Standard normal > rayleigh distribution
+    # ----------------------------------------------------------------------------
+    # Standard normal > rayleigh distribution: for Beam wander or Angle-of-Arrival
     std_rayleigh = np.sqrt(2 / (4 - np.pi) * std_normal**2)
+    mean_rayleigh = np.sqrt(np.pi / 2) * std_rayleigh
     X_rayleigh = std_rayleigh * np.sqrt(X1_norm**2 + X2_norm**2)
 
-
-    # Power vectors
-    # h1 = np.exp(-2 * X_rayleigh / angle_div ** 2)
-    # h2 = np.exp(-2 * X_rayleigh2 / angle_div ** 2)
 
     # X domains
     x_0 = np.linspace(-3, 3, 100)
     x_normal = np.linspace(-angle_div, angle_div, 100)
+    x_lognorm = np.linspace(0.0, 3.0, 100)
     x_rayleigh = np.linspace(0.0, angle_div, 100)
     x_rice = np.linspace(0.0, angle_div, 100)
 
     # Theoretical distributions
     pdf_0 = 1 / np.sqrt(2 * np.pi * 1 ** 2) * np.exp(-((x_0 - 0) / 1) ** 2 / 2)
     pdf_normal = 1/np.sqrt(2 * np.pi * std_normal**2) * np.exp(-((x_normal - mean_normal) / std_normal)**2/2)
+    pdf_lognorm = 1 / (x_lognorm * std_lognorm * np.sqrt(2 * np.pi)) * np.exp(-(np.log(x_lognorm) - mean_lognorm)**2 / (2 * std_lognorm**2))
     pdf_rayleigh = x_rayleigh / std_rayleigh**2 * np.exp(-x_rayleigh**2 / (2 * std_rayleigh**2))
     pdf_rice = x_rice / std_rice**2 * np.exp(-(x_rice**2 + mean_rice**2) / (2*std_rice**2)) * i0(x_rice * mean_rice / std_rice**2)
-    # b = mean_rice**2 / (2*std_rice**2)
-    # pdf_rice = rice.pdf(x_rice, b)
+    b = mean_rice / std_rice**2
 
     fig, ax = plt.subplots(4, 1)
 
     # plot normalized samples
     ax[0].hist(X2_norm, density=True)
     loc, scale = norm.fit(X2_norm)
-    pdf_data = lognorm.pdf(x_0, loc, scale)
-    # ax[0].plot(x_0, pdf_data, label='pdf fitted to histogram, loc=' + str(loc) + ', scale=' + str(scale), color='red')
-    ax[0].plot(x_0, pdf_0, label='loc=' + str(0) + ' scale=' + str(1))
+    pdf_data = norm.pdf(x_0, loc, scale)
+    std = norm.std(loc=loc, scale=scale)
+    mean = norm.mean(loc=loc, scale=scale)
+    ax[0].plot(x_0, pdf_data, label='pdf fitted to histogram, $\mu$=' + str(mean) + ', $\sigma$=' + str(std), color='red')
+    ax[0].plot(x_0, pdf_0, label='$\mu$=' + str(0) + ' $\sigma$=' + str(1))
 
 
     # plot normal distribution
     ax[1].hist(X1_normal, density=True)
     loc, scale = norm.fit(X1_normal)
-    pdf_data = norm.pdf(x_normal, loc, scale)
-    ax[1].plot(x_normal, pdf_data, label='pdf fitted to histogram, loc=' + str(loc) + ', scale=' + str(scale), color='red')
+    std = norm.std(loc=loc, scale=scale)
+    mean = norm.mean(loc=loc, scale=scale)
+    pdf_data = norm.pdf(x=x_normal, loc=loc, scale=scale)
+    ax[1].plot(x_normal, pdf_data, label='pdf fitted to histogram, $\mu$=' + str(mean) + ', $\sigma$=' + str(std), color='red')
 
     ax[1].hist(X2_normal, density=True)
     loc, scale = norm.fit(X2_normal)
-    pdf_data = norm.pdf(x_normal, loc, scale)
-    ax[1].plot(x_normal, pdf_data, label='pdf fitted to histogram, loc=' + str(loc) + ', scale=' + str(scale), color='red')
-    ax[1].plot(x_normal, pdf_normal, label='loc=' + str(mean_normal) + ' scale=' + str(std_normal))
+    std = norm.std(loc=loc, scale=scale)
+    mean = norm.mean(loc=loc, scale=scale)
+    pdf_data = norm.pdf(x=x_normal, loc=loc, scale=scale)
+    ax[1].plot(x_normal, pdf_data, label='pdf fitted to histogram, $\mu$=' + str(mean) + ', $\sigma$=' + str(std), color='red')
+    ax[1].plot(x_normal, pdf_normal, label='$\mu$=' + str(mean_normal) + ' $\sigma$=' + str(std_normal))
+
+    # plot lognormal distribution
+    # ax[2].hist(X1_lognorm, density=True, range=(x_lognorm.min(), x_lognorm.max()))
+    # shape, loc, scale = lognorm.fit(X1_lognorm)
+    # std = lognorm.std(s=shape, loc=loc, scale=scale)
+    # mean = lognorm.mean(s=shape, loc=loc, scale=scale)
+    # pdf_data = lognorm.pdf(x=x_lognorm, s=shape, loc=loc, scale=scale)
+    # ax[2].plot(x_lognorm, pdf_data, label='pdf fitted to histogram, $\mu$=' + str(mean) + ' $\sigma$=' + str(std), color='red')
+    # ax[2].plot(x_lognorm, pdf_lognorm, label='$\mu$='+ str(mean_lognorm)+', $\sigma$=' + str(std_lognorm))
 
     # plot rayleigh distribution
-    ax[2].hist(X_rayleigh, density=True)
+    ax[2].hist(X_rayleigh, density=True, bins=1000)
     loc, scale = rayleigh.fit(X_rayleigh)
-    pdf_data = rayleigh.pdf(x_rayleigh, loc, scale)
-    ax[2].plot(x_rayleigh, pdf_data, label='pdf fitted to histogram, loc=' + str(loc) + ' scale=' + str(scale), color='red')
-    ax[2].plot(x_rayleigh, pdf_rayleigh, label='loc= - scale=' + str(std_rayleigh))
+    std = rayleigh.std(loc=loc, scale=scale)
+    # mean = rayleigh.mean(loc=loc, scale=scale)
+    # std = np.std(X_rayleigh)
+    mean = np.mean(X_rayleigh)
+
+    pdf_data = rayleigh.pdf(x=x_rayleigh, loc=loc, scale=scale)
+    ax[2].plot(x_rayleigh, pdf_data, label='pdf fitted to histogram, $\mu$=' + str(mean) + ' $\sigma$=' + str(scale), color='red')
+    ax[2].plot(x_rayleigh, pdf_rayleigh, label='$\mu$='+str(mean_rayleigh)+', $\sigma$=' + str(std_rayleigh))
 
     # plot rician distribution
-    ax[3].hist(X_rice, density=True)
-    shape, loc, scale = rice.fit(X_rice)
-    pdf_data = rice.pdf(x_rice, shape, loc, scale)
-    ax[3].plot(x_rice, pdf_data, label='pdf fitted to histogram, loc=' + str(loc) + ' scale=' + str(scale), color='red')
-    ax[3].plot(x_rice, pdf_rice, label='loc=' +str(mean_rice)+' scale=' + str(std_rice))
+    # ax[3].hist(X_rice, density=True)
+    # b, loc, scale = rice.fit(X_rice)
+    # std = rice.std(b=b, loc=loc, scale=scale)
+    # mean = rice.mean(b=b, loc=loc, scale=scale)
+    # pdf_data = rice.pdf(x=x_rice, b=b, loc=loc, scale=scale)
+    # ax[3].plot(x_rice, pdf_data, label='pdf fitted to histogram, $\mu$=' + str(mean) + ' $\sigma$=' + str(std), color='red')
+    # ax[3].plot(x_rice, pdf_rice, label='$\mu$=' +str(mean_rice)+' $\sigma$=' + str(std_rice))
 
-
+    ax[0].set_ylabel('Prob. denisty \n unfiltered stand. Gauss')
+    ax[1].set_ylabel('Prob. denisty \n filtered & norm. stand. Gauss')
+    ax[2].set_ylabel('Prob. denisty \n Rayleigh')
+    # ax[2].set_ylabel('Prob. denisty \n Lognormal')
+    ax[3].set_ylabel('Prob. denisty \n Rice')
     ax[0].legend()
     ax[1].legend()
     ax[2].legend()
@@ -534,23 +582,396 @@ def test_PDF():
 
 def test_airy_disk():
     angle = np.linspace(1.0E-6, 20.0E-5, 100)
-    I_norm_airy, I_norm_gaussian_approx = airy_profile(angle, D_r, focal_length)
+    I_norm_airy, I_norm_gaussian_approx = h_p_airy(angle, D_r, focal_length)
 
-    I_norm_gaussian = np.exp(-2*angle ** 2 / angle_div ** 2)
+    r = focal_length * np.sin(angle)
+    fig, ax = plt.subplots(1, 1)
+    ax.set_title('Spot profile, focal length='+str(focal_length)+'m, Dr='+str(np.round(D_r,3))+'m, Div. angle='+str(angle_div*1.0E6)+'$\mu$rad')
+    ax.plot(r*1.0E6, I_norm_airy, label= 'Airy disk profile')
+    ax.plot(r*1.0E6, I_norm_gaussian_approx, label='Gaussian approx. of Airy disk profile')
+    ax.set_xlabel('r-position ($\mu$m) [r= focal length * sin(angle)]')
+    ax.set_ylabel('Normalized intensity at r=0.0 $\mu$m')
+    ax.legend()
+    ax.grid()
+    plt.show()
+
+def test_mapping_dim1_dim2():
+    elevation_angles = np.deg2rad(np.arange(0.0, 90.0, 0.1))
+    time = np.linspace(0, 60 * 5, len(elevation_angles))
+
+    data_dim1 = get_data('elevation')
+
+    # data_dim1 = data_dim1[1:]
+    a_s = (data_dim1[-1] - data_dim1[1]) / (len(data_dim1) - 1)
+    a_0 = data_dim1[1]
+    mapping_lb = (np.rad2deg(elevation_angles) - a_0).astype(int) + 1
+    mapping_ub = mapping_lb + 1
+
+    for i in range(len(elevation_angles)):
+        if elevation_angles[i] < elevation_min:
+            mapping_lb[i] = 0.0
+            mapping_ub[i] = 0.0
+
+    mapping_lb = list(mapping_lb)
+    mapping_ub = list(mapping_ub)
+
+    performance_data = get_data('all', mapping_lb, mapping_ub)
+    # performance_data = get_data('all', mapping_lb)
 
     fig, ax = plt.subplots(1, 1)
-    ax.plot(angle, I_norm_airy, label= 'Airy disk profile with Dr='+str(D_r)+'m, focal length='+str(focal_length)+'m')
-    ax.plot(angle, I_norm_gaussian_approx, label='Gaussian approx. of Airy disk profile')
-    ax.plot(angle, I_norm_gaussian, label='Gaussian profile with div=25.0 urad')
+    ax.plot(time, np.ones(len(time)) * np.rad2deg(elevation_min), label='Minimum elevation angle')
+    ax.plot(time, np.rad2deg(elevation_angles), label='geometrical data')
+    ax.plot(time, performance_data['elevation'], label='mapped data')
+
+    ax.set_xlabel('Time (seconds)')
+    ax.set_ylabel('Elevation angle ($\degree$)')
+    ax.legend()
+
+    plt.show()
+
+def test_interleaving():
+    latency_interleaving = 5.0E-3
+    interval = 1
+    samples = 1000
+    time = np.linspace(0, interval, samples)
+    errors = np.vstack((np.random.rand(samples), np.random.rand(samples)))
+    dt = interval / samples
+    spread = int(np.round(latency_interleaving / dt,0) + 1)
+    errors_per_sample = errors / spread
+
+    errors_interleaved = np.empty(np.shape(errors))
+
+    print(errors.sum())
+    for i in range(0,spread):
+        errors_interleaved += np.roll(errors_per_sample,i,axis=1)
+    print(errors_interleaved.sum())
+
+    fig, ax = plt.subplots(1, 1)
+    ax.scatter(time, errors[0])
+    ax.scatter(time, errors_interleaved[0])
+    plt.show()
+
+def simple_losses():
+    Sn = noise_factor * M * h * v / 2
+    Be = BW / 2
+    m = 1
+    R = eff_quantum * q / (h * v)
+    BER_thres = 1.0E-9
+    SNR_thres = (np.sqrt(2) * erfcinv(2 * BER_thres)) ** 2
+    Q_thres = np.sqrt(SNR_thres)
+    P_thres = Q_thres * Sn * 2 * Be / M * (Q_thres + np.sqrt(m/2 * (2*BW/(2*Be) - 1/2) + 2 * k * T_s / (R_L * 4 * Be * R**2 * Sn**2)))
+
+
+    sig = 3.3E-6
+    print(w0, sig)
+    # Convert to rayleigh sigma
+    sig_rayleigh = np.sqrt(2 / (4 - np.pi)) * sig
+    beta = angle_div**2 / (4*sig**2)
+    T_jit = beta / (beta + 1)
+    # T_jit = angle_div**2 / (4*sig**2 + angle_div**2)
+    PSI = 0.5
+
+    a_scint = 4.343 * ( erfinv(2 * P_thres - 1) * (2 * np.log(PSI + 1))**(1/2) - 1/2 * np.log(PSI + 1))
+
+def multiscaling():
+    from channel_level import channel_level
+    from bit_level import bit_level
+    from Link_geometry import link_geometry
+    from Routing_network import network
+    from Atmosphere import attenuation
+    # Initiate LINK GEOMETRY class, with inheritance of AIRCRAFT class and CONSTELLATION class
+    link = link_geometry()
+    link.propagate()
+    link.geometrical_outputs()
+    time = link.time
+    network = network(time)
+    slew_rate = 1 / np.sqrt((R_earth + h_SC) ** 3 / mu_earth)
+    geometrical_output, mask = network.hand_over_strategy(number_of_planes,
+                                                        number_sats_per_plane,
+                                                        link.geometrical_output,
+                                                        time)
+
+    time_hr = time[mask] / 3600.0
+    # link.plot(type='angles')
+    # link.plot(type='satellite sequence', sequence=geometrical_output['pos SC'],
+    #                    handovers=network.number_of_handovers)
+
+    # Create slow variable: Attenuation (h_ext)
+    att = attenuation()
+    samples = len(time)
+    duration = end_time - start_time
+    sampling_frequency = 1 / step_size_link
+    ext_frequency = 1/600 # 10 minute frequency of the transmission due to clouds
+    h_clouds = norm.rvs(scale=1, loc=0, size=samples)
+    order = 2
+    h_clouds = filtering(effect='extinction', order=order, data=h_clouds, f_cutoff_low=ext_frequency,
+                        filter_type='lowpass', f_sampling=sampling_frequency, plot='no')
+
+    att.h_ext_func(range_link=geometrical_output['ranges'], zenith_angles=geometrical_output['zenith'], method="standard_atmosphere")
+    att.h_clouds_func(data=h_clouds)
+    T_fs = (wavelength / (4 * np.pi * geometrical_output['ranges'])) ** 2
+
+    # att.h_ext = att.h_ext[mask]
+    att.h_clouds = att.h_clouds[mask]
+    h_ext = att.h_ext #* att.h_clouds
+    fig, ax = plt.subplots(3,1)
+    ax[0].scatter(time_hr, W2dB(att.h_clouds), s=1,label='$h_{clouds}$')
+    ax[0].scatter(time_hr, W2dB(att.h_ext), s=1,label='$h_{ext}$')
+    ax[1].scatter(time_hr, W2dB(h_ext), s=1,label='$h_{ext}$')
+    ax[2].scatter(time_hr, W2dB(T_fs), s=1)
+
+    ax[0].legend()
+    ax[1].legend()
+    ax[2].legend()
+    ax[0].grid()
+    ax[1].grid()
+    ax[2].grid()
+    plt.show()
+
+    x_ext = np.linspace(0.0, h_clouds.max(), 1000)
+    hist_ext = np.histogram(h_clouds, bins=1000)
+    rv = rv_histogram(hist_ext, density=True)
+    pdf_ext = rv.pdf(x_ext)
+    cdf_ext = rv.cdf(x_ext)
+
+    # Create slow variable: Elevation (e) and Range (R)
+    elevation = geometrical_output['elevation']
+    ranges = geometrical_output['ranges']
+    samples = len(elevation)
+    bins = 100
+    interval = len(time) * step_size_AC
+
+    # CREATE DISTRIBUTION (HISTOGRAM) OF GEOMETRICAL DATA
+    x_elev = np.linspace(elevation.min(), elevation.max(), bins)
+    hist_e = np.histogram(elevation, bins=bins)
+    rv   = rv_histogram(hist_e, density=False)
+    pdf_elev  = rv.pdf(x_elev)
+    cdf_elev  = rv.cdf(x_elev)
+    hist_e_midpoints = hist_e[1][:-1] + np.diff(hist_e[1])/2
+    elev_counts = hist_e[0]
+
+    x_R = np.linspace(ranges.min(), ranges.max(), bins)
+    hist_R = np.histogram(ranges, bins=bins)
+    rv = rv_histogram(hist_R, density=False)
+    pdf_R = rv.pdf(x_R)
+    cdf_R = rv.cdf(x_R)
+    hist_R_midpoints = hist_R[1][:-1] + np.diff(hist_R[1]) / 2
+    R_counts = hist_R[0]
+    T_fs = W2dB((wavelength / (4 * np.pi * hist_R_midpoints)) ** 2)
+
+    # fig, ax = plt.subplots(2,2)
+    # ax[0,0].set_title('bins: ' + str(bins) + '\n'
+    #                   '$\Delta L$: '+ str(np.round(np.diff(hist_R_midpoints)[0]/1000,2)) +
+    #                   'km, $T_{fs}$='+str(np.round(np.diff(T_fs)[0],2)))
+    #
+    # ax[0,1].set_title('Samples: '+str(samples))
+    # ax[0,0].plot(x_R, pdf_R)
+    # ax[0,0].plot(x_R, cdf_R)
+    # ax[0,0].hist(ranges, density=True, bins=bins)
+    # ax[0,0].set_ylabel('Prob. density')
+    # ax[0,0].set_xlabel('Range (m)')
+    # ax[0,1].scatter(time_hr, ranges/1000, s=0.5)
+    # ax[0,1].set_ylabel('Range (km)')
+    # ax[0,1].set_xlabel('Time (hours)')
+    #
+    # ax[1, 0].set_title('$\Delta \epsilon$: ' + str(np.round(np.diff(hist_e_midpoints)[0], 2)) + '$\degree$')
+    # ax[1, 0].plot(x_elev, pdf_elev)
+    # ax[1, 0].plot(x_elev, cdf_elev)
+    # ax[1, 0].hist(elevation, density=True, bins=bins)
+    # ax[1, 0].set_ylabel('Prob. density')
+    # ax[1, 0].set_xlabel('Elevation (rad)')
+    # ax[1, 1].scatter(time_hr, elevation, s=0.5)
+    # ax[1, 1].set_ylabel('Elevation (degrees)')
+    # ax[1, 1].set_xlabel('Time (hours)')
+    #
+    # ax[0, 0].grid()
+    # ax[0, 1].grid()
+    # ax[1, 0].grid()
+    # ax[1, 1].grid()
+    # plt.show()
+
+    # # Probability domain
+    # elevation = hist_e_midpoints
+    # ranges = hist_R_midpoints
+    # zenith = np.pi/2 - elevation
+
+    # Time domain
+    N = 10
+    plot_index = 10
+    elevation = geometrical_output['elevation']
+    ranges = geometrical_output['ranges']
+    zenith = geometrical_output['zenith']
+
+    # ------------------------------------------------------------------------
+    # -----------------------------------LCT----------------------------------
+    # ------------------------------------------------------------------------
+    LCT = terminal_properties()
+    LCT.threshold(BER_thres=BER_thres,
+                       modulation="OOK-NRZ",
+                       detection="APD")
+    # ------------------------------------------------------------------------
+    # -------------------------------TURBULENCE-------------------------------
+    # ------------------------------------------------------------------------
+    # The turbulence class is initiated here. Inside the turbulence class, there are multiple functions that are run.
+    turb = turbulence(ranges=ranges, link=link)
+    turb.windspeed_func(slew=slew_rate, Vg=speed_AC, wind_model_type=wind_model_type)
+    turb.Cn_func(turbulence_model=turbulence_model)
+    r0 = turb.r0_func(zenith_angles=zenith)
+    turb.var_rytov_func(zenith_angles=zenith)
+    turb.var_scint_func(zenith_angles=zenith)
+    turb.Strehl_ratio_func(tip_tilt="YES")
+    turb.beam_spread()
+    turb.var_bw_func(zenith_angles=zenith)
+    turb.var_AoA(zenith_angles=zenith)
+    turb.print(index=plot_index, elevation=np.rad2deg(elevation[::N]), ranges=ranges[::N])
+    # ------------------------------------------------------------------------
+    # -------------------------------LINK-BUDGET------------------------------
+    # ------------------------------------------------------------------------
+    # The link budget class is initiated here.
+    link = link_budget(ranges=ranges, h_strehl=turb.h_strehl, w_ST=turb.w_ST,
+                       h_beamspread=turb.h_beamspread, h_ext=h_ext)
+    # The power at the receiver is computed from the link budget.
+    P_r_0 = link.P_r_0_func()
+    # ------------------------------------------------------------------------
+    # ------------------------SNR--BER--COARSE-SOLVER-------------------------
+    # ------------------------------------------------------------------------
+    noise_sh, noise_th, noise_bg, noise_beat = LCT.noise(P_r=P_r_0, I_sun=I_sun)
+    SNR, Q = LCT.SNR_func(P_r=P_r_0, detection=detection,
+                               noise_sh=noise_sh, noise_th=noise_th, noise_bg=noise_bg, noise_beat=noise_beat)
+    BER = LCT.BER_func(Q=Q, modulation=modulation)
+    margin = LCT.P_r_thres[0] / P_r_0
+    errors = BER * data_rate
+
+    # ------------------------------------------------------------------------
+    # --------------------------SNR--BER--FINE-SOLVER-------------------------
+    # ------------------------------------------------------------------------
+    P_r_0_fine = P_r_0[::N]
+    ranges_fine = geometrical_output['ranges'][::N]
+    elevation_fine = geometrical_output['elevation'][::N]
+
+    P_r, PPB,elevation_angles, pdf_h_tot, h_tot, h_scint, h_RX, h_TX = \
+        channel_level(plot_index=plot_index, LCT=LCT, turb=turb, P_r_0=P_r_0_fine, ranges=ranges_fine,
+                      slew_rate=slew_rate, elevation_angles=elevation_fine)
+    P_r_mean, BER_mean, total_errors, margin = \
+        bit_level(LCT=LCT, N=N, link_budget=link, plot_index=plot_index, P_r_0=P_r_0_fine, P_r=P_r, PPB=PPB,
+                  elevation_angles=elevation_fine, pdf_h_tot=pdf_h_tot, h_tot=h_tot, h_scint=h_scint,
+                  h_RX=h_RX, h_TX=h_TX)
+
+    # # USING PROBABILITY DOMAIN
+    # total_errors = total_errors * (step_size_AC / interval_dim1) * elev_counts
+    # total_bits = data_rate * step_size_AC * elev_counts
+    # throughput = total_bits - total_errors
+
+    # fig, ax = plt.subplots(3, 1)
+    # ax[0].plot(np.rad2deg(elevation), W2dBm(P_r_mean), label='Pr (average from bit level)')
+    # ax[0].plot(np.rad2deg(elevation), W2dBm(np.ones(len(elevation)) * LCT.P_r_thres[0]), label='Sensitivty comm. (BER=1.0E-9)')
+    # ax[0].plot(np.rad2deg(elevation), W2dBm(np.ones(len(elevation)) * LCT.P_r_thres[1]), label='Sensitivty comm. (BER=1.0E-6)')
+    # ax[0].plot(np.rad2deg(elevation), W2dBm(np.ones(len(elevation)) * LCT.P_r_thres[2]), label='Sensitivty comm. (BER=1.0E-3)')
+    # ax[0].set_ylabel('Comm \n Power (dBm)')
+    #
+    # ax[1].plot(elevation, total_bits / 1.0E6, label='Total bits=' + str(total_bits.sum() / 1.0E12) + 'Tb')
+    # ax[1].plot(elevation, total_errors / 1.0E6, label='Total erroneous bits=' + str(total_errors.sum() / 1.0E9) + 'Gb')
+    # ax[1].plot(elevation, throughput / 1.0E6, label='Throughput=' + str(throughput.sum() / 1.0E12) + 'Tb')
+    # # ax[2].plot(time_hr, performance_output['total_errors_coded'] / 1.0E6,  label='RS coded (' + str(N) + ',' + str(K) + '), interleaving=' + str(
+    # #                     latency_interleaving) + 's, \n total throughput=' + str(performance_output['throughput_coded'].sum() / 1.0E12) + 'Tb')
+    # ax[1].set_ylabel('Transferred bits \n per $\Delta t_{mission}$ (Mb/s)')
+    # ax[1].set_yscale('log')
+    # ax[1].set_ylim(total_errors.min() / 1.0E6, total_errors.max() / 1.0E6)
+    #
+    # ax[0].legend()
+    # ax[1].legend()
+    # plt.show()
+
+
+    # USING TIME DOMAIN
+    fig, ax = plt.subplots(2, 1)
+    ax[0].plot(time[mask], W2dBm(P_r_mean), label='Pr (average from bit level)')
+    ax[0].plot(time[mask], W2dBm(P_r_0), label='Pr0')
+    ax[0].set_ylabel('Comm \n Power (dBm)')
+
+    ax[1].plot(time[mask], BER, label='BER from Pr0')
+    ax[1].plot(time[mask], BER_mean, label='BER mean from bit level')
+    ax[1].set_ylabel('BER')
+    ax[1].set_yscale('log')
+
+    ax[0].legend()
+    ax[1].legend()
+    ax[0].grid()
+    ax[1].grid()
+    plt.show()
+
+def compare_backward_threshold_function_with_forward_BER_function():
+    BER_thres = 1.0E-6
+    modulation = "OOK-NRZ"
+    detection = "APD"
+    data_rate = 10.0E9
+
+    LCT = terminal_properties()
+
+    P_r = np.linspace(dBm2W(-40), dBm2W(-20), 100)
+    N_p = Np_func(P_r, data_rate)
+    N_p = W2dB(N_p)
+
+    noise_sh, noise_th, noise_bg, noise_beat = LCT.noise(P_r=P_r, I_sun=I_sun)
+    LCT.threshold(modulation=modulation, detection=detection, BER_thres=BER_thres)
+
+    SNR, Q = LCT.SNR_func(P_r=P_r, detection=detection,
+                          noise_sh=noise_sh, noise_th=noise_th, noise_bg=noise_bg, noise_beat=noise_beat)
+    BER = LCT.BER_func(Q=Q, modulation=modulation)
+
+    fig, ax = plt.subplots(1,1)
+    ax.plot(W2dBm(P_r), BER)
+    ax.plot(W2dBm(LCT.P_r_thres * np.ones(2)), [BER.min(), BER.max()], label='Pr threshold')
+    ax.plot([W2dBm(P_r.min()), W2dBm(P_r.max())], BER_thres * np.ones(2), label='BER threshold')
+
+    ax.set_ylabel('BER')
+    ax.set_yscale('log')
+    ax.set_xlabel('Pr')
+    ax.grid()
     ax.legend()
     plt.show()
 
+def turbulence_interval():
+    from channel_level import channel_level
+
+    LCT = terminal_properties()
+
+    P_r_0 = dBm2W(-25)
+    ranges = 600.0
+    elevation = np.deg2rad(30.0)
+    zenith = np.pi/2 - elevation
+    V_ac = 150.0
+    slew_rate = 1 / np.sqrt((R_earth + h_SC) ** 3 / mu_earth)
+    plot_index = 0
+    
+    turb = turbulence(ranges=ranges, link=link)
+    turb.windspeed_func(slew=slew_rate, Vg=V_ac, wind_model_type=wind_model_type)
+    turb.Cn_func(turbulence_model=turbulence_model)
+    r0 = turb.r0_func(zenith_angles=zenith)
+    turb.var_rytov_func(zenith_angles=zenith)
+    turb.var_scint_func(zenith_angles=zenith)
+    turb.Strehl_ratio_func(tip_tilt="YES")
+    turb.beam_spread()
+    turb.var_bw_func(zenith_angles=zenith)
+    turb.var_aoa_func(zenith_angles=zenith)
+    turb.print(index=plot_index, elevation=zenith, ranges=ranges)
+
+    P_r, PPB, elevation_angles, pdf_h_tot, h_tot, turb.h_scint, h_RX, h_TX = channel_level(
+        plot_index=plot_index, LCT=LCT, turb=turb, P_r_0=P_r_0, ranges=ranges, elevation_angles=elevation, zenith_angles=zenith)
+
+
 # test_constellation(constellation)
 # test_filter()
-test_RS_coding('simple')
-# test_sensitivity()
+# test_RS_coding('simple')
+# test_sensitivity(method='Gallion')
+compare_backward_threshold_function_with_forward_BER_function()
 # test_windspeed()
 # test_beamwander()
 # test_jitter()
 # test_PDF()
 # test_airy_disk()
+# test_mapping_dim1_dim2()
+# simple_losses()
+# test_interleaving()
+
+# multiscaling()

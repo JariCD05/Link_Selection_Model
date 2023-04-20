@@ -73,14 +73,12 @@ class link_geometry:
         self.AC = AC.aircraft(lat_init=lat_init_AC,
                               lon_init=lon_init_AC
                               )
-
-        self.pos_AC, self.heights_AC, self.lat_AC, self.lon_AC, self.time = self.AC.propagate(start_time,
-                                                                                              end_time,
-                                                                                              vel_AC,
-                                                                                              # self.states_cons[0][0],
-                                                                                              h_AC,
-                                                                                              fixed_step_size=step_size_dim2,
-                                                                                              method=method_AC)
+        self.pos_AC, self.heights_AC, self.lat_AC, self.lon_AC, self.speed_AC, self.time = self.AC.propagate(start_time,
+                                                                                                      end_time,
+                                                                                                      # vel_AC,
+                                                                                                      # h_AC,
+                                                                                                      method=method_AC,
+                                                                                                      filename=aircraft_filename)
 
         # ------------------------------------------------------------------------
         # --------------------INITIATE-SPACECRAFT-CLASS-&-PROPAGATE---------------
@@ -97,10 +95,8 @@ class link_geometry:
                                    omega_init=self.omega_init)
 
         # Propagate spacecraft and extract time
-        self.states_cons, self.dep_var_cons, self.time_SC = self.SC.propagate(simulation_start_epoch = self.time[0],
-                                                                               simulation_end_epoch = self.time[-1],
-                                                                               method = method_SC,
-                                                                               fixed_step_size= step_size_dim2)
+        self.states_cons, self.dep_var_cons, self.time_SC = self.SC.propagate(AC_time=self.time,
+                                                                               method = method_SC)
         # self.heights_SC = self.dep_var_cons[:, 0]
         # self.lat_SC = self.dep_var_cons[:, 1]
         # self.lon_SC = self.dep_var_cons[:, 2]
@@ -109,7 +105,7 @@ class link_geometry:
     # Loop through all satellites and create geometrical outputs
     def geometrical_outputs(self):
 
-        # variables_to_save = ['pos SC', 'heights SC', 'vel SC', 'ranges', 'slew rates', 'angular rates', 'zenith',
+        # variables_to_save = ['pos SC', 'heights SC', 'vel SC', 'ranges', 'slew rates', 'zenith',
         #                      'elevation', 'azimuth', 'radial']
         self.geometrical_output = {}
 
@@ -123,7 +119,6 @@ class link_geometry:
         elevation = {}
         azimuth = {}
         radial = {}
-        angular_rates = {}
         delta_v = {}
 
         self.geometrical_output_filtered = {}
@@ -138,7 +133,7 @@ class link_geometry:
         azimuth_filtered = {}
         radial_filtered = {}
         slew_rates_filtered = {}
-        angular_rates_filtered = {}
+        delta_v_filtered = {}
 
         # Loop through orbits for each satellite in constellation
         for plane in range(self.number_of_planes):
@@ -152,7 +147,6 @@ class link_geometry:
             azimuth_per_plane = {}
             radial_per_plane = {}
             slew_rates_per_plane = {}
-            angular_rates_per_plane = {}
             delta_v_per_plane = {}
 
             # Initiate variables lists per plane, filtered with min. elevation angle
@@ -166,7 +160,7 @@ class link_geometry:
             azimuth_filt_per_plane = {}
             radial_filt_per_plane = {}
             slew_rates_filt_per_plane = {}
-            angular_rates_filt_per_plane = {}
+            delta_v_filt_per_plane = {}
 
             for sat in range(self.number_sats_per_plane):
 
@@ -206,35 +200,15 @@ class link_geometry:
                         a[i] = -1.0
                     elif a[i] > 1.0:
                         a[i] = 1.0
+
                 zenith_per_sat = np.arccos(a)
-
-
+                # # Correct for refraction index
+                # zenith_per_sat = np.arcsin(1 / n_index * np.sin(zenith_per_sat))
                 elevation_per_sat = np.pi / 2 - zenith_per_sat
-
-                azimuth_per_sat = np.arctan( abs(np.tan(lon_SC - self.lon_AC)) / np.sin(self.lat_AC))
-                # for i in range(len(self.lat_AC)):
-                #     lat_ac = self.lat_AC[i]
-                #     lon_ac = self.lon_AC[i]
-                #     lat_sc = lat_SC[i]
-                #     lon_sc = lon_SC[i]
-                #     # Aircraft on Northern hemisphere
-                #     if lat_ac > 0.0:
-                #         # SC is East of AC
-                #         if lon_sc > lon_ac:
-                #             azimuth[i] = np.pi - azimuth[i]
-                #         # SC is West of AC
-                #         elif lon_sc < lon_ac:
-                #             azimuth[i] = np.pi + azimuth[i]
-                #
-                #     # Aircraft on Southern hemisphere
-                #     elif lat_ac < 0.0:
-                #         # SC is East of AC
-                #         if lon_sc > lon_ac:
-                #             azimuth[i] = azimuth[i]
-                #         # SC is West of AC
-                #         elif lon_sc < lon_ac:
-                #             azimuth[i] = 2*np.pi + azimuth[i]
-
+                delta_lon = lon_SC - self.lon_AC
+                y = np.sin(delta_lon) * np.cos(lat_SC)
+                x = np.cos(self.lat_AC) * np.sin(lat_SC) - np.sin(self.lat_AC) * np.cos(lat_SC) * np.cos(delta_lon)
+                azimuth_per_sat = np.arctan2(y, x)
                 radial_per_sat = np.sqrt(elevation_per_sat**2 + azimuth_per_sat**2)
 
                 zenith_per_plane[sat] = zenith_per_sat
@@ -242,24 +216,24 @@ class link_geometry:
                 azimuth_per_plane[sat] = azimuth_per_sat
                 radial_per_plane[sat] = radial_per_sat
 
-                # ------------------------------------------------------------------------
-                # ----------------------------SLEW-RATE-&-ANGULAR-RATE--------------------
-                # ------------------------------------------------------------------------
+                dt = np.insert(np.diff(self.time), 0, 0.0)
+                d_elevation = np.insert(np.diff(elevation_per_sat), 0, 0.0)
+                d_azimuth = np.insert(np.diff(azimuth_per_sat), 0, 0.0)
 
-                TA = kepler_SC[:, -1]
-                # slew_angles = np.arcsin(SC_heights/range_array)
-                slew_rates_per_sat = np.zeros(len(TA))
-                angular_rates_per_sat = np.zeros(len(TA))
-                for i in range(1, len(TA)):
-                    dt = self.time[i] - self.time[i - 1]
-                    dTA = TA[i] - TA[i - 1]
-                    drad = radial_per_sat[i] - radial_per_sat[i - 1]
-                    slew_rates_per_sat[i] = dTA / dt
-                    angular_rates_per_sat[i] = drad / dt
-
+                # Phase unwrap azimuth vector
+                wraps = np.where(np.abs(d_azimuth) > np.pi)[0]
+                for i in wraps:
+                    if d_azimuth[i] > 0:
+                        azimuth_per_sat[i:] -= 2 * np.pi
+                    else:
+                        azimuth_per_sat[i:] += 2 * np.pi
+                d_azimuth = np.insert(np.diff(azimuth_per_sat), 0, 0.0)
+                # ------------------------------------------------------------------------
+                # --------------------------------SLEW-RATE-RATE--------------------------
+                # ------------------------------------------------------------------------
+                slew_rates_per_sat = np.sqrt((d_elevation/dt)**2 + (d_azimuth/dt)**2)
+                slew_rates_per_sat[0] = 0
                 slew_rates_per_plane[sat] = slew_rates_per_sat
-                angular_rates_per_plane[sat] = angular_rates_per_sat
-
                 # ------------------------------------------------------------------------
                 # -----------------------------DOPPLER-SHIFT------------------------------
                 # ------------------------------------------------------------------------
@@ -275,17 +249,18 @@ class link_geometry:
                 # ------------------------------------------------------------------------
 
                 # Filter data based on constraint requirement (elevation)
-                time_filt        = self.time[elevation_per_sat > elevation_min]
-                ranges_filt      = ranges_per_sat[elevation_per_sat > elevation_min]
-                pos_SC_filt      = pos_SC_per_sat[elevation_per_sat > elevation_min]
-                vel_SC_filt      = vel_SC_per_sat[elevation_per_sat > elevation_min]
-                heights_SC_filt  = heights_SC_per_sat[elevation_per_sat > elevation_min]
-                zenith_filt      = zenith_per_sat[elevation_per_sat > elevation_min]
-                elevation_filt   = elevation_per_sat[elevation_per_sat > elevation_min]
-                azimuth_filt     = azimuth_per_sat[elevation_per_sat > elevation_min]
-                radial_filt      = radial_per_sat[elevation_per_sat > elevation_min]
-                slew_rates_filt  = slew_rates_per_sat[elevation_per_sat > elevation_min]
-                angular_rates_filt = angular_rates_per_sat[elevation_per_sat > elevation_min]
+                mask = elevation_per_sat > elevation_min
+                time_filt        = self.time[mask]
+                ranges_filt      = ranges_per_sat[mask]
+                pos_SC_filt      = pos_SC_per_sat[mask]
+                vel_SC_filt      = vel_SC_per_sat[mask]
+                heights_SC_filt  = heights_SC_per_sat[mask]
+                zenith_filt      = zenith_per_sat[mask]
+                elevation_filt   = elevation_per_sat[mask]
+                azimuth_filt     = azimuth_per_sat[mask]
+                radial_filt      = radial_per_sat[mask]
+                slew_rates_filt  = slew_rates_per_sat[mask]
+                delta_v_filt     = delta_v_per_sat[mask]
 
                 # Assign filtered data lists to lists per plane
                 pos_SC_filt_per_plane[sat] = pos_SC_filt
@@ -298,14 +273,8 @@ class link_geometry:
                 azimuth_filt_per_plane[sat] = azimuth_filt
                 radial_filt_per_plane[sat] = radial_filt
                 slew_rates_filt_per_plane[sat] = slew_rates_filt
-                angular_rates_filt_per_plane[sat] = angular_rates_filt
+                delta_v_filt_per_plane[sat] = delta_v_filt
 
-            # self.geometrical_output[plane][sat] = ranges_per_plane
-            # self.geometrical_output[1][plane] = slew_rates_per_plane
-            # self.geometrical_output[2][plane] = zenith_per_plane
-            # self.geometrical_output['elevation'][plane] = elevation_per_plane
-            # self.geometrical_output['azimuth'][plane] = azimuth_per_plane
-            # self.geometrical_output['angular rates'][plane] = angular_rates_per_plane
 
             # Assign filtered lists per plane to large filtered list
             time_filtered[plane] = time_filt_per_plane
@@ -318,7 +287,7 @@ class link_geometry:
             elevation_filtered[plane] = elevation_filt_per_plane
             azimuth_filtered[plane] = azimuth_filt_per_plane
             radial_filtered[plane] = radial_filt_per_plane
-            angular_rates_filtered[plane] = angular_rates_per_plane
+            delta_v_filtered[plane] = delta_v_filt_per_plane
 
             # ------------------------------------------------------------------------
             # ----------------------ASSIGN-DATA-TO-GEOMETRICAL-OUTPUT-FILE------------
@@ -334,7 +303,6 @@ class link_geometry:
             elevation[plane] = elevation_per_plane
             azimuth[plane] = azimuth_per_plane
             radial[plane] = radial_per_plane
-            angular_rates[plane] = angular_rates_per_plane
             delta_v[plane] = delta_v_per_plane
 
         self.geometrical_output_filtered['time'] = time_filtered
@@ -343,18 +311,18 @@ class link_geometry:
         self.geometrical_output_filtered['vel SC'] = vel_SC_filtered
         self.geometrical_output_filtered['ranges'] = ranges_filtered
         self.geometrical_output_filtered['slew rates'] = slew_rates_filtered
-        self.geometrical_output_filtered['angular rates'] = angular_rates_filtered
         self.geometrical_output_filtered['zenith'] = zenith_filtered
         self.geometrical_output_filtered['elevation'] = elevation_filtered
         self.geometrical_output_filtered['azimuth'] = azimuth_filtered
         self.geometrical_output_filtered['radial'] = radial_filtered
+        self.geometrical_output_filtered['doppler shift'] = delta_v_filtered
 
+        self.geometrical_output['pos AC'] = self.pos_AC
         self.geometrical_output['pos SC'] = pos_SC
         self.geometrical_output['heights SC'] = heights_SC
         self.geometrical_output['vel SC'] = vel_SC
         self.geometrical_output['ranges'] = ranges
         self.geometrical_output['slew rates'] = slew_rates
-        self.geometrical_output['angular rates'] = angular_rates
         self.geometrical_output['zenith'] = zenith
         self.geometrical_output['elevation'] = elevation
         self.geometrical_output['azimuth'] = azimuth
@@ -368,25 +336,14 @@ class link_geometry:
     #------------------------------------------------------------------------
 
 
-    def plot(self, type="trajectories", sequence = 0.0):
+    def plot(self, type="trajectories", sequence = 0.0, links=0):
 
         if type == "trajectories":
             # Define a 3D figure using pyplot
             fig = plt.figure(figsize=(6,6), dpi=125)
             ax = fig.add_subplot(111, projection='3d')
+            ax.set_title('Number of planes: ' + str(number_of_planes) + ', sats per plane: ' + str(number_sats_per_plane))
             # ax.set_title(f'Starlink initial phase configuration', fontsize=40)
-
-            # # Plot fist satellite with label
-            # ax.plot(self.states_cons[0][0][:, 1],
-            #         self.states_cons[0][0][:, 2],
-            #         self.states_cons[0][0][:, 3],
-            #         linestyle='-', linewidth=0.5, color='orange', label='constellation')
-            #
-            # # Plot first satellite filtered data with label
-            # ax.scatter(self.geometrical_output_filtered['pos SC'][0][0][:, 0],
-            #            self.geometrical_output_filtered['pos SC'][0][0][:, 1],
-            #            self.geometrical_output_filtered['pos SC'][0][0][:, 2],
-            #            linewidth=0.5, color='g', label='window \epsilon > '+str(np.rad2deg(elevation_min)))
 
             # Plot all other satellites in constellation
             for plane in range(number_of_planes):
@@ -400,12 +357,13 @@ class link_geometry:
                                self.geometrical_output_filtered['pos SC'][plane][sat][:, 2],
                                linewidth=0.5)
 
+
             # Plot aircraft
             ax.plot(self.pos_AC[:, 0],
                     self.pos_AC[:, 1],
                     self.pos_AC[:, 2], color='black', label='aircraft')
             # Draw Earth as a blue dot in origin
-            ax.scatter(0.0, 0.0, 0.0, label="Earth", marker='o', color='blue', s=100)
+            ax.scatter(0.0, 0.0, 0.0, label="Earth", marker='o', color='darkgreen', s=100)
 
             # # Add the legend and labels, then show the plot
             ax.legend()
@@ -414,40 +372,71 @@ class link_geometry:
             ax.set_zlabel('z [m]', fontsize=15)
 
 
-        # Plot elevation angles
+        # Plot looking angles
         elif type == "angles":
-            fig_elev, axs_elev = plt.subplots(2, 1, figsize=(6, 6), dpi=125)
-
+            time_hrs = self.time / 3600
+            fig_elev, axs = plt.subplots(1, 1, figsize=(6, 6), dpi=125)
             for plane in range(number_of_planes):
                     for sat in range(number_sats_per_plane):
-                        axs_elev[0].set_title(f'Elevation angles vs time')
-                        # axs_elev[0].plot(self.time_filtered[plane][sat], np.rad2deg(self.elevation_filtered[plane][sat]))
-                        # axs_elev[1].plot(self.time_filtered[plane][sat], np.rad2deg(self.azimuth_filtered[plane][sat]))
-                        # axs_elev[2].plot(self.time_filtered[plane][sat], np.rad2deg(self.radial_filtered[plane][sat]))
-                        # axs_elev[1].plot(self.time, np.rad2deg(self.ranges[plane][sat]))
+                        axs.plot(time_hrs, np.rad2deg(self.geometrical_output['elevation'][plane][sat]))
+            plt.show()
 
-                        axs_elev[0].plot(self.time, np.ones(len(self.time))*elevation_min)
-                        axs_elev[0].plot(self.time, np.rad2deg(self.geometrical_output['elevation'][plane][sat]))
-                        axs_elev[1].plot(self.time, self.geometrical_output['ranges'][plane][sat])
+            samples = number_sats_per_plane * number_of_planes * len(self.geometrical_output['elevation'][0][0])
+            fig_elev, axs = plt.subplots(4, 1, figsize=(6, 6), dpi=125)
+            for plane in range(number_of_planes):
+                    for sat in range(number_sats_per_plane):
+                        axs[0].plot(time_hrs, np.rad2deg(self.geometrical_output['elevation'][plane][sat]))
 
-                        axs_elev[0].set_ylabel('elevation (degrees)')
-                        axs_elev[0].set_xlabel('time (seconds)')
+            axs[0].plot(time_hrs, np.rad2deg(self.geometrical_output['elevation'][0][0]))
+            axs[1].plot(time_hrs, np.rad2deg(self.geometrical_output['azimuth'][0][0]))
+            axs[2].plot(time_hrs, np.rad2deg(self.geometrical_output['radial'][0][0]))
+            axs[3].plot(time_hrs, self.geometrical_output['slew rates'][0][0])
+
+            axs[0].set_title(f'Aircraft-Satellite angles vs time \n'
+                             f'Samples: '+str(number_sats_per_plane*number_of_planes)+' * '+str(len(self.geometrical_output['elevation'][0][0]))+' = '+str(samples))
+            axs[0].plot(time_hrs, np.ones(len(self.time)) * np.rad2deg(elevation_min),
+                          label='Minimum elevation=' + str(np.round(np.rad2deg(elevation_min), 2)) + 'deg')
+
+            axs[0].set_ylabel('Elevation (degrees)')
+            axs[1].set_ylabel('Azimuth (degrees)')
+            axs[2].set_ylabel('Radial (degrees)')
+            axs[3].set_ylabel('Slew rate (rad/s)')
+
+            axs[3].set_xlabel('Time (hours)')
+            # axs[0].legend(fontsize=15)
+            axs[0].grid()
+            axs[1].grid()
+            axs[2].grid()
+            axs[3].grid()
 
 
         elif type == "satellite sequence":
+            if links > 0:
+                comm_time_avg = np.count_nonzero(sequence[:, 0]) * step_size_AC / links / 60.0
+            else:
+                comm_time_avg = 0
             fig = plt.figure(figsize=(6, 6), dpi=125)
             ax = fig.add_subplot(111, projection='3d')
-            ax.set_title('trajectories of satellite sequence with handover strategy')
-            ax.plot(sequence[:, 0],
-                    sequence[:, 1],
-                    sequence[:, 2],
-                    linestyle='-.', linewidth=0.5, color='g')
+            ax.set_title('Number of planes: '+str(number_of_planes)+', sats per plane: '+str(number_sats_per_plane)+'\n'
+                         'Number of links: '+str(links)+', average link time (minutes): '+str(np.round(comm_time_avg,2)))
+            ax.scatter(sequence[:, 0],
+                        sequence[:, 1],
+                        sequence[:, 2],
+                        linewidth=0.1, label='satellites')
             # Plot aircraft
             ax.plot(self.pos_AC[:, 0],
                     self.pos_AC[:, 1],
-                    self.pos_AC[:, 2], color='black', label='aircraft')
+                    self.pos_AC[:, 2], color='black', label='aircraft', linewidth = 2)
             # Draw Earth as a blue dot in origin
             ax.scatter(0.0, 0.0, 0.0, label="Earth", marker='o', color='blue', s=100)
+
+            # Plot all other satellites in constellation
+            for plane in range(number_of_planes):
+                for sat in range(number_sats_per_plane):
+                    ax.plot(self.states_cons[plane][sat][:, 1],
+                            self.states_cons[plane][sat][:, 2],
+                            self.states_cons[plane][sat][:, 3],
+                            linestyle='-', linewidth=0.1, color='orange')
 
             # # Add the legend and labels, then show the plot
             ax.legend()

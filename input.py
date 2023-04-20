@@ -1,23 +1,12 @@
 import json
 import numpy as np
-from tudatpy.kernel import constants as cons_tudat
-from matplotlib import pyplot as plt
-from scipy.special import erfc, erf, erfinv, erfcinv
+from datetime import datetime
+import time
+import warnings
 
+import warnings
+warnings.filterwarnings("ignore")
 
-def W2dB(x):
-    return 10 * np.log10(x)
-def dB2W(x):
-    return 10**(x/10)
-def W2dBm(x):
-    return 10 * np.log10(x) + 30
-def dBm2W(x):
-    return 10**((x-30)/10)
-
-
-
-# class input_parameters:
-#     def __init__(self):
 
 #------------------------------------------------------------------------
 #-------------------------------CONSTANTS--------------------------------
@@ -47,6 +36,7 @@ k_number = 2 * np.pi / wavelength               # wave number of laser (in rad/m
 
 # Coding
 #----------------------------
+latency_interleaving = 5.0E-2                   # Interleaver length of coded bitframes (in seconds)
 N, K = 255, 223                                 # N is the total number of symbols per RS codeword, K is the total number of information bits per RS codeword
 symbol_length = 8                               # Symbol length is the total number of bits within one symbol. The default is set to 8 bits (1 byte)
 
@@ -58,13 +48,13 @@ obscuration_ratio_ac = 0.1                      # Obscuration ratio of aircraft 
 angle_div_ac = 25.0E-6                          # Diffraction limited divergence angle
 w0_ac = wavelength / (np.pi * angle_div_ac)     # Beam waist (1/e^2), REF: R.Saathof AE4880 slides I, P.19
 D_ac = w0_ac * clipping_ratio_ac * 2            # Aperture diameter of aircraft LCT (in m), REF: Excel sheet from Remco
-focal_length_ac = 0.05                          # Focal length of the aircraft LCT lens (in m), REF: Coupling efficiency tech note from Airbus
+focal_length_ac = 0.12                          # Focal length of the aircraft LCT lens (in m), REF: Coupling efficiency tech note from Airbus
 
 angle_pe_ac = 3.6E-6                            # Pointing error of aircraft LCT (in rad)
 std_pj_ac = 3.3E-6                              # pointing jitter variance of aircraft LCT (in rad)
 std_pj_spot_ac = 25.0E-6                        # Pointing jitter variance for spot of aircraft LCT (in rad), REF: Zephyr LCT, HAPS-TN-ADSN-0008, P.17
 eff_quantum_ac = 1.0                            # Quantum efficiency of photon detector aircraft LCT (no unit)
-T_s_ac = 70                                     # Circuit temperature of aircraft LCT (in Kelvin)
+T_s_ac = 300                                    # Circuit temperature of aircraft LCT (in Kelvin)
 FOV_ac = 1.0E-8                                 # Field of View of aircraft LCT (in steradian), REF: Rudolf
 
 eff_ac = 0.7                                    # Overall efficiency of the optical system of the aircraft LCT, REF:
@@ -79,7 +69,7 @@ F_ac = 5.0                                      # Noise factor of the aircraft L
 BW_ac = 0.8 * data_rate                         # Optical bandwidth at aircraft LCT (in Hz) # 0.8 * data_rate (Given by Airbus)
 delta_wavelength_ac = 5.0E-9                    # Optical filter at aircraft LCT (in m)
 R_L_ac = 50.0                                   # Load resistor of aircraft LCT (in case of PIN detection)
-sensitivity_acquisition_ac = dB2W(-95)          # Sensitivity of acquisition system of aircraft LCT, REF: Remco
+sensitivity_acquisition_ac = 3.16227766016e-10  # Sensitivity of acquisition system of aircraft LCT, REF: Remco (-95 dB -> 3.16e-10 W)
 
 
 # Spacecraft LCT
@@ -89,14 +79,14 @@ clipping_ratio_sc = 2                           # Clipping ratio of spacecraft t
 obscuration_ratio_sc = 0.1                      # Obscuration ratio of spacecraft telescope, REF: Coupling efficiency tech note from Airbus
 angle_div_sc = 25.0E-6                          # Diffraction limited divergence angle
 w0_sc = wavelength / (np.pi * angle_div_sc)     # Beam waist (1/e^2), REF: R.Saathof AE4880 slides I, P.19
-D_sc = w0_ac * clipping_ratio_sc * 2            # Aperture diameter of spacecraft LCT (in m), REF: Excel sheet from Remco
-focal_length_sc = 0.05                          # Focal length of the spacecraft LCT lens (in m), REF: Coupling efficiency tech note from Airbus
+D_sc = w0_sc * clipping_ratio_sc * 2            # Aperture diameter of spacecraft LCT (in m), REF: Excel sheet from Remco
+focal_length_sc = 0.12                          # Focal length of the spacecraft LCT lens (in m), REF: Coupling efficiency tech note from Airbus
 
 angle_pe_sc = 3.6E-6                            # pointing error of spacecraft LCT (in rad)
-std_pj_sc = 3.3E-6                              # pointing jitter variance of spacecraft LCT (in rad)
+std_pj_sc = 3.3E-6                              # pointing jitter varFiance of spacecraft LCT (in rad)
 std_pj_spot_sc = 25.0E-6                        # Pointing jitter variance for spot of spacecraft LCT (in rad), REF: Zephyr LCT, HAPS-TN-ADSN-0008, P.17
 eff_quantum_sc = 1.0                            # Quantum efficiency of photon detector spacecraft LCT (no unit)
-T_s_sc = 70                                     # Circuit temperature of spacecraft LCT (in Kelvin)
+T_s_sc = 300                                    # Circuit temperature of spacecraft LCT (in Kelvin)
 FOV_sc = 1.0E-8                                 # Field of View of aircraft LCT (in steradian), REF: Rudolf
 # During communications, about 10 percent of incoming light is reserved for tracking control
 
@@ -105,26 +95,18 @@ h_splitting_sc = 0.9                            # Tracking efficiency of spacecr
 eff_coupling_sc = 0.81 * 0.74                   # One-mode fiber coupling efficiency of the receiving LCT, REF: Zephyr LCT, HAPS-TN-ADSN-0008, P.33
 
 detection_sc = "APD"                            # Detection method of spacecraft LCT                         #PIN, Preamp, coherent (to be added)
-mod_sc = "BPSK"                                 # Modulation method  of spacecraft LCT                         #DPSK, PPM, QPSK
+mod_sc = "OOK-NRZ"                              # Modulation method  of spacecraft LCT                         #DPSK, PPM, QPSK
 symbol_length_sc = 8                            # Length of the data symbol that is modulated and coded at aircraft LCT
-M_sc = 30.0                                     # Amplification gain of of spacecraft LCT (For ADP & Preamp), REF: Avalanche Photodiodes: A User's Guide, p.6
-F_sc = 5.0                                      # Noise factor of the spacecraft LCT (For ADP & Preamp), REF: Avalanche Photodiodes: A User's Guide, p.6
+M_sc = 1.0                                     # Amplification gain of of spacecraft LCT (For ADP & Preamp), REF: Avalanche Photodiodes: A User's Guide, p.6
+F_sc = 1.0                                      # Noise factor of the spacecraft LCT (For ADP & Preamp), REF: Avalanche Photodiodes: A User's Guide, p.6
 BW_sc = 0.8 * data_rate                         # Optical bandwidth at spacecraft LCT (in Hz) # 0.8 * data_rate (Given by Airbus)
 delta_wavelength_sc = 5.0E-9                    # Optical filter at spacecraft LCT (in m)
 R_L_sc = 50.0                                   # Load resistor of aircraft LCT (in case of PIN detection)
-sensitivity_acquisition_sc = dB2W(-95)          # Sensitivity of acquisition system of spacecraft LCT, REF: Remco
+sensitivity_acquisition_sc = 3.16227766016e-10  # Sensitivity of acquisition system of spacecraft LCT, REF: Remco (-95 dB -> 3.16e-10 W)
 
 #------------------------------------------------------------------------
 #-----------------------GEOMETRIC-PARAMETERS-----------------------------
 #------------------------------------------------------------------------
-
-# Constellation architecture (only in case of 'tudat' method)
-#----------------------------
-constellation_type = "LEO_cons"                 # Type of constellation (1 sat in LEO, 1 sat in GEO, LEO constellation)
-h_SC = 550.0E3                                  # Initial altitude of the satellite(s)
-inc_SC = 55.98 #* ureg.degree                   # Initial inclination of the satellite(s)
-number_of_planes = 10                           # Number of planes within the constellation (if 1 sat: number_of_planes = 1)
-number_sats_per_plane = 1                       # Number of satellites per plane within the constellation (if 1 sat: number_sats_per_plane = 1)
 
 # Geometric constraints (only in case of 'straight flight' method)
 #----------------------------
@@ -135,16 +117,21 @@ speed_AC = np.sqrt(vel_AC[0]**2 +
                    vel_AC[2]**2)                # speed magnitude of aircraft (in m/sec)
 lat_init_AC = 0.0                               # initial latitude (in degrees)
 lon_init_AC = 0.0                               # initial longitude (in degrees)
-elevation_min = np.deg2rad(20.0)                # minimum elevation angle between aircrat and spacecraft for an active link (in rad)
-zenith_max = np.pi/2 - elevation_min            # minimum zenith angle between aircrat and spacecraft for an active link (in rad)
 
-# Time scales
+# Geometric constraints (only in case of 'opensky' method)
 #----------------------------
-start_time = 0.0                                # Start epoch of the simulation
-end_time = 3600.0 * 6.0                         # End epoch of the simulation
-step_size_dim1 = 1.0E-4                         # timestep of 0.1 msec for dimension 1 (turbulence simulation)
-step_size_dim2 = 10.0                           # timestep of 10 sec (ac/sc dynamics simulation)
+aircraft_filename = r"C:\Users\wiege\Documents\TUDelft_Spaceflight\Thesis\aircraft_data\traffic_trajectories\JFK_LAX.csv"
 
+# Geometric constraints SC (only in case of 'tudat' method)
+#----------------------------
+constellation_type = "LEO_cons"                 # Type of constellation (1 sat in LEO, 1 sat in GEO, LEO constellation)
+h_SC = 550.0E3                                  # Initial altitude of the satellite(s)
+inc_SC = 55.98                                  # Initial inclination of the satellite(s)
+number_of_planes = 30                           # Number of planes within the constellation (if 1 sat: number_of_planes = 1)
+number_sats_per_plane = 2                       # Number of satellites per plane within the constellation (if 1 sat: number_sats_per_plane = 1)
+
+elevation_min = np.deg2rad(30.0)                # minimum elevation angle between aircrat and spacecraft for an active link (in rad)
+zenith_max = np.pi/2 - elevation_min            # minimum zenith angle between aircrat and spacecraft for an active link (in rad)
 #------------------------------------------------------------------------
 #-----------------------ATMOSPHERIC-PARAMETERS---------------------------
 #------------------------------------------------------------------------
@@ -159,15 +146,16 @@ n_index = 1.002                                 # Refractive index of atmosphere
 #------------------------------------------------------------------------
 
 BER_thres = [1.0E-9, 1.0E-6, 1.0E-3]            # Minimum required Bit Error Rate
-latency = 10.0                                  # Total required latency (in sec)
+latency = 1.0                                   # Total required latency (in sec)
+variable_data_rate = 'no' #'BER9'               # Optional variable data rate. Options are: 'no', 'BER9', 'BER6' and 'BER3'
 
 #------------------------------------------------------------------------
-#-------------------------------METHODS----------------------------------
+#------------------------METHODS-& DESIGN-VARIABLES----------------------
 #------------------------------------------------------------------------
 
 # Geometric methods
 #----------------------------
-method_AC = "straight"                          # Opensky (to be added)
+method_AC = "opensky"
 method_SC = "tudat"
 integrator = "Runge Kutta 78"
 
@@ -185,7 +173,36 @@ method_att = 'standard_atmosphere'
 
 # LCT methods
 #----------------------------
-PDF_pointing = 'rice'
+PDF_pointing = 'rayleigh'
+
+#---------------------------------------------------------------------------------------------
+#-----------------------------------------SIMULATION-SETUP------------------------------------
+#---------------------------------------------------------------------------------------------
+start_time = 0.0                                # Start epoch of the simulation
+end_time = 3600.0 * 6.0                         # End epoch of the simulation
+# start_time = "2019-02-05 15:45"                 # Start epoch of the simulation
+# end_time = "2019-02-06 05:45"                   # End epoch of the simulation
+
+
+step_size_SC = 10.0                             # timestep of 10 sec (sc dynamics simulation)
+step_size_AC = 1.0                              # timestep of 1  sec (ac dynamics simulation)
+step_size_link = 1.0
+samples_link_level = int((end_time - start_time) / step_size_link)
+
+step_size_channel_level = 1.0E-4                # Simulation interval for small-scale turbulence-bit simulation
+interval_channel_level = 1.0                    # Simulation interval of dimension 1. Default is 100s in order to obtain sufficient statistical data
+iterable_step_size = np.deg2rad(10.0)           # Step size of the iteration of dimension 1 simulation (default iterable is elevation angle with 0.1 steps
+t = np.arange(0.0, interval_channel_level, step_size_channel_level)
+sampling_frequency = 1/step_size_channel_level # 0.1 ms intervals
+nyquist = sampling_frequency / 2
+samples_channel_level = int(len(t))
+
+# Turbulence & Jitter spectra
+#----------------------------
+turbulence_frequency = 1000.0 #1/0.001 # 1 ms intervals
+jitter_freq_lowpass = 100.0
+jitter_freq2 = [100.0, 300.0]
+jitter_freq1 = [900.0, 1100.0]
 
 #------------------------------------------------------------------------
 #------------------------UPLINK-&-DOWNLINK-PARAMETERS--------------------

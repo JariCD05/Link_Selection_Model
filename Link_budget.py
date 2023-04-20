@@ -2,6 +2,10 @@
 import numpy as np
 from matplotlib import pyplot as plt
 import math
+from blume.table import table
+import pandas as pd
+from IPython.display import display
+
 from input import *
 from helper_functions import *
 
@@ -9,10 +13,10 @@ from helper_functions import *
 class link_budget:
     def __init__(self,
                  ranges: np.array,
-                 Strehl_ratio: float,
+                 h_strehl: float,
                  w_ST: np.array,
-                 T_beamspread: np.array,
-                 T_att: float):
+                 h_beamspread: np.array,
+                 h_ext: float):
 
         # Range
         # ----------------------------------------------------------------------------
@@ -35,23 +39,18 @@ class link_budget:
         self.G_t = 8 / angle_div**2
         self.G_r = (np.pi*D_r / wavelength)**2
         # REF: OPTICAL ON-OFF KEYING FOR LOW EARTH ORBIT DOWNLINK APPLICATIONS, D.GIGGENBACH, TABLE 11.5
-        self.G_c = 1.0 #dB2W(4.0)
+        # self.G_c = 1.0 #dB2W(4.0)
 
         # Losses
         # ----------------------------------------------------------------------------
-        self.T_att = T_att
-        self.Strehl_ratio = np.array(Strehl_ratio)
-        self.T_beamspread = np.array(T_beamspread)
+        self.h_ext = h_ext
+        self.h_strehl = np.array(h_strehl)
+        self.h_beamspread = np.array(h_beamspread)
         self.T_clipping = np.exp(-2 * clipping_ratio ** 2 * obscuration_ratio ** 2) - np.exp(-2 * clipping_ratio_ac ** 2)
         self.G_t = self.G_t * self.T_clipping
-
-
-
         # REF: AE4880 LASER SATELLITE COMMUNICATIONS I, R.SAATHOF, 2021, SLIDE 34
-        self.T_fs = (wavelength / (4 * np.pi * self.ranges)) ** 2
-        for i in range(len(self.T_fs)):
-            if self.ranges[i] == 0.0:
-                self.T_fs[i] = 0.0
+        self.h_fs = (wavelength / (4 * np.pi * self.ranges)) ** 2
+        self.h_l = self.G_t * self.G_r * eff_t * eff_r * eff_coupling * h_splitting * self.h_ext * self.h_fs
 
         # Divergence angle
         # ----------------------------------------------------------------------------
@@ -74,35 +73,35 @@ class link_budget:
 
     # This function computes the static power at the receiver without any turbulence losses
     def P_r_0_func(self):
-        self.P_r_0 = P_t * \
-                     self.G_t * self.G_r * self.G_c * eff_t * eff_r * eff_coupling * h_splitting *\
-                     self.T_fs * self.T_beamspread * self.Strehl_ratio * self.T_att
+        self.P_r_0 = self.P_t * self.h_l * self.h_beamspread * self.h_strehl
         return self.P_r_0
 
     # This function computes the static intensity at the receiver without any turbulence losses
     def I_r_0_func(self):
         # REF: LONG TERM IRRADIANCE STATISTICS FOR OPTICAL GEO..., T.KAPSIS, 2019, EQ.1
         self.I_r_0 =  (w0 / self.w_r)**2 * self.I_t_0 * \
-                      self.G_t * self.G_r * self.G_c * eff_t * eff_r * eff_coupling * h_splitting *\
-                      self.T_fs * self.Strehl_ratio * self.T_att
+                      self.G_t * self.G_r * eff_t * eff_r * eff_coupling * h_splitting *\
+                      self.h_fs * self.h_strehl * self.h_ext
         return self.I_r_0
 
     # Firstly, the static link budget is computed with 'P_r_0_func' and 'I_r_0_func'.
     # Then, this function implements all dynamic contributions of the link budget that are imported from the database,
     # which are scintillation loss (T_scint), pointing jitter loss (T_pj), beam wander loss (T_bw) and the resulting received power (P_r)
-    def dynamic_contributions(self, performance_output):
-        if performance_output.ndim != 2:
-            raise ValueError('Incorrect argument dimension of performance_output')
-        if len(performance_output[:, 0]) != len(self.ranges)+1:
-            print(len(performance_output[:, 0]), len(self.ranges)+1)
-            raise ValueError('Incorrect argument shape of performance_output')
+    def dynamic_contributions(self, P_r, PPB, T_dyn_tot, T_scint, T_TX, T_RX):
+        # print(performance_output.type())
+        # if performance_output[0].ndim != 2:
+        #     raise ValueError('Incorrect argument dimension of performance_output')
+        # # if performance_output.astype() !=
+        # if len(performance_output[:, 0]) != len(self.ranges)+1:
+        #     print(len(performance_output[:, 0]), len(self.ranges)+1)
+        #     raise ValueError('Incorrect argument shape of performance_output')
 
-        self.P_r = performance_output[1:, 1]
-        self.PPB = performance_output[1:, 2]
-        self.T_dyn_tot = performance_output[1:, 3]
-        self.T_scint = performance_output[1:, 4]
-        self.T_TX = performance_output[1:, 5]
-        self.T_RX = performance_output[1:, 6]
+        self.P_r = P_r
+        self.PPB = PPB
+        self.T_dyn_tot = T_dyn_tot
+        self.T_scint = T_scint
+        self.T_TX = T_TX
+        self.T_RX = T_RX
 
     def P_r_tracking_func(self):
         self.P_r_tracking = (1 - h_splitting) * self.P_r
@@ -123,34 +122,34 @@ class link_budget:
         self.LM_comm_BER9 = self.P_r / self.P_r_thres_BER9
         self.LM_comm_BER6 = self.P_r / self.P_r_thres_BER6
         self.LM_comm_BER3 = self.P_r / self.P_r_thres_BER3
+        return self.LM_comm_BER9, self.LM_comm_BER6, self.LM_comm_BER3
 
+    # def save_data(self, time):
+    #     self.gains = np.array((self.G_t, self.G_r))
+    #
+    #     losses_metrics = ['h_fs', 'eff_t', 'pointing_jitter_t', 'eff_r', 'pointing_jitter_r', 'coupling_r', 'splitting_r', 'h_bw', 'h_scint', 'h_beamspread', 'h_ext']
+    #     number_of_losses = len(losses_metrics)
+    #     self.losses = np.zeros((number_of_losses, len(time)))
+    #
+    #     self.losses[0] = self.T_fs[:, None]
+    #     self.losses[1] = self.T_att
+    #     self.losses[2] = self.Strehl_ratio
+    #     self.losses[3] = self.T_beamspread
+    #     self.losses[4] = eff_t
+    #     self.losses[5] = eff_r
+    #     self.losses[6] = h_splitting
+    #     self.losses[7] = eff_coupling
+    #
+    #     self.losses[8] = self.T_TX[i]
+    #     self.losses[9] = self.T_RX[i]
+    #     self.losses[10] = self.T_scint[i]
 
-    def save_data(self, time):
-        self.gains = np.array((self.G_t, self.G_r, self.G_c))
-
-        losses_metrics = ['T_fs', 'eff_t', 'pointing_jitter_t', 'eff_r', 'pointing_jitter_r', 'coupling_r', 'splitting_r', 'h_bw', 'h_scint', 'h_beamspread', 'h_att']
-        number_of_losses = len(losses_metrics)
-        self.losses = np.zeros((len(time), number_of_losses))
-        for i in range(len(time)):
-            self.losses[i, 0] = self.T_fs[i]
-            self.losses[i, 1] = self.T_att
-            self.losses[i, 2] = self.Strehl_ratio
-            self.losses[i, 3] = self.T_beamspread
-            self.losses[i, 4] = eff_t
-            self.losses[i, 5] = eff_r
-            self.losses[i, 6] = h_splitting
-            self.losses[i, 7] = eff_coupling
-
-            self.losses[i, 8] = self.T_TX[i]
-            self.losses[i, 9] = self.T_RX[i]
-            self.losses[i,10] = self.T_scint[i]
-
-
-    def plot(self, elevation = 0.0, index=0, t = 0.0,type= "time-series"):
-
+    def plot(self, time:np.array, indices:list, elevation: np.array, type= "time-series"):
+        time_hrs = time / 3600
         if type == "gaussian beam profile":
             r_t = np.linspace(-w0 * 1.5, w0 * 1.5, 1000)
-            I_t = gaussian_beam(self.I_t_0, r_t, w0)
+
+            I_t = self.I_t_0 * np.exp(-r_t**2 / w0**2)
 
             fig_I, (ax1, ax2) = plt.subplots(2, 1)
             ax1.set_title('Gaussian beam intensity at transmitter , w0: ' + str(np.round(w0,2))+' m')
@@ -167,9 +166,9 @@ class link_budget:
             ax2.plot(np.ones(2) * -D_r, np.array((0, 1)), color='orange', label='Telescope obstruction')
             ax2.plot(np.ones(2) * D_r, np.array((0, 1)), color='orange', )
 
-            for i in index:
+            for i in indices:
                 r_r = np.linspace(-self.w_r[-1] * 1.5, self.w_r[-1] * 1.5, 1000)
-                I_r = gaussian_beam(self.I_r_0[i], r_r, self.w_r[i])
+                I_r = self.I_r_0 * np.exp(-r_r ** 2 / self.w_r[i] ** 2)
                 ax2.plot(r_r, I_r, linestyle='-', label="$W_r$="+str(np.round(self.w_r[i],2))+
                                                         ' m (1/$e^2$), Pr=' + str(np.round(W2dBm(np.mean(self.P_r[i])),2)) +
                                                         " dBm, $\epsilon$="+str(np.round(np.rad2deg(elevation[i]),2))+'$\degree$')
@@ -178,43 +177,83 @@ class link_budget:
             ax1.legend()
             ax2.legend()
 
-        elif type == "time-series":
-            fig, (ax1, ax2, ax3, ax4) = plt.subplots(4, 1)
-            ax1.set_title('Link budget time series')
-            ax1.plot(t/3600.0, W2dBm(self.P_r), label='Pr')
-            ax1.plot(t / 3600.0, W2dBm(self.P_r_thres), label='Sensitivty comm.')
+        elif type == "table":
+            parameters = ['GEOMETRY',
+                          'Time', 'Range', 'elevation', 'Link', ' ',
+                          'LCT',
+                          'divergence angle', 'Mech. pointing error TX', 'Mech. pointing jitter TX', 'Mech. pointing error RX', 'Mech. pointing jitter RX',
+                          'Power TX', 'Wavelength', 'data rate', ' ',
+                          'GAINS',
+                          'Gain TX', 'Gain RX',  ' ',
+                          'STATIC LOSSES',
+                          'Free space loss', 'TX system efficiency', 'RX system efficiency', 'RX coupling efficiency', 'RX splitting efficiency',
+                          'Beam spread loss(ST)', 'WFE loss (Strehl ratio)', 'Attenuation loss', ' ',
+                          'DYNAMIC LOSSES ',
+                          'TX loss (mech. jitter and BW)', 'RX loss (mech. jitter and AoA)', 'Scintillation loss', 'Total dynamic loss', ' ',
+                          'RX signals',
+                          'Static power RX', 'Dynamic power RX', 'Tracking signal RX', 'Beam width at RX', ' ',
+                          'LINK MARGIN',
+                          'Power threshold communication  (1.0E-9)', 'Power threshold communication  (1.0E-6)', 'Power threshold communication  (1.0E-3)',
+                          'Power threshold acquisition', 'Link margin communication (1.0E-9)', 'Link margin communication (1.0E-6)', 'Link margin communication (1.0E-3)',
+                          'Link margin tracking', 'Link margin acquisition'
+                          ]
+            units = ['',
+                      'hrs', 'm', 'degree', '-',
+                      '', ' ',
+                      'rad', 'rad', 'rad', 'rad', 'rad', 'dBm', 'nm', 'Gbit/s',
+                      '', ' ',
+                      'dB', 'dB',
+                      '', ' ',
+                      'dB', 'dB', 'dB', 'dB', 'dB', 'dB', 'dB', 'dB',
+                      '', ' ',
+                      'dB', 'dB', 'dB', 'dB',
+                      '', ' ',
+                      'dBm', 'dBm', 'dBm', 'm',
+                      '', ' ',
+                      'dBm', 'dBm', 'dBm','dBm',
+                      'dB', 'dB', 'dB', 'dB', 'dB'
+                      ]
 
-            ax1.plot(t / 3600.0, W2dBm(self.P_r_tracking), label='Pr tracking')
-            ax1.plot(t / 3600.0, W2dBm(np.ones(len(t)) * sensitivity_acquisition), label='Sensitivty tracking')
-            ax1.set_ylabel('Power (dBm)')
+            for index in indices:
+                values = [' ',
+                          time_hrs[index], self.ranges[index],
+                          np.rad2deg(elevation[index]),
+                          link,
+                          ' ', ' ',
+                          angle_div, angle_pe_t, std_pj_t, angle_pe_r, std_pj_r, W2dBm(P_t), wavelength*1.0E9, data_rate/1.0E9,
+                          ' ', ' ',
+                          W2dB(self.G_t),W2dB(self.G_r),
+                          ' ', ' ',
+                          W2dB(self.h_fs[index]), W2dB(eff_t), W2dB(eff_r), W2dB(eff_coupling), W2dB(h_splitting),
+                          W2dB(self.h_beamspread[index]), W2dB(self.h_strehl[index]), W2dB(self.h_ext[index]),
+                          ' ', ' ',
+                          W2dB(self.T_TX[index]), W2dB(self.T_RX[index]), W2dB(self.T_scint[index]), W2dB(self.T_dyn_tot[index]),
+                          ' ', ' ',
+                          W2dBm(self.P_r_0[index]), W2dBm(self.P_r[index]),  W2dBm(self.P_r_tracking[index]),  self.w_r[index],
+                          ' ', ' ',
+                          W2dBm(self.P_r_thres_BER9), W2dBm(self.P_r_thres_BER6), W2dBm(self.P_r_thres_BER3), W2dBm(sensitivity_acquisition),
+                          W2dB(self.LM_comm_BER9[index]), W2dB(self.LM_comm_BER6[index]), W2dB(self.LM_comm_BER3[index]), W2dB(self.LM_tracking[index]), W2dB(self.LM_acquisition[index])
+                          ]
 
-            ax2.plot(t, self.LM_comm, label='Link margin comm.')
-            ax2.set_ylabel('Link margin comm. (dBm)')
 
-            ax2.plot(t, self.LM_tracking, label='Link margin tracking')
-            ax2.set_ylabel('Link margin tracking (dBm)')
+                data = {'Parameter': parameters,
+                        'Unit': units,
+                        'Value': values}
+                columns = ('Parameter',
+                           'Unit',
+                           'Value')
 
-            ax3.plot(t/3600.0, self.data_rate/1.0E9)
-            ax3.set_ylabel('Data rate (Gb/s)')
-
-            ax4.plot(t / 3600.0, np.rad2deg(elevation))
-            ax4.set_ylabel('Elevation angles (deg)')
-
-            ax4.set_xlabel('Time')
-
-            ax1.legend()
-            ax2.legend()
-            ax3.legend()
-            ax4.legend()
+                df = pd.DataFrame(data, columns=columns)
+                filename = 'link_budget_'+str(np.round(np.rad2deg(elevation[index]),2))+'.csv'
+                # df.to_csv(filename)
+                print(df.to_latex())
 
     def print(self,
               t = 0.0,
               index = 0,
-              type="link budget",
               elevation = 0.0,
               ):
 
-        if type == "link budget":
             print('------------------------------------------------')
             print('LINK-BUDGET ANALYSIS')
             print('------------------------------------------------')
@@ -236,28 +275,29 @@ class link_budget:
             print('GAINS')
             print('Transmitter gain          (dB) : ', W2dB(self.G_t))
             print('Receiver gain             (dB) : ', W2dB(self.G_r))
-            print('Coding gain               (dB) : ', W2dB(self.G_c))
             print('________________________')
             print('STATIC LOSSES')
-            print('Free space loss          (dB) : ', W2dB(self.T_fs[index]))
+            print('Free space loss          (dB) : ', W2dB(self.h_fs[index]))
             print('Transmitter loss         (dB) : ', W2dB(eff_t))
             print('Receiver (system)  loss  (dB) : ', W2dB(eff_r))
             print('Receiver (coupling) loss (dB) : ', W2dB(eff_coupling))
             print('Receiver (splitting) loss (dB) : ', W2dB(h_splitting))
-            print('Divergence loss          (dB) : ', W2dB(self.G_t) + W2dB(self.G_r) + W2dB(self.T_fs[index]))
             # print('Divergence loss CHECK    (dB) : ', W2dB(self.T_div[index]))
             # print('Divergence loss CHECK    (dB) : ', W2dB((w0/self.w_r[index])**2))
-            # print('Static pointing loss t  (dB) : ', W2dB(self.T_point_t))
-            # print('Static pointing loss r  (dB) : ', W2dB(self.T_point_r))
-            print('Beam spread loss (ST)     (dB) : ', W2dB(self.T_beamspread[index]))
-            print('WFE loss (Strehl ratio)   (dB) : ', W2dB(self.Strehl_ratio[index]))
-            print('Attenuation loss          (dB) : ', W2dB(self.T_att[index]))
+            print('Beam spread loss (ST)     (dB) : ', W2dB(self.h_beamspread[index]))
+            print('WFE loss (Strehl ratio)   (dB) : ', W2dB(self.h_strehl[index]))
+            print('Attenuation loss          (dB) : ', W2dB(self.h_ext[index]))
             print('________________________')
             print('DYNAMIC LOSSES')
             print('TX loss (mech. jit and BW) (dB) : ', W2dB(self.T_TX[index]))
             print('RX loss (mech. jit and AoA (dB) : ', W2dB(self.T_RX[index]))
             print('Scintillation loss         (dB) : ', W2dB(self.T_scint[index]))
             print('Total dynamic loss         (dB) : ', W2dB(self.T_dyn_tot[index]))
+            print('Received dyn. power CHECK  (dBm): ', W2dBm(P_t * self.G_t * self.G_r *
+                                                                eff_t * eff_r * eff_coupling * h_splitting *
+                                                                self.h_fs[index] * self.h_beamspread[index] *
+                                                                self.h_strehl[index] * self.h_ext[index] *
+                                                              self.T_dyn_tot[index]))
             print('________________________')
             print('RECEIVER')
             print('Received static power   (dBm) : ', W2dBm(self.P_r_0[index]))

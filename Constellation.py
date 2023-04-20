@@ -51,11 +51,12 @@ class constellation:
 
 
     def propagate(self,
-                  simulation_start_epoch: float,
-                  simulation_end_epoch: float,
+                  AC_time: np.array,
                   method = "tudat",
-                  fixed_step_size=10.0,
                   ):
+
+        simulation_start_epoch = AC_time[0]
+        simulation_end_epoch = AC_time[-1]
 
         if method == "tudat":
 
@@ -97,9 +98,10 @@ class constellation:
 
             # Define accelerations acting on sat
             acceleration_settings_sat = dict(
-                Earth=[propagation_setup.acceleration.spherical_harmonic_gravity(2,2)],
-                Mars =[propagation_setup.acceleration.point_mass_gravity()],
-                Moon = [propagation_setup.acceleration.point_mass_gravity()]
+                Earth=[propagation_setup.acceleration.point_mass_gravity()],
+                # Earth=[propagation_setup.acceleration.spherical_harmonic_gravity(2,2)],
+                # Mars =[propagation_setup.acceleration.point_mass_gravity()],
+                # Moon = [propagation_setup.acceleration.point_mass_gravity()]
                 )
             acceleration_settings = {"sat": acceleration_settings_sat}
             # Create acceleration models
@@ -123,7 +125,6 @@ class constellation:
                     elif self.sat_setup == "LEO_1" or self.sat_setup == "GEO":
                         RAAN_init = self.RAAN_init
                         TA_init = self.TA_init
-
                     # Set initial conditions for the satellite that will be
                     # propagated in this simulation. The initial conditions are given in
                     # Keplerian elements and later on converted to Cartesian elements
@@ -177,8 +178,8 @@ class constellation:
                         coefficient_set = propagation_setup.integrator.rkf_78
 
                     self.integrator_settings = propagation_setup.integrator.runge_kutta_variable_step_size(
-                        simulation_start_epoch, step_size_dim2, coefficient_set,
-                        step_size_dim2, step_size_dim2,
+                        simulation_start_epoch, step_size_SC, coefficient_set,
+                        step_size_SC, step_size_SC,
                         np.inf, np.inf)
 
                 #------------------------------------------------------------------------
@@ -192,6 +193,22 @@ class constellation:
                     # Extract the resulting state history and convert it to an ndarray
                     states = dynamics_simulator.state_history
                     dependent_variables = dynamics_simulator.dependent_variable_history
+
+                # ------------------------------------------------------------------------
+                # -------------------------------INTERPOLATE------------------------------
+                # ------------------------------------------------------------------------
+                    interpolator_settings = interpolators.lagrange_interpolation(8)
+                    state_interpolator = interpolators.create_one_dimensional_vector_interpolator(
+                        states, interpolator_settings)
+                    dep_var_interpolator = interpolators.create_one_dimensional_vector_interpolator(
+                        dependent_variables, interpolator_settings)
+
+                    states = dict()
+                    dependent_variables = dict()
+                    for epoch in AC_time:
+                        states[epoch] = state_interpolator.interpolate(epoch)
+                        dependent_variables[epoch] = dep_var_interpolator.interpolate(epoch)
+
                     states_array = result2array(states)
                     dep_var_array = result2array(dependent_variables)
 
@@ -206,6 +223,8 @@ class constellation:
                 self.dep_var_array_planes[plane] = dep_var_array_sats
 
             self.time = states_array[:, 0]
+            # CHECK IF THIS IS CORRECT, OTHERWISE:
+            # self.time = AC_time
             return self.states_array_planes, self.dep_var_array_planes, self.time
 
     def verification(self,
@@ -245,7 +264,7 @@ class constellation:
         # CREATE BENCHMARK MODEL
 
         # Define integrator settings for benchmark
-        time_step_benchmark = step_size_dim2
+        time_step_benchmark = step_size_SC
         coefficient_set = propagation_setup.integrator.rkf_78
         integrator_settings = propagation_setup.integrator.runge_kutta_variable_step_size(
             simulation_start_epoch, time_step_benchmark, coefficient_set,
