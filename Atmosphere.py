@@ -87,10 +87,10 @@ class turbulence:
         Lambda = 2 * self.ranges / (k_number * w_r ** 2)
         # Only during uplink is the turbulence beamspread considered significant.
         # This is ignored for downlink
+
         if link == 'up':
             self.w_LT = beam_spread_turbulence_LT(self.r0, w_r)
             self.w_ST = beam_spread_turbulence_ST(Lambda0, Lambda, self.var_rytov, w_r)
-            print('Long term beam wander (beam spread): ', )
             #REF:
             # self.w_ST1 = w0**2 * (1 + (self.ranges / z_r)**2) + 2 * (4.2 * self.ranges / (k_number * self.r0) * (1 - 0.26 * (self.r0/w0)**(1/3)))**2
             self.h_beamspread = (w_r / self.w_LT) ** 2
@@ -201,89 +201,89 @@ class turbulence:
         # VERIFICATION REF: FREE SPACE OPTICAL COMMUNICATION, B. MUKHERJEE, 2017, FIG.5.1
         if effect == "scintillation":
             if PDF_scintillation == "lognormal":
-                self.x_scint, self.pdf_scint = dist.lognorm_pdf(mean=self.mean_scint_X[:, None], sigma=self.std_scint_X[:, None], steps=steps)
-                self.h_scint = dist.lognorm_rvs(data, mean=self.mean_scint_X[:, None], sigma=self.std_scint_X[:, None])
+                x_scint, pdf_scint = dist.lognorm_pdf(mean=self.mean_scint_X[:, None], sigma=self.std_scint_X[:, None], steps=steps)
+                h_scint = dist.lognorm_rvs(data, mean=self.mean_scint_X[:, None], sigma=self.std_scint_X[:, None])
 
             elif PDF_scintillation == "gamma-gamma":
-                self.h_scint = np.zeros((len(self.ranges), steps))
-                self.x_scint = np.zeros((len(self.ranges), steps))
-                self.pdf_scint = np.zeros((len(self.ranges), steps))
+                h_scint = np.zeros((len(self.ranges), steps))
+                x_scint = np.zeros((len(self.ranges), steps))
+                pdf_scint = np.zeros((len(self.ranges), steps))
+                cdf_scint = np.zeros((len(self.ranges), steps))
 
-                self.cdf_scint = np.zeros((len(self.ranges), steps))
                 for i in range(len(self.ranges)):
-                    self.x_scint[i], self.pdf_scint[i] = dist.gg_pdf(alpha=self.alpha[i], beta=self.beta[i], steps=steps)
-                    self.cdf_scint[i, 0] = self.pdf_scint[i, 0]
-                    for j in range(1, len(self.pdf_scint[i])):
-                        self.cdf_scint[i, j] = np.trapz(self.pdf_scint[i, 1:j], x=self.x_scint[i, 1:j])
-                    self.h_scint[i] = dist.gg_rvs(self.pdf_scint[i], steps)
-            return self.h_scint
+                    x_scint[i], pdf_scint[i] = dist.gg_pdf(alpha=self.alpha[i], beta=self.beta[i], steps=steps)
+                    cdf_scint[i, 0] = pdf_scint[i, 0]
+                    for j in range(1, len(pdf_scint[i])):
+                        cdf_scint[i, j] = np.trapz(pdf_scint[i, 1:j], x=x_scint[i, 1:j])
+                    h_scint[i] = dist.gg_rvs(pdf_scint[i], steps)
+            return h_scint
 
         elif effect == "beam wander":
             if PDF_beam_wander == "rayleigh":
-                self.x_bw, self.pdf_bw = dist.rayleigh_pdf(sigma=self.std_bw[:, None], steps=steps)
-                self.angle_bw_X = dist.norm_rvs(data=data[0], sigma=self.std_bw[:, None], mean=0)
-                self.angle_bw_Y = dist.norm_rvs(data=data[1], sigma=self.std_bw[:, None], mean=0)
-                self.angle_bw_R = dist.rayleigh_rvs(data=data, sigma=self.std_bw[:, None])
-                return self.angle_bw_R
+                x_bw, pdf_bw = dist.rayleigh_pdf(sigma=self.std_bw[:, None], steps=steps)
+                angle_bw_X = dist.norm_rvs(data=data[0], sigma=self.std_bw[:, None], mean=0)
+                angle_bw_Y = dist.norm_rvs(data=data[1], sigma=self.std_bw[:, None], mean=0)
+                angle_bw_R = dist.rayleigh_rvs(data=data, sigma=self.std_bw[:, None])
+                return angle_bw_R
 
             elif PDF_beam_wander == "rice":
-                self.x_bw, self.pdf_bw = dist.norm_pdf(effect=effect, sigma=self.std_bw[:, None], steps=steps)
-                self.angle_bw_X = dist.norm_rvs(data=data[0], sigma=self.std_bw[:, None], mean=self.mean_bw[:, None])
-                self.angle_bw_Y = dist.norm_rvs(data=data[1], sigma=self.std_bw[:, None], mean=self.mean_bw[:, None])
-                self.angle_bw_R = np.sqrt(self.angle_bw_X ** 2 + self.angle_bw_Y ** 2)
-                return self.angle_bw_R
+                x_bw, pdf_bw = dist.norm_pdf(effect=effect, sigma=self.std_bw[:, None], steps=steps)
+                angle_bw_X = dist.norm_rvs(data=data[0], sigma=self.std_bw[:, None], mean=self.mean_bw[:, None])
+                angle_bw_Y = dist.norm_rvs(data=data[1], sigma=self.std_bw[:, None], mean=self.mean_bw[:, None])
+                angle_bw_R = np.sqrt(angle_bw_X ** 2 + angle_bw_Y ** 2)
+                return angle_bw_R
 
         elif effect == "angle of arrival":
             if PDF_AoA == "rayleigh":
-                self.x_aoa, self.pdf_aoa = dist.rayleigh_pdf(sigma=self.std_aoa[:, None], steps=steps)
-                self.angle_aoa_X = dist.norm_rvs(data=data[0], sigma=self.std_aoa[:, None], mean=0)
-                self.angle_aoa_Y = dist.norm_rvs(data=data[0], sigma=self.std_aoa[:, None], mean=0)
-                self.angle_aoa_R = dist.rayleigh_rvs(data=data, sigma=self.std_aoa[:, None])
-                return self.angle_aoa_R
+                x_aoa, pdf_aoa = dist.rayleigh_pdf(sigma=self.std_aoa[:, None], steps=steps)
+                angle_aoa_X = dist.norm_rvs(data=data[0], sigma=self.std_aoa[:, None], mean=0)
+                angle_aoa_Y = dist.norm_rvs(data=data[0], sigma=self.std_aoa[:, None], mean=0)
+                angle_aoa_R = dist.rayleigh_rvs(data=data, sigma=self.std_aoa[:, None])
+                return angle_aoa_R
 
             if PDF_AoA == "rice":
-                self.x_aoa, self.pdf_aoa = dist.norm_pdf(effect=effect, sigma=self.std_aoa[:, None], steps=steps)
-                self.angle_aoa_X = dist.norm_rvs(data=data[0], sigma=self.std_aoa[:, None], mean=self.mean_aoa[:, None])
-                self.angle_aoa_Y = dist.norm_rvs(data=data[0], sigma=self.std_aoa[:, None], mean=self.mean_aoa[:, None])
-                self.angle_aoa_R = np.sqrt(self.angle_aoa_X ** 2 + self.angle_aoa_Y ** 2)
-            return self.angle_aoa_R
+                x_aoa, pdf_aoa = dist.norm_pdf(effect=effect, sigma=self.std_aoa[:, None], steps=steps)
+                angle_aoa_X = dist.norm_rvs(data=data[0], sigma=self.std_aoa[:, None], mean=self.mean_aoa[:, None])
+                angle_aoa_Y = dist.norm_rvs(data=data[0], sigma=self.std_aoa[:, None], mean=self.mean_aoa[:, None])
+                angle_aoa_R = np.sqrt(angle_aoa_X ** 2 + angle_aoa_Y ** 2)
+            return angle_aoa_R
 
-    def test_PDF(self, effect = "scintillation", index = 20):
-        if effect == "scintillation":
-            fig_test_pdf_scint, ax_test_pdf_scint = plt.subplots(3, 1)
-            dist.plot(ax=ax_test_pdf_scint,
-                      sigma=self.std_scint_X[:, None],
-                      mean=self.mean_scint_X[:, None],
-                      x=self.x_scint,
-                      pdf=self.pdf_scint,
-                      data=self.h_scint,
-                      index=index,
-                      effect=effect,
-                      name=PDF_scintillation)
-
-        elif effect == "beam wander":
-            fig_test_pdf_bw, ax_test_pdf_bw = plt.subplots(3, 1)
-            dist.plot(ax=ax_test_pdf_bw,
-                      sigma=self.std_bw[:, None],
-                      mean=self.mean_bw[:, None],
-                      x=self.x_bw,
-                      pdf=self.pdf_bw,
-                      data=self.angle_bw_R,
-                      index=index,
-                      effect=effect,
-                      name=PDF_beam_wander)
-
-        elif effect == "angle of arrival":
-            fig_test_pdf_aoa, ax_test_pdf_aoa = plt.subplots(3, 1)
-            dist.plot(ax=ax_test_pdf_aoa,
-                      sigma=self.std_aoa[:, None],
-                      mean=self.mean_aoa[:, None],
-                      x=self.x_aoa,
-                      pdf=self.pdf_aoa,
-                      data=self.angle_aoa_R,
-                      index=index,
-                      effect=effect,
-                      name=PDF_AoA)
+    # def test_PDF(self, effect = "scintillation", index = 20):
+    #     if effect == "scintillation":
+    #         fig_test_pdf_scint, ax_test_pdf_scint = plt.subplots(3, 1)
+    #         dist.plot(ax=ax_test_pdf_scint,
+    #                   sigma=self.std_scint_X[:, None],
+    #                   mean=self.mean_scint_X[:, None],
+    #                   x=self.x_scint,
+    #                   pdf=self.pdf_scint,
+    #                   data=self.h_scint,
+    #                   index=index,
+    #                   effect=effect,
+    #                   name=PDF_scintillation)
+    #
+    #     elif effect == "beam wander":
+    #         fig_test_pdf_bw, ax_test_pdf_bw = plt.subplots(3, 1)
+    #         dist.plot(ax=ax_test_pdf_bw,
+    #                   sigma=self.std_bw[:, None],
+    #                   mean=self.mean_bw[:, None],
+    #                   x=self.x_bw,
+    #                   pdf=self.pdf_bw,
+    #                   data=self.angle_bw_R,
+    #                   index=index,
+    #                   effect=effect,
+    #                   name=PDF_beam_wander)
+    #
+    #     elif effect == "angle of arrival":
+    #         fig_test_pdf_aoa, ax_test_pdf_aoa = plt.subplots(3, 1)
+    #         dist.plot(ax=ax_test_pdf_aoa,
+    #                   sigma=self.std_aoa[:, None],
+    #                   mean=self.mean_aoa[:, None],
+    #                   x=self.x_aoa,
+    #                   pdf=self.pdf_aoa,
+    #                   data=self.angle_aoa_R,
+    #                   index=index,
+    #                   effect=effect,
+    #                   name=PDF_AoA)
 
 
     def print(self, index, elevation, ranges):

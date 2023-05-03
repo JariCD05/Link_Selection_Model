@@ -6,6 +6,8 @@ import numpy as np
 import pandas
 from matplotlib import pyplot as plt
 from tudatpy.kernel import constants
+from tudatpy.kernel.math import interpolators
+from tudatpy.util import result2array
 
 from input import *
 
@@ -21,14 +23,13 @@ class aircraft:
         self.lon_init = lon_init
 
     def propagate(self,
+                  stepsize=1.0,
                   simulation_start_epoch = 0.0,
                   simulation_end_epoch = 1000.0,
-                  speed = False,  # Velocity profile array (North, East, Down)
                   height = False,
                   method = method_AC,
                   filename = False
                   ):
-        print(method)
         if method == "opensky":
             print('Aircraft data from OPENSKY database')
 
@@ -42,7 +43,7 @@ class aircraft:
             lon = np.deg2rad(flight['longitude'].to_numpy())
 
             heights = flight['altitude'].to_numpy() * 0.304 #Convert ft to m
-            R = R_earth + height
+            R = R_earth + heights
             pos = np.transpose(np.array((np.cos(lat) * np.cos(lon),
                                           np.cos(lat) * np.sin(lon),
                                           np.sin(lat))) * R)
@@ -50,7 +51,46 @@ class aircraft:
             vertical_speed = flight['vertical_rate'].to_numpy() * 0.00508 #Convert ft/min to m/s
             speed = np.sqrt(ground_speed**2 + vertical_speed**2)
 
-            print(np.shape(time), 'ac time')
+            # properties_dict = dict()
+            # for i in range(len(time)):
+            #     properties_dict[time[i]] = np.array((lat[i], lon[i]))
+            #
+            # plt.plot(time, lat)
+            # plt.show()
+            # #
+            # interpolator_settings = interpolators.lagrange_interpolation(8)
+            # properties_interpolator = interpolators.create_one_dimensional_vector_interpolator(properties_dict, interpolator_settings)
+            # lat_interpolator = interpolators.create_one_dimensional_vector_interpolator(lat_dict, interpolator_settings)
+            # lon_interpolator = interpolators.create_one_dimensional_vector_interpolator(lon, interpolator_settings)
+            # heights_interpolator = interpolators.create_one_dimensional_vector_interpolator(heights, interpolator_settings)
+            # pos_interpolator = interpolators.create_one_dimensional_vector_interpolator(pos, interpolator_settings)
+            # speed_interpolator = interpolators.create_one_dimensional_vector_interpolator(speed, interpolator_settings)
+            #
+            # lat_interpolated = dict()
+            # lon_interpolated = dict()
+            # heights_interpolated = dict()
+            # pos_interpolated = dict()
+            # speed_interpolated = dict()
+            # properties_interpolated = dict()
+            #
+            # time_interpolated = np.arange(0, interval, 1.0)
+            # for epoch in time_interpolated:
+            #     # lat_interpolated[epoch] = lat_interpolator.interpolate(epoch)
+            #     # lon_interpolated[epoch] = lon_interpolator.interpolate(epoch)
+            #     # pos_interpolated[epoch] = pos_interpolator.interpolate(epoch)
+            #     properties_interpolated[epoch] = properties_interpolator.interpolate(epoch)
+            #
+            # # lat = result2array(lat_interpolated)
+            # # lon = result2array(lon_interpolated)
+            # # pos = result2array(pos_interpolated)
+            # properties = result2array(properties_interpolated)
+            # lat = properties[:,0]
+            # lon = properties[:,1]
+
+            # plt.plot(time_interpolated, lat)
+            # plt.show()
+
+
             return pos, heights, lat, lon, ground_speed, time
 
 
@@ -58,7 +98,7 @@ class aircraft:
         # And with initial longitude, latitude and height
         elif method == "straight":
             print('Aircraft data from simplified straight flight')
-            time = np.arange(start_time, end_time, step_size_link)
+            time = np.arange(simulation_start_epoch, simulation_end_epoch, stepsize)
             # Initial position
             R   = np.zeros(len(time))
             lat = np.zeros(len(time))
@@ -74,14 +114,13 @@ class aircraft:
 
             interval = simulation_end_epoch - simulation_start_epoch
             for i in range(1, len(time)):
+                latdot = vel_AC[0] /  R[i-1]
+                londot = vel_AC[1] / (R[i-1] * np.cos(lat[i-1]))
+                Rdot   = vel_AC[2]
 
-                latdot = v[0] /  R[i-1]
-                londot = v[1] / (R[i-1] * np.cos(lat[i-1]))
-                Rdot   = v[2]
-
-                dlat = latdot * step_size_link
-                dlon = londot * step_size_link
-                dR   = Rdot * step_size_link
+                dlat = latdot * stepsize
+                dlon = londot * stepsize
+                dR   = Rdot * stepsize
                 lat[i] = lat[i-1] + dlat
                 lon[i] = lon[i-1] + dlon
                 R[i]   = R[i-1]   + dR
@@ -107,10 +146,9 @@ class aircraft:
                 elif lon[i] < -np.pi:
                     lon[i] += 2*np.pi
 
+            speed = np.ones(len(time)) * speed_AC
+
             return pos, heights, lat, lon, speed, time
 
         def interpolate(self):
             return
-
-# aircraft = aircraft()
-# aircraft.propagate(method="OpenSky_database")

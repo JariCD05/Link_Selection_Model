@@ -124,7 +124,7 @@ class routing_network():
     #     self.geometrical_output['radial'] = radial
     #     return self.geometrical_output
 
-    def routing(self, number_of_planes, number_sats_per_plane, geometrical_output, time, optimization='no'):
+    def routing(self, geometrical_output, time, optimization='no'):
         # This method computes the routing sequence of the links between AIRCRAFT and SATELLITES in constellation.
         # This model uses only geometric data dictionary as INPUT with 10 KEYS (pos_SC, vel_SC, h_SC, range, slew_rate, elevation, zenith, azimuth, radial, doppler shift)
         # Each KEY has a value with shape (NUMBER_OF_PLANES, NUMBER_SATS_PER_PLANE, LEN(TIME)) (for example: 10x10x3600 for 10 planes, 10 sats and 1 hour with 1s time steps)
@@ -157,25 +157,24 @@ class routing_network():
                 start_sat = []
                 # Find a new satellite to start new connection
                 while len(start_elev) == 0 and index < len(time):
-                    for plane in range(number_of_planes):
-                        for sat in range(number_sats_per_plane):
+                    for i in range(len(geometrical_output['pos SC'])):
+                        elev_last = elevation_angles[i][index - 1]
+                        elev = elevation_angles[i][index]
 
-                            elev_last = elevation_angles[plane][sat][index - 1]
-                            elev = elevation_angles[plane][sat][index]
+                        # FIND SATELLITES WITH AN ELEVATION ABOVE THRESHOLD (DIRECT LOS), AN ELEVATION THAT IS STILL INCREASING (START OF WINDOW) AND T < T_FINAL
+                        if elev > elevation_min and elev > elev_last:
+                            start_elev.append(elev)
+                            start_sat.append(i)
 
-                            # FIND SATELLITES WITH AN ELEVATION ABOVE THRESHOLD (DIRECT LOS), AN ELEVATION THAT IS STILL INCREASING (START OF WINDOW) AND T < T_FINAL
-                            if elev > elevation_min and elev > elev_last:
-                                start_elev.append(elev)
-                                start_sat.append([plane, sat])
 
                     self.total_handover_time += step_size_link
                     t_handover += step_size_link
                     index += 1
 
                 if len(start_sat) > 0:
+                    # print('start elev', start_sat, start_elev)
                     # CHOOSE THE SATELLITE WITH THE SMALLEST ELEVATION ANGLE
-                    current_plane = start_sat[np.argmin(start_elev)][0]
-                    current_sat = start_sat[np.argmin(start_elev)][1]
+                    current_sat = start_sat[np.argmin(start_elev)]
                     current_elevation = start_elev[np.argmin(start_elev)]
                     self.number_of_links += 1
 
@@ -195,28 +194,20 @@ class routing_network():
                 if index > len(time):
                     break
                 while current_elevation > elevation_min and index < len(time):
-                    current_elevation = elevation_angles[current_plane][current_sat][index]
+                    # print('same satellite', start_sat, current_elevation)
+                    current_elevation = elevation_angles[current_sat][index]
                     index += 1
 
                 time_new.append(list(time[index_start_window:index]))
-                pos_SC[index_start_window:index] = geometrical_output['pos SC'][current_plane][current_sat][
-                                                   index_start_window:index]
-                heights_SC[index_start_window:index] = geometrical_output['heights SC'][current_plane][current_sat][
-                                                       index_start_window:index]
-                vel_SC[index_start_window:index] = geometrical_output['vel SC'][current_plane][current_sat][
-                                                   index_start_window:index]
-                ranges[index_start_window:index] = geometrical_output['ranges'][current_plane][current_sat][
-                                                   index_start_window:index]
-                slew_rates[index_start_window:index] = geometrical_output['slew rates'][current_plane][current_sat][
-                                                       index_start_window:index]
-                elevation[index_start_window:index] = geometrical_output['elevation'][current_plane][current_sat][
-                                                      index_start_window:index]
-                zenith[index_start_window:index] = geometrical_output['zenith'][current_plane][current_sat][
-                                                   index_start_window:index]
-                azimuth[index_start_window:index] = geometrical_output['azimuth'][current_plane][current_sat][
-                                                    index_start_window:index]
-                radial[index_start_window:index] = geometrical_output['radial'][current_plane][current_sat][
-                                                   index_start_window:index]
+                pos_SC[index_start_window:index] = geometrical_output['pos SC'][current_sat][index_start_window:index]
+                heights_SC[index_start_window:index] = geometrical_output['heights SC'][current_sat][index_start_window:index]
+                vel_SC[index_start_window:index] = geometrical_output['vel SC'][current_sat][index_start_window:index]
+                ranges[index_start_window:index] = geometrical_output['ranges'][current_sat][index_start_window:index]
+                slew_rates[index_start_window:index] = geometrical_output['slew rates'][current_sat][index_start_window:index]
+                elevation[index_start_window:index] = geometrical_output['elevation'][current_sat][index_start_window:index]
+                zenith[index_start_window:index] = geometrical_output['zenith'][current_sat][index_start_window:index]
+                azimuth[index_start_window:index] = geometrical_output['azimuth'][current_sat][index_start_window:index]
+                radial[index_start_window:index] = geometrical_output['radial'][current_sat][index_start_window:index]
                 self.links[index_start_window:index] = self.number_of_links
 
         mask = heights_SC > 0
@@ -236,8 +227,8 @@ class routing_network():
 
         print('------------------------------------------------')
         print('ROUTING MODEL')
-        print('Number of satellites: ' + str(int(number_of_planes*number_sats_per_plane)))
-        print('Number of links: '+ str(self.number_of_links+1))
+        print('Number of satellites: ' + str(i+1))
+        print('Number of links: '+ str(self.number_of_links))
         print('Total acquisition time: ' + str(self.total_acquisition_time))
         print('------------------------------------------------')
         return self.geometrical_output, mask
@@ -269,18 +260,6 @@ class routing_network():
         self.performance_output['errors'] = errors
         self.performance_output['errors_coded'] = errors_coded
         return self.performance_output
-
-    def latency_func(self):
-        latency_propagation = self.geometrical_output['ranges'] / speed_of_light
-        latency_data_rate = 1 / data_rate
-        self.latency = latency_propagation + latency_data_rate + latency_interleaving
-        self.performance_output['latency'] = self.latency
-
-    def throughput_func(self):
-        throughput = data_rate * step_size_link - self.performance_output['errors']
-        throughput_coded = data_rate * step_size_link - self.performance_output['errors_coded']
-        self.performance_output['throughput'] = throughput
-        self.performance_output['throughput_coded'] = throughput_coded
 
     def variable_data_rate(self,
                            P_r_threshold: np.array,

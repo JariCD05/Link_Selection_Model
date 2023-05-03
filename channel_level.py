@@ -21,7 +21,8 @@ def channel_level(LCT,
                   ranges: np.array,
                   P_r_0: np.array,
                   elevation_angles: np.array,
-                  zenith_angles: np.array):
+                  zenith_angles: np.array,
+                  samples):
     print('')
     print('----------CHANNEL LEVEL-(Monte-Carlo-simulations-of-signal-fluctuations)-----------------')
     print('')
@@ -39,6 +40,8 @@ def channel_level(LCT,
     turb.var_aoa_func(zenith_angles)
     turb.beam_spread()
     turb.Strehl_ratio_func()
+
+    # turb.print(index = plot_index, elevation=np.rad2deg(elevation_angles), ranges=ranges)
     # ------------------------------------------------------------------------
     # ------------------------INITIALIZING-ALL-VECTORS------------------------
     # ----------------------START-MONTE-CARLO-SIMULATIONS---------------------
@@ -46,25 +49,25 @@ def channel_level(LCT,
     # For each fluctuating variable, a vector is initialized with a standard normal distribution (std=1, mean=0)
     # For all jitter related vectors (beam wander, angle-of-arrival, mechanical TX jitter, mechanical RX jitter), two variables are initialized for both X- and Y-components
 
-    angle_pj_t_X = norm.rvs(scale=1, loc=0, size=samples_channel_level)
-    angle_pj_t_Y = norm.rvs(scale=1, loc=0, size=samples_channel_level)
-    angle_pj_r_X = norm.rvs(scale=1, loc=0, size=samples_channel_level)
-    angle_pj_r_Y = norm.rvs(scale=1, loc=0, size=samples_channel_level)
+    angle_pj_t_X = norm.rvs(scale=1, loc=0, size=samples)
+    angle_pj_t_Y = norm.rvs(scale=1, loc=0, size=samples)
+    angle_pj_r_X = norm.rvs(scale=1, loc=0, size=samples)
+    angle_pj_r_Y = norm.rvs(scale=1, loc=0, size=samples)
 
     # The turbulence vectors (beam wander and angle-of-arrival) differ for each ranges.
     # Hence they are initialized seperately for each ranges and stored in one 2D array
 
-    h_scint     = np.empty((len(ranges), samples_channel_level))                            # Should have 2D with size ( len of ranges list, # of samples_channel_level )
-    angle_bw_X  = np.empty((len(ranges), samples_channel_level))                            # Should have 2D with size ( len of ranges list, # of samples_channel_level )
-    angle_bw_Y  = np.empty((len(ranges), samples_channel_level))                            # Should have 2D with size ( len of ranges list, # of samples_channel_level )
-    angle_aoa_X = np.empty((len(ranges), samples_channel_level))                            # Should have 2D with size ( len of ranges list, # of samples_channel_level )
-    angle_aoa_Y = np.empty((len(ranges), samples_channel_level))                            # Should have 2D with size ( len of ranges list, # of samples_channel_level )
-    for i in range(len(ranges)):
-        h_scint[i]     = norm.rvs(scale=1, loc=0, size=samples_channel_level)
-        angle_bw_X[i]  = norm.rvs(scale=1, loc=0, size=samples_channel_level)
-        angle_bw_Y[i]  = norm.rvs(scale=1, loc=0, size=samples_channel_level)
-        angle_aoa_X[i] = norm.rvs(scale=1, loc=0, size=samples_channel_level)
-        angle_aoa_Y[i] = norm.rvs(scale=1, loc=0, size=samples_channel_level)
+    h_scint     = np.empty((len(P_r_0), samples))                            # Should have 2D with size ( len of P_r_0 list, # of samples )
+    angle_bw_X  = np.empty((len(P_r_0), samples))                            # Should have 2D with size ( len of P_r_0 list, # of samples )
+    angle_bw_Y  = np.empty((len(P_r_0), samples))                            # Should have 2D with size ( len of P_r_0 list, # of samples )
+    angle_aoa_X = np.empty((len(P_r_0), samples))                            # Should have 2D with size ( len of P_r_0 list, # of samples )
+    angle_aoa_Y = np.empty((len(P_r_0), samples))                            # Should have 2D with size ( len of P_r_0 list, # of samples )
+    for i in range(len(P_r_0)):
+        h_scint[i]     = norm.rvs(scale=1, loc=0, size=samples)
+        angle_bw_X[i]  = norm.rvs(scale=1, loc=0, size=samples)
+        angle_bw_Y[i]  = norm.rvs(scale=1, loc=0, size=samples)
+        angle_aoa_X[i] = norm.rvs(scale=1, loc=0, size=samples)
+        angle_aoa_Y[i] = norm.rvs(scale=1, loc=0, size=samples)
 
 
     # -----------------------------------------------------------------------------------------------
@@ -103,28 +106,32 @@ def channel_level(LCT,
     # For the beam wander vectors (X- and Y-comp.) and the angle-of-arrival vectors (X- and Y-comp.), the default distribution is RAYLEIGH.
     # For the TX jitter vectors (X- and Y-comp.) and the TX jitter vectors (X- and Y-comp.), the default distribution is RICE.
 
-    # The standard normal distribution of scintillation samples_channel_level are converted to
-    turb.create_turb_distributions(data=h_scint,
-                                  steps=samples_channel_level,
-                                  effect="scintillation")
+    # The standard normal distribution of scintillation samples are converted to
+    h_scint = turb.create_turb_distributions(data=h_scint,
+                                              steps=samples,
+                                              effect="scintillation")
 
-    turb.create_turb_distributions(data=[angle_bw_X, angle_bw_Y],
-                                   steps=samples_channel_level,
-                                   effect="beam wander")
+    angle_bw_R = turb.create_turb_distributions(data=[angle_bw_X, angle_bw_Y],
+                                               steps=samples,
+                                               effect="beam wander")
+    angle_bw_X = angle_bw_Y = []
 
-    turb.create_turb_distributions(data=[angle_aoa_X, angle_aoa_Y],
-                                    steps=samples_channel_level,
-                                    effect="angle of arrival")
-
-    # First, the Monte Carlo simulations for pointing jitter are simulated with the PDF distributions chosen in input.py.
-    LCT.create_pointing_distributions(data=[angle_pj_t_X, angle_pj_t_Y],
-                                      steps=samples_channel_level,
-                                      effect='TX jitter')
+    angle_aoa_R = turb.create_turb_distributions(data=[angle_aoa_X, angle_aoa_Y],
+                                                steps=samples,
+                                                effect="angle of arrival")
+    angle_aoa_X = angle_aoa_Y = []
 
     # First, the Monte Carlo simulations for pointing jitter are simulated with the PDF distributions chosen in input.py.
-    LCT.create_pointing_distributions(data=[angle_pj_r_X, angle_pj_r_Y],
-                                      steps=samples_channel_level,
-                                      effect='RX jitter')
+    angle_pj_t_R = LCT.create_pointing_distributions(data=[angle_pj_t_X, angle_pj_t_Y],
+                                                  steps=samples,
+                                                  effect='TX jitter')
+    angle_pj_t_X = angle_pj_t_Y = []
+
+    # First, the Monte Carlo simulations for pointing jitter are simulated with the PDF distributions chosen in input.py.
+    angle_pj_r_R = LCT.create_pointing_distributions(data=[angle_pj_r_X, angle_pj_r_Y],
+                                                  steps=samples,
+                                                  effect='RX jitter')
+    angle_pj_r_X = angle_pj_r_Y = []
 
     # filter_PSD(angle_pj_t, f_sampling=sampling_frequency, order=2)
 
@@ -133,15 +140,15 @@ def channel_level(LCT,
     # -----------------------------------------------------------------------------------------------
     # The radial angle fluctuations for TX (mech. TX jitter and beam wander) are super-positioned
     # The radial angle fluctuations for RX (mech. RX jitter and angle-of-arrival) are super-positioned
-    angle_TX = LCT.angle_pe_t_R + turb.angle_bw_R
+    angle_TX = angle_pj_t_R + angle_bw_R
     # --------------------------
     mean_TX = np.mean(angle_TX, axis=1)
-    var_TX = np.sum((angle_TX - mean_TX[:, None])**2, axis=1) / samples_channel_level
+    var_TX = np.sum((angle_TX - mean_TX[:, None])**2, axis=1) / samples
     # --------------------------
-    angle_RX = LCT.angle_pe_r_R + turb.angle_aoa_R
+    angle_RX = angle_pj_r_R + angle_aoa_R
     # --------------------------
     mean_RX = np.mean(angle_RX, axis=1)
-    var_RX = np.sum((angle_RX - mean_RX[:, None])**2, axis=1) / samples_channel_level
+    var_RX = np.sum((angle_RX - mean_RX[:, None])**2, axis=1) / samples
     # --------------------------
     # The super-positioned vectors for TX are projected over a Gaussian beam profile to obtain the loss fraction h_TX(t)
     # The super-positioned vectors for RX are projected over a Airy disk profile to obtain the loss fraction h_RX(t)
@@ -149,19 +156,15 @@ def channel_level(LCT,
     h_RX = h_p_airy(angle_RX, D_r, focal_length)
     # The combined power vector is obtained by multiplying all three power vectors with each other (under the assumption of statistical independence between the three vectors)
     # REF: REFERENCE POWER VECTORS FOR OPTICAL LEO DOWNLINK CHANNEL, D. GIGGENBACH ET AL. Fig.1.
-    h_tot = turb.h_scint * h_TX * h_RX
+    h_tot = h_scint * h_TX * h_RX
     x_h_tot = np.linspace(0, 2, 10000)
-    pdf_h_tot = np.empty((len(ranges), len(x_h_tot)))
-    for i in range(len(ranges)):
-        hist = np.histogram(h_tot[i], bins=10000)
-        rv_h_tot = rv_histogram(hist, density=False)
-        pdf_h_tot[i] = rv_h_tot.pdf(x_h_tot)
+    pdf_h_tot = pdf_function(h_tot, len(ranges), x_h_tot)
 
     # For each jitter related vector, the power vector is also computed separately for analysis of the separate contributions
-    # h_bw = gaussian_profile(turbulence_dim1.angle_bw_R, angle_div)                    # Should have 2D with size ( len of ranges list, # of samples_channel_level )
-    # h_pj_t = gaussian_profile(LCT.angle_pe_t_R, angle_div)                            # Should have 2D with size ( len of ranges list, # of samples_channel_level )
-    # h_pj_r = airy_profile(LCT.angle_pe_r_R, D_r, focal_length)                        # Should have 1D with size ( # of samples_channel_level )
-    # h_aoa = airy_profile( turbulence_dim1.angle_aoa_R, D_r, focal_length)             # Should have 2D with size ( len of ranges list, # of samples_channel_level )
+    # h_bw = gaussian_profile(turbulence_dim1.angle_bw_R, angle_div)                    # Should have 2D with size ( len of ranges list, # of samples )
+    # h_pj_t = gaussian_profile(LCT.angle_pe_t_R, angle_div)                            # Should have 2D with size ( len of ranges list, # of samples )
+    # h_pj_r = airy_profile(LCT.angle_pe_r_R, D_r, focal_length)                        # Should have 1D with size ( # of samples )
+    # h_aoa = airy_profile( turbulence_dim1.angle_aoa_R, D_r, focal_length)             # Should have 2D with size ( len of ranges list, # of samples )
 
     #------------------------------------------------------------------------
     #------------------------------COMPUTING-P_r-----------------------------
@@ -170,6 +173,9 @@ def channel_level(LCT,
     # The PPB is computed with P_r and data_rate, according to (A.MAJUMDAR, 2008, EQ.3.29, H.HEMMATI, 2004, EQ.4.1-1)
     P_r = (h_tot.transpose() * P_r_0).transpose()
     PPB = PPB_func(P_r, data_rate)
+
+    x_P_r = np.linspace(W2dBm(P_r.min()), W2dBm(P_r.max()), 10000)
+    pdf_P_r = pdf_function(W2dBm(P_r), len(P_r_0), x_P_r)
 
     #------------------------------------------------------------------------
     #-----------------------------PDF-VERIFICATION---------------------------
@@ -185,7 +191,7 @@ def channel_level(LCT,
 
     # test_index = 2
     # fig_test_pdf_TX, ax = plt.subplots(1, 1)
-    # x_TX, pdf_TX = dist.beta_pdf(sigma=np.std(h_TX[test_index]), steps=samples_channel_level)
+    # x_TX, pdf_TX = dist.beta_pdf(sigma=np.std(h_TX[test_index]), steps=samples)
     # dist.plot(ax=ax,
     #           sigma=np.std(h_TX[test_index]),
     #           mean=np.mean(h_TX[test_index]),
@@ -199,7 +205,6 @@ def channel_level(LCT,
     #------------------------------------------------------------------------
     #-------------------------PLOT-RESULTS-(OPTIONAL)------------------------
     #------------------------------------------------------------------------
-    turb.print(index = plot_index, elevation=np.rad2deg(elevation_angles), ranges=ranges)
 
     def plot_turbulence_data():
         fig_cn, axs = plt.subplots(1, 2, dpi=125)
@@ -242,27 +247,20 @@ def channel_level(LCT,
 
         plt.show()
     def plot_channel_output():
-        # x_h_tot = np.linspace(0, 2, 1000)
-        # pdf_h_tot = np.empty((len(ranges), len(x_h_tot)))
-        # for i in range(len(ranges)):
-        #     hist = np.histogram(h_tot[i], bins=1000)
-        #     rv_h_tot = rv_histogram(hist, density=False)
-        #     pdf_h_tot[i] = rv_h_tot.pdf(x_h_tot)
-
         fig, ax = plt.subplots(3, 1)
         ax[0].set_title('Normalized power vector $h_{tot}$, static power $P_{r0}$ and dynamic power $P_r=P_{r0} h_{tot}$ \n'
                         'for elevation angle $\epsilon$='+str(np.round(np.rad2deg(elevation_angles[plot_index]), 2))+'deg',
                         fontsize=15)
         ax[0].set_ylabel('Normalized intensity [-]')
-        ax[0].hist(h_tot[plot_index], density=True, bins=100, range=(0, 2.0))
+        # ax[0].hist(h_tot[plot_index], density=True, bins=100, range=(0, 2.0))
         ax[0].plot(x_h_tot, pdf_h_tot[plot_index], label='PDF of total dynamic loss $h_{tot}$')
-        ax[0].set_ylabel('Pr [dBm]')
+        ax[0].set_ylabel('Probability density')
         ax[0].set_xlabel('$h_{tot}$ [-]')
 
         ax[1].plot(t, h_tot[plot_index], label='Time series of total dynamic loss $h_{tot}$ \n' 
                                                          'mean: ' + str(np.round(W2dB(np.mean(h_tot[plot_index])), 2)))
         ax[1].set_ylabel('$h_{tot}$ [dBm]')
-        ax[2].plot(t[10:], W2dBm(P_r[plot_index])[10:],
+        ax[2].plot(t[10:], W2dBm(P_r[plot_index,10:]),
                    label='Dynamic power $P_{r}$, mean: ' + str(np.round(W2dBm(np.mean(P_r[plot_index])), 2)) + ' dBm')
         ax[2].plot(t[10:], (np.ones(len(t))*W2dBm(P_r_0[plot_index]))[10:], label='Static power $P_{r0}$, mean: ' + str(np.round(W2dBm(np.mean(P_r_0[plot_index])),2)) + ' dBm',
                    linewidth=2.0)
@@ -396,14 +394,14 @@ def channel_level(LCT,
         plt.show()
     def plot_all_losses_pdf():
         x_h_tot = np.linspace(0, 2, 1000)
-        pdf_h_tot = np.empty((len(ranges), len(x_h_tot)))
-        for i in range(len(ranges)):
+        pdf_h_tot = np.empty((len(P_r_0), len(x_h_tot)))
+        for i in range(len(P_r_0)):
             hist = np.histogram(h_tot[i], bins=1000)
             rv_h_tot = rv_histogram(hist, density=False)
             pdf_h_tot[i] = rv_h_tot.pdf(x_h_tot)
         # Plot PDF losses
         x = np.linspace(0, 2, 1000)
-        for i in range(len(ranges)):
+        for i in range(len(P_r_0)):
             hist = np.histogram(h_tot[i], bins=1000)
             rv_h_tot = rv_histogram(hist, density=False)
             pdf_h_tot = rv_h_tot.pdf(x)
@@ -511,4 +509,4 @@ def channel_level(LCT,
     cur_time = time.process_time() - cur_time
     print('%s seconds-----------------------' % cur_time)
     print('')
-    return P_r, PPB, elevation_angles, [pdf_h_tot, x_h_tot], h_tot, turb.h_scint, h_RX, h_TX
+    return P_r, PPB, elevation_angles, [pdf_h_tot, x_h_tot], [pdf_P_r, x_P_r], h_tot, h_scint, h_RX, h_TX
