@@ -4,84 +4,298 @@ import numpy as np
 # %matplotlib widget
 from matplotlib import pyplot as plt
 from matplotlib import animation
+import json
 
 # Load tudatpy modules
+import tudatpy
 from tudatpy.kernel.interface import spice
 from tudatpy.kernel.numerical_simulation import environment_setup
 from tudatpy.kernel.numerical_simulation import propagation_setup
 from tudatpy.kernel.math import interpolators
 from tudatpy.kernel import numerical_simulation
-from tudatpy.kernel.astro import element_conversion, frame_conversion
+from tudatpy.kernel.astro import element_conversion, frame_conversion, time_conversion
 from tudatpy.kernel import constants
 from tudatpy.util import result2array
+from datetime import datetime, timedelta
 
 from input import *
+from helper_functions import *
 
 # Load spice kernels
 spice.load_standard_kernels()
 
 class constellation:
-    def __init__(self,
-                 sat_setup = "LEO_1",
-                 number_of_planes = 72,
-                 number_sats_per_plane = 1,
-                 height_init = 550.0E3,  # 550.0E3 for Starlink phase 0
-                 inc_init = 53.0,  # 53.0 for Starlink phase 0,
-                 RAAN_init = 120.0,
-                 TA_init = 0.0,
-                 ECC_init = 0.0,
-                 omega_init = 120.0
-                 ):
-
-
+    def __init__(self):
+        # settings = propagation_setup.propagator.PropagationPrintSettings
+        # settings.disable_all_printing(self=tudatpy.kernel.numerical_simulation.propagation_setup.propagator.PropagationPrintSettings)
         # ------------------------------------------------------------------------
         # --------------------------CHOOSE-SATELLITE-SETUP------------------------
         # ------------------------------------------------------------------------
+        # Define set up of all satellites in the constellation
+        if constellation_type == "LEO_cons":
+            self.RAAN_init = np.linspace(0.0, 360.0*(1-1/number_of_planes), number_of_planes)
+            self.TA_init = np.linspace(0.0, 360.0*(1-1/number_sats_per_plane), number_sats_per_plane)
 
-        # Set simulation start and end epochs
-        self.sat_setup = sat_setup
+        elif constellation_type == "LEO_1":
+            self.RAAN_init = 240.0  # * ureg.degree
+            self.TA_init = 0.0  # * ureg.degree
+        elif constellation_type == "GEO":
+            height_init = 35800.0  # * ureg.kilometer
+            inc_init = 0.0  # * ureg.degree
+            self.RAAN_init = 1.0  # * ureg.degree
+            self.TA_init = 1.0  # * ureg.degree
+
         self.number_of_planes = number_of_planes
         self.number_sats_per_plane = number_sats_per_plane
-        self.height_init = height_init
-        self.inc_init = inc_init
-        self.RAAN_init = RAAN_init
-        self.TA_init = TA_init
-        self.ECC_init = ECC_init
-        self.omega_init = omega_init
+        self.height_init = h_SC
+        self.inc_init = inc_SC
+        self.ECC_init = 0.0  # * ureg.degree
+        self.omega_init = 237.5  # * ureg.degree
+
+
+        # Initial array where all orbital trajectories are stored
+        self.geometric_data_sats = {
+            'satellite name': [],
+            'states': [],
+            'dependent variables': []
+        }
+
+        # ------------------------------------------------------------------------
+        # --------------------------ENVIRONMENT-SETUP-----------------------------
+        # ------------------------------------------------------------------------
+
+        # Create default body settings for "Earth"
+        bodies_to_create = ["Earth", "Moon", "Mars", "Sun"]
+        Earth_radius = R_earth  # m
+
+        # Create default body settings for bodies_to_create, with "Earth"/"J2000" as the global frame origin and orientation
+        self.global_frame_origin = "Earth"
+        self.global_frame_orientation = "J2000"
+        # global_frame_orientation = "IAU_Earth"
+        self.body_settings = environment_setup.get_default_body_settings(
+            bodies_to_create, self.global_frame_origin, self.global_frame_orientation)
+
+        # Create system of bodies (in this case only Earth)
+        self.bodies = environment_setup.create_system_of_bodies(self.body_settings)
 
 
     def propagate(self,
                   AC_time: np.array,
+                  step_size: float,
                   method = "tudat",
+                  step_size_analysis = False
                   ):
 
-        simulation_start_epoch = AC_time[0]
-        simulation_end_epoch = AC_time[-1]
+        self.simulation_start_epoch = AC_time[0]
+        self.simulation_end_epoch = AC_time[-1]
 
-        if method == "tudat":
+        if method == "TLE":
+            print('Satellite data from TLE sets and SGP4 propagator')
+            from sgp4.api import Satrec, jday
+            import skyfield.sgp4lib as sgp4lib
+            from skyfield import api
+            from astropy import coordinates as coord, units as u
+            from astropy.time import Time
 
-            # Initial array where all orbital trajectories are stored
-            self.states_array_planes = {}
-            self.dep_var_array_planes = {}
+            # f = open('oneweb_tle.json', "r")
+            # data = json.loads(f.read())
+            # for i in data:
+            #     satellite = Satrec.twoline2rv(i['tle_1'], i['tle_2'])
+            #
+            #     year = int('20'+str(satellite.epochyr))
+            #     decimal_days = satellite.epochdays
+            #     date = datetime(year, 1, 1) + timedelta(days=decimal_days)
+            #
+            #     jd = satellite.jdsatepoch
+            #     j2000d = jd - 2451545
+            #     self.time_jd = AC_time + jd
+            #     fr = np.zeros(len(self.time_jd))
+            #     e, p, v = satellite.sgp4_array(self.time_jd, fr)
 
-            #------------------------------------------------------------------------
-            #--------------------------ENVIRONMENT-SETUP-----------------------------
-            #------------------------------------------------------------------------
+                # # Conversion from TEME to ITRF
+                # for i in range(len(p)):
+                #     p_new, v_new = sgp4lib.TEME_to_ITRF(time_jd[i], np.asarray(p[i]), v[i] * 86400)
+                #     v = v / 86400
+                #     # Conversion from ITRF to J2000
+                #     now = Time(date)
+                #     itrs = coord.ITRS(p_new[0] * u.km, p_new[1] * u.km, p_new[2] * u.km, v_new[0] * u.km / u.s, v_new[1] * u.km / u.s,
+                #                       v_new[2] * u.km / u.s, obstime=now)
+                #     gcrs = itrs.transform_to(coord.GCRS(obstime=now))
+                #     p_new, v_new = gcrs.cartesian.xyz.value, gcrs.velocity.d_xyz.value
+                #     print(i)
+                # # Create 1 state vector
+                # print('1 sat converted to J2000')
 
-            # Create default body settings for "Earth"
-            bodies_to_create = ["Earth", "Moon", "Mars", "Sun"]
-            Earth_radius = R_earth #m
+            #     p_v = np.hstack((p * 1E3, v * 1E3))
+            #     states_array = np.hstack((self.time_jd.reshape(-1, 1), p_v))
+            #     heights_array = np.sqrt(p[:,0]**2 + p[:,1]**2 + p[:,2]**2)*1E3 - R_earth
+            #
+            #     self.states_array_sats[i['satellite_name']] = states_array
+            #     self.dep_var_array_sats[i['satellite_name']] = heights_array
+            # f.close()
 
-            # Create default body settings for bodies_to_create, with "Earth"/"J2000" as the global frame origin and orientation
-            global_frame_origin = "Earth"
-            global_frame_orientation = "J2000"
-            # global_frame_orientation = "IAU_Earth"
-            body_settings = environment_setup.get_default_body_settings(
-                bodies_to_create, global_frame_origin, global_frame_orientation)
+            # fig = plt.figure(figsize=(6, 6), dpi=125)
+            # ax = fig.add_subplot(111, projection='3d')
+            # for i in data:
+            #     if i['satellite_name'] == "ONEWEB-0641":
+            #         ax.scatter(self.states_array_sats[i['satellite_name']][:, 1],
+            #                 self.states_array_sats[i['satellite_name']][:, 2],
+            #                 self.states_array_sats[i['satellite_name']][:, 3],
+            #                 linestyle='-', linewidth=0.5, color='orange')
+            # plt.show()
+
+            # return self.states_array_sats, self.dep_var_array_sats, self.time_jd
+
+            # Add vehicle object to system of bodies
+            self.bodies.create_empty_body("sat")
+
+            # ------------------------------------------------------------------------
+            # --------------------------PROPAGATION-SETUP-----------------------------
+            # ------------------------------------------------------------------------
+
+            # Define bodies that are propagated
+            self.bodies_to_propagate = ["sat"]
+
+            # Define central bodies of propagation
+            self.central_bodies = ["Earth"]
+
+            # Define accelerations acting on sat
+            acceleration_settings_sat = dict(
+                # Earth=[propagation_setup.acceleration.point_mass_gravity()],
+                Earth=[propagation_setup.acceleration.spherical_harmonic_gravity(2,0)],
+                # Mars =[propagation_setup.acceleration.point_mass_gravity()],
+                # Moon = [propagation_setup.acceleration.point_mass_gravity()]
+            )
+            acceleration_settings = {"sat": acceleration_settings_sat}
+            # Create acceleration models
+            self.acceleration_models = propagation_setup.create_acceleration_models(
+                self.bodies, acceleration_settings, self.bodies_to_propagate, self.central_bodies)
+
+            # ------------------------------------------------------------------------
+            # --------------LOOP-THROUGH-ALL-SATELLITES-WITHIN-CONSTELLATION----------
+            # ------------------------------------------------------------------------
+
+            # Propagate trajectories for each satellite
+            f = open(TLE_filename_load, "r")
+            data = json.loads(f.read())
+            sat_index = 0
+            for i in data:
+                sat_index += 1
+                satellite = Satrec.twoline2rv(i['tle_1'], i['tle_2'])
+                jd = satellite.jdsatepoch
+                self.time_jd = AC_time + jd
+
+                INC_init  = float(i['tle_2'][9:16])
+                RAAN_init = float(i['tle_2'][17:25])
+                ECC_init = float('0.'+i['tle_2'][26:33])
+                omega_init = float(i['tle_2'][34:42])
+                MA_init = float(i['tle_2'][43:51])
+                mean_motion_init = float(i['tle_2'][52:63])
+                SMA_init = (mu_earth / (2*np.pi * mean_motion_init/86400)**2)**(1/3)
+                height_init = SMA_init - R_earth
+                TA_init = np.deg2rad(MA_init) + (2*ECC_init -1/4*ECC_init**3)*np.sin(np.deg2rad(MA_init)) + 5/4*ECC_init**2*np.sin(2*np.deg2rad(MA_init)) #Fourier transfrom: https://en.wikipedia.org/wiki/True_anomaly
+                print(i['satellite_name'])
+                print(mean_motion_init, SMA_init, height_init, ECC_init, INC_init, omega_init, RAAN_init, TA_init)
+                # Set initial conditions for the satellite that will be
+                # propagated in this simulation. The initial conditions are given in
+                # Keplerian elements and later on converted to Cartesian elements
+                self.earth_gravitational_parameter = self.bodies.get("Earth").gravitational_parameter
+                initial_state = element_conversion.keplerian_to_cartesian_elementwise(
+                    gravitational_parameter=self.earth_gravitational_parameter,
+                    semi_major_axis=SMA_init,
+                    eccentricity=ECC_init,
+                    inclination=np.deg2rad(INC_init),
+                    argument_of_periapsis=np.deg2rad(omega_init),
+                    longitude_of_ascending_node=np.deg2rad(RAAN_init),
+                    true_anomaly=TA_init)
+
+                # ------------------------------------------------------------------------
+                # --------------------PROPAGATOR/INTEGRATOR-SETTINGS----------------------
+                # ------------------------------------------------------------------------
+
+                # Define dependent variables to save
+                dependent_variables_to_save = [
+                    propagation_setup.dependent_variable.altitude("sat", "Earth"),
+                    propagation_setup.dependent_variable.latitude("sat", "Earth"),
+                    propagation_setup.dependent_variable.longitude("sat", "Earth"),
+                    propagation_setup.dependent_variable.keplerian_state("sat", "Earth")
+                ]
+
+                # Create termination settings
+                self.termination_condition = propagation_setup.propagator.time_termination(self.simulation_end_epoch)
+
+                # Create propagation settings
+                self.propagator_settings = propagation_setup.propagator.translational(
+                    self.central_bodies,
+                    self.acceleration_models,
+                    self.bodies_to_propagate,
+                    initial_state,
+                    self.termination_condition,
+                    output_variables=dependent_variables_to_save
+                )
+
+                # Define type of propagator (Default is Runge Kutta 4)
+                # And create numerical integrator settings
+                if integrator == "Runge Kutta 4":
+                    coefficient_set = propagation_setup.integrator.rkf_45
+                elif integrator == "Runge Kutta 78":
+                    coefficient_set = propagation_setup.integrator.rkf_78
+
+                self.integrator_settings = propagation_setup.integrator.runge_kutta_variable_step_size(
+                    self.simulation_start_epoch, step_size, coefficient_set,
+                    step_size, step_size,
+                    np.inf, np.inf)
+
+                # ------------------------------------------------------------------------
+                # -----------------------------PROPAGATE-ORBIT----------------------------
+                # ------------------------------------------------------------------------
+
+                # Create simulation object and propagate the dynamics
+                dynamics_simulator = numerical_simulation.SingleArcSimulator(
+                    self.bodies, self.integrator_settings, self.propagator_settings,
+                    print_state_data=False, print_dependent_variable_data=False, print_number_of_function_evaluations=False)
+
+                # Extract the resulting state history and convert it to an ndarray
+                states = dynamics_simulator.state_history
+                dependent_variables = dynamics_simulator.dependent_variable_history
+
+                # ------------------------------------------------------------------------
+                # -------------------------------INTERPOLATE------------------------------
+                # ------------------------------------------------------------------------
+                interpolator_settings = interpolators.lagrange_interpolation(8)
+                state_interpolator = interpolators.create_one_dimensional_vector_interpolator(
+                    states, interpolator_settings)
+                dep_var_interpolator = interpolators.create_one_dimensional_vector_interpolator(
+                    dependent_variables, interpolator_settings)
+
+                states = dict()
+                dependent_variables = dict()
+                for epoch in AC_time:
+                    states[epoch] = state_interpolator.interpolate(epoch)
+                    dependent_variables[epoch] = dep_var_interpolator.interpolate(epoch)
+
+                states_array = result2array(states)
+                dep_var_array = result2array(dependent_variables)
+
+                self.geometric_data_sats['satellite name'].append(i['satellite_name'])
+                self.geometric_data_sats['states'].append(states_array)
+                self.geometric_data_sats['dependent variables'].append(dep_var_array)
+
+            self.time = self.time_jd
+
+            print('SATELLITE PROPAGATION MODEL')
+            print('------------------------------------------------')
+            print('Satellite positional data propagated with TLE data')
+            print('Integrator               : ' + str(integrator))
+            print('Step size                : ' + str(step_size_SC) + 'sec')
+            print('Initial altitude         : ' + str(h_SC*1.0E-3) + 'km')
+            print('Initial inclination      : ' + str(inc_SC) + 'degrees')
+            print('Number of planes         : ' + str(number_of_planes))
+            print('Number of sats per plane : ' + str(number_sats_per_plane))
+            print('------------------------------------------------')
 
 
-            # Create system of bodies (in this case only Earth)
-            self.bodies = environment_setup.create_system_of_bodies(body_settings)
+        elif method == "tudat":
 
             # Add vehicle object to system of bodies
             self.bodies.create_empty_body("sat")
@@ -99,9 +313,7 @@ class constellation:
             # Define accelerations acting on sat
             acceleration_settings_sat = dict(
                 Earth=[propagation_setup.acceleration.point_mass_gravity()],
-                # Earth=[propagation_setup.acceleration.spherical_harmonic_gravity(2,2)],
-                # Mars =[propagation_setup.acceleration.point_mass_gravity()],
-                # Moon = [propagation_setup.acceleration.point_mass_gravity()]
+                # Earth=[propagation_setup.acceleration.spherical_harmonic_gravity(2,0)],
                 )
             acceleration_settings = {"sat": acceleration_settings_sat}
             # Create acceleration models
@@ -114,15 +326,16 @@ class constellation:
             # ------------------------------------------------------------------------
 
             # Propagate trajectories for each orbit
+            # satellites = np.arange(1,number_of_planes*number_sats_per_plane,1)
+            # for sat in satellites:
             for plane in range(self.number_of_planes):
-                states_array_sats = {}
-                dep_var_array_sats = {}
                 for sat in range(self.number_sats_per_plane):
+                    sat_index = plane * self.number_sats_per_plane + sat
 
-                    if self.sat_setup == "LEO_cons":
+                    if constellation_type == "LEO_cons":
                         RAAN_init = self.RAAN_init[plane]
                         TA_init = self.TA_init[sat]
-                    elif self.sat_setup == "LEO_1" or self.sat_setup == "GEO":
+                    elif constellation_type == "LEO_1" or self.sat_setup == "GEO":
                         RAAN_init = self.RAAN_init
                         TA_init = self.TA_init
                     # Set initial conditions for the satellite that will be
@@ -132,18 +345,11 @@ class constellation:
                     initial_state = element_conversion.keplerian_to_cartesian_elementwise(
                         gravitational_parameter     =self.earth_gravitational_parameter,
                         semi_major_axis             =(self.height_init + R_earth),
-                        eccentricity                =np.deg2rad(self.ECC_init),
+                        eccentricity                =self.ECC_init,
                         inclination                 =np.deg2rad(self.inc_init),
                         argument_of_periapsis       =np.deg2rad(self.omega_init),
                         longitude_of_ascending_node =np.deg2rad(RAAN_init),
                         true_anomaly                =np.deg2rad(TA_init))
-                        # gravitational_parameter = self.earth_gravitational_parameter,
-                        # semi_major_axis = self.height_init + R_earth,
-                        # eccentricity = np.deg2rad(self.ECC_init),
-                        # inclination = np.deg2rad(self.inc_init),
-                        # argument_of_periapsis = np.deg2rad(self.omega_init),
-                        # longitude_of_ascending_node = np.deg2rad(RAAN_init),
-                        # true_anomaly = np.deg2rad(TA_init))
 
                     #------------------------------------------------------------------------
                     #--------------------PROPAGATOR/INTEGRATOR-SETTINGS----------------------
@@ -158,7 +364,7 @@ class constellation:
                     ]
 
                     # Create termination settings
-                    self.termination_condition = propagation_setup.propagator.time_termination(simulation_end_epoch)
+                    self.termination_condition = propagation_setup.propagator.time_termination(self.simulation_end_epoch)
 
                     # Create propagation settings
                     self.propagator_settings = propagation_setup.propagator.translational(
@@ -178,22 +384,83 @@ class constellation:
                         coefficient_set = propagation_setup.integrator.rkf_78
 
                     self.integrator_settings = propagation_setup.integrator.runge_kutta_variable_step_size(
-                        simulation_start_epoch, step_size_SC, coefficient_set,
-                        step_size_SC, step_size_SC,
+                        self.simulation_start_epoch, step_size, coefficient_set,
+                        step_size, step_size,
                         np.inf, np.inf)
 
-                #------------------------------------------------------------------------
-                #-----------------------------PROPAGATE-ORBIT----------------------------
-                #------------------------------------------------------------------------
+                    #------------------------------------------------------------------------
+                    #-----------------------------PROPAGATE-ORBIT----------------------------
+                    #------------------------------------------------------------------------
 
                     # Create simulation object and propagate the dynamics
                     dynamics_simulator = numerical_simulation.SingleArcSimulator(
-                        self.bodies, self.integrator_settings, self.propagator_settings)
+                        self.bodies, self.integrator_settings, self.propagator_settings,
+                    print_state_data=False, print_dependent_variable_data=False, print_number_of_function_evaluations=False)
 
                     # Extract the resulting state history and convert it to an ndarray
                     states = dynamics_simulator.state_history
                     dependent_variables = dynamics_simulator.dependent_variable_history
 
+                    # ------------------------------------------------------------------------
+                    # ----------------------------STEP-SIZE-ANALYSIS--------------------------
+                    # ------------------------------------------------------------------------
+                    if step_size_analysis == True:
+                        integrators = ["Runge Kutta 4", "Runge Kutta 7"]
+                        # integrators = ["Runge Kutta 4"]
+
+                        # step_sizes = np.arange(0.1, 10.0, 0.1)
+                        fig, ax = plt.subplots(1, 1)
+                        ax.set_title('Step size analysis \n'
+                                     'Starlink: h=' + str(h_SC / 1000) + 'km, inc=' + str(inc_SC) + '$\degree$ \n', fontsize=15)
+                        for int in integrators:
+                            if int == "Runge Kutta 4":
+                                step_sizes = np.arange(1, 15, 0.1)
+                            elif int == "Runge Kutta 7":
+                                step_sizes = np.arange(1, 80, 1)
+                            # List of max errors
+                            error_max = []
+                            for step_size in step_sizes:
+                                # Define type of propagator (Default is Runge Kutta 4)
+                                # And create numerical integrator settings
+                                if int == "Runge Kutta 4":
+                                    print(int)
+                                    coefficient_set = propagation_setup.integrator.rkf_45
+                                elif int == "Runge Kutta 7":
+                                    print(int)
+                                    coefficient_set = propagation_setup.integrator.rkf_78
+
+                                self.integrator_settings = propagation_setup.integrator.runge_kutta_variable_step_size(
+                                    self.simulation_start_epoch, step_size, coefficient_set,
+                                    step_size, step_size,
+                                    np.inf, np.inf)
+
+                                # Create simulation object and propagate the dynamics
+                                dynamics_simulator = numerical_simulation.SingleArcSimulator(
+                                    self.bodies, self.integrator_settings, self.propagator_settings)
+                                state_history = dynamics_simulator.state_history
+                                time = state_history.keys()
+
+                                keplerian_solution_difference = get_difference_wrt_kepler_orbit(
+                                    state_history, self.earth_gravitational_parameter)
+
+                                # Compute errors
+                                diff = np.vstack(list(keplerian_solution_difference.values()))
+                                error = np.sqrt(diff[:, 0] ** 2 + diff[:, 1] ** 2 + diff[:, 2] ** 2)
+                                error_max.append(max(error))
+
+                            ax.plot(step_sizes, error_max, label=int)
+                        ax.set_xlim([min(step_sizes), max(step_sizes)])
+                        ax.set_ylabel('Max error [m] \n w.r.t. an unperturbed orbit', fontsize=12)
+                        ax.set_xlabel('Step size [s]', fontsize=12)
+                        ax.set_yscale('log')
+                        ax.legend(fontsize=12)
+                        ticks = step_sizes[::10]
+                        # ax.set_xticks(ticks)
+                        # ax.set_yticks(ticks)
+                        ax.grid(which='major')
+                        plt.show()
+
+                        exit()
                 # ------------------------------------------------------------------------
                 # -------------------------------INTERPOLATE------------------------------
                 # ------------------------------------------------------------------------
@@ -203,34 +470,105 @@ class constellation:
                     dep_var_interpolator = interpolators.create_one_dimensional_vector_interpolator(
                         dependent_variables, interpolator_settings)
 
-                    states = dict()
-                    dependent_variables = dict()
+                    states_interpolated = dict()
+                    dependent_variables_interpolated = dict()
+
                     for epoch in AC_time:
-                        states[epoch] = state_interpolator.interpolate(epoch)
-                        dependent_variables[epoch] = dep_var_interpolator.interpolate(epoch)
+                        states_interpolated[epoch] = state_interpolator.interpolate(epoch)
+                        dependent_variables_interpolated[epoch] = dep_var_interpolator.interpolate(epoch)
+                    states_array = result2array(states_interpolated)
+                    dep_var_array = result2array(dependent_variables_interpolated)
 
-                    states_array = result2array(states)
-                    dep_var_array = result2array(dependent_variables)
-
-                    dt_array = np.zeros(len(states_array[:,0]))
-                    for i in range(1, len(states_array[:, 0])):
-                        dt_array[i] = states_array[i, 0] - states_array[i-1, 0]
-
-                    states_array_sats[sat]  = states_array
-                    dep_var_array_sats[sat] = dep_var_array
-
-                self.states_array_planes[plane]  = states_array_sats
-                self.dep_var_array_planes[plane] = dep_var_array_sats
+                    self.geometric_data_sats['satellite name'].append(sat_index)
+                    self.geometric_data_sats['states'].append(states_array)
+                    self.geometric_data_sats['dependent variables'].append(dep_var_array)
 
             self.time = states_array[:, 0]
-            # CHECK IF THIS IS CORRECT, OTHERWISE:
-            # self.time = AC_time
-            return self.states_array_planes, self.dep_var_array_planes, self.time
 
-    def verification(self,
-                  simulation_start_epoch: float,
-                  simulation_end_epoch: float,):
-        integrator_ver = "Runge Kutta 78"
+            print('SATELLITE PROPAGATION MODEL')
+            print('------------------------------------------------')
+            print('Satellite positional data propagated with Tudat')
+            print('Integrator               : ' + str(integrator))
+            print('Step size                : ' + str(step_size_SC) + 'sec')
+            print('Initial altitude         : ' + str(h_SC * 1.0E-3) + 'km')
+            print('Initial inclination      : ' + str(inc_SC) + 'degrees')
+            print('Number of planes         : ' + str(number_of_planes))
+            print('Number of sats per plane : ' + str(number_sats_per_plane))
+            print('------------------------------------------------')
+
+        if constellation_data == 'SAVE':
+            print('Saving states and dependent variables of all satellites to json file')
+            # Converting arrays to lists
+            for i in range(len(self.geometric_data_sats['satellite name'])):
+                self.geometric_data_sats['states'][i] = self.geometric_data_sats['states'][i].tolist()
+                self.geometric_data_sats['dependent variables'][i] = self.geometric_data_sats['dependent variables'][i].tolist()
+                # print(self.geometric_data_sats['states'][i])
+            # Save to json file
+            with open(SC_filename_save, 'w') as fp:
+                json.dump(self.geometric_data_sats, fp)
+            exit()
+        else:
+            return self.geometric_data_sats, self.time
+
+    def propagate_load(self, time):
+        with open(SC_filename_load, 'r') as fp:
+            self.geometric_data_sats = json.load(fp)
+
+        for i in range(len(self.geometric_data_sats['satellite name'])):
+            self.geometric_data_sats['states'][i] = np.array(self.geometric_data_sats['states'][i])
+            self.geometric_data_sats['dependent variables'][i] = np.array(self.geometric_data_sats['dependent variables'][i])
+
+            # states = np.array(self.geometric_data_sats['states'][i])
+            # dependent_variables = np.array(sf=Telf.geometric_data_sats['dependent variables'][i])
+            # time_0 = states[:, 0]
+            #
+            # print(states)
+            # print(states.shape)
+            #
+            # states_array = interpolator(time_0,states,time, interpolation_type='lagrange')
+            #
+            # print(states_array)
+            # print(states_array.shape)
+
+            # Interpolate to the selected step size for the link simulation (step_size_link)
+            # interpolator_settings = interpolators.lagrange_interpolation(8)
+            # state_interpolator = interpolators.create_one_dimensional_vector_interpolator(
+            #     states, interpolator_settings)
+            # dep_var_interpolator = interpolators.create_one_dimensional_vector_interpolator(
+            #     dependent_variables, interpolator_settings)
+            # states = dict()
+            # dependent_variables = dict()
+            # for epoch in time:
+            #     states[epoch] = state_interpolator.interpolate(epoch)
+            #     dependent_variables[epoch] = dep_var_interpolator.interpolate(epoch)
+            # states_array = result2array(states)
+            # dep_var_array = result2array(dependent_variables)
+            #
+            # self.geometric_data_sats['states'][i] = states_array
+            # self.geometric_data_sats['dependent variables'][i] = dep_var_array
+
+        self.time = self.geometric_data_sats['states'][0][:,0]
+
+
+
+        print('SPACECRAFT PROPAGATION MODEL')
+        print('------------------------------------------------')
+        if method_SC == 'tudat':
+            print('Spacecraft positional data retrieved from own algorithm with TUDAT library ')
+        elif method_SC == 'TLE':
+            print('Spacecraft positional data retrieved from TLE and propagated with TUDAT library')
+        print('Sat constellation file : ' + SC_filename_load)
+        print('Number of satellites   : ' + str(len(self.geometric_data_sats['satellite name'])))
+        print('Inclination            : ' + str(inc_SC) + ' deg')
+        print('Altitude               : ' + str(h_SC/1e3)   + ' km')
+        print('------------------------------------------------')
+
+
+        return self.geometric_data_sats, self.time
+
+    def verification(self):
+        integrator_testing = False
+        acceleration_testing = True
 
         # Set up intitial condition and termination condition
         initial_state = element_conversion.keplerian_to_cartesian_elementwise(
@@ -241,7 +579,7 @@ class constellation:
             argument_of_periapsis=np.deg2rad(self.omega_init),
             longitude_of_ascending_node=np.deg2rad(self.RAAN_init),
             true_anomaly=np.deg2rad(self.TA_init))
-        termination_condition = propagation_setup.propagator.time_termination(simulation_end_epoch)
+        termination_condition = propagation_setup.propagator.time_termination(self.simulation_end_epoch)
 
         # CREATE TEST MODEL
         dependent_variables_to_save = [propagation_setup.dependent_variable.altitude("sat", "Earth")]
@@ -254,132 +592,190 @@ class constellation:
             self.termination_condition,
             output_variables=dependent_variables_to_save)
 
-        dynamics_simulator = numerical_simulation.SingleArcSimulator(
-            self.bodies, self.integrator_settings, propagator_settings)
-        states = dynamics_simulator.state_history
-        states = result2array(states)
-        dependent_variables = dynamics_simulator.dependent_variable_history
-        dependent_variables = result2array(dependent_variables)
-        time = states[:, 0]
-        # CREATE BENCHMARK MODEL
-
         # Define integrator settings for benchmark
-        time_step_benchmark = step_size_SC
-        coefficient_set = propagation_setup.integrator.rkf_78
-        integrator_settings = propagation_setup.integrator.runge_kutta_variable_step_size(
-            simulation_start_epoch, time_step_benchmark, coefficient_set,
-            time_step_benchmark, time_step_benchmark, np.inf, np.inf)
-
-        # Add radiation pressure interface to vehicle
-        spacecraft_mass = 100.0
-        spacecraft_reference_area = 5
-        radiation_pressure_coefficient = 1.2
-        radiation_pressure_settings = environment_setup.radiation_pressure.cannonball(
-            "Sun", spacecraft_reference_area, radiation_pressure_coefficient, self.central_bodies)
-        environment_setup.add_radiation_pressure_interface(
-            self.bodies, "sat", radiation_pressure_settings)
-        self.bodies.get_body("sat").set_constant_mass(spacecraft_mass)
-
-        # Create aerodynamic coefficients interface
-        drag_coefficient = 1.2
-        aero_coefficient_settings = environment_setup.aerodynamic_coefficients.constant(
-            spacecraft_reference_area, [drag_coefficient, 0, 0])
-        environment_setup.add_aerodynamic_coefficient_interface(
-            self.bodies, "sat", aero_coefficient_settings)
-
-        # Define accelerations for benchmark
-        acceleration_settings_benchmark = dict(
-            Earth=[propagation_setup.acceleration.spherical_harmonic_gravity(32, 32)],
-                   # propagation_setup.acceleration.aerodynamic()],
-            Mars=[propagation_setup.acceleration.point_mass_gravity()],
-            Moon=[propagation_setup.acceleration.point_mass_gravity()],
-            # Sun =[propagation_setup.acceleration.point_mass_gravity(),
-            #       propagation_setup.acceleration.cannonball_radiation_pressure()],
-        )
-
-        acceleration_settings_benchmark = {"sat": acceleration_settings_benchmark}
-        # Create acceleration models
-        acceleration_models_benchmark = propagation_setup.create_acceleration_models(
-            self.bodies, acceleration_settings_benchmark, self.bodies_to_propagate, self.central_bodies
-        )
-
-        # Create propagation settings
-        propagator_settings_benchmark = propagation_setup.propagator.translational(
-            self.central_bodies,
-            acceleration_models_benchmark,
-            self.bodies_to_propagate,
-            initial_state,
-            self.termination_condition,
-            output_variables=dependent_variables_to_save)
-
-        # Propagate benchmark dynamics
-        benchmark_dynamics_simulator = numerical_simulation.SingleArcSimulator(
-            self.bodies, integrator_settings, propagator_settings_benchmark)
-        states_benchmark = benchmark_dynamics_simulator.state_history
-        states_benchmark = result2array(states_benchmark)
-        dependent_variables_benchmark = benchmark_dynamics_simulator.dependent_variable_history
-        dependent_variables_benchmark = result2array(dependent_variables_benchmark)
-        time_benchmark = states_benchmark[:, 0]
-
-        # Create interpolator for benchmark results
-        interpolator_settings = interpolators.lagrange_interpolation(8)
-        benchmark_interpolator = interpolators.create_one_dimensional_vector_interpolator(
-            benchmark_dynamics_simulator.state_history, interpolator_settings)
-
-        benchmark_interpolator_height = interpolators.create_one_dimensional_vector_interpolator(
-            benchmark_dynamics_simulator.dependent_variable_history, interpolator_settings)
-
-        benchmark_difference = dict()
-        benchmark_difference_height = dict()
-
-        # print(1/0)
-        for epoch in dynamics_simulator.state_history.keys():
-            benchmark_difference[epoch] = dynamics_simulator.state_history[epoch] - benchmark_interpolator.interpolate(epoch)
-
-        for epoch in dynamics_simulator.state_history.keys():
-            benchmark_difference_height[epoch] = dynamics_simulator.dependent_variable_history[epoch] - benchmark_interpolator_height.interpolate(epoch)
-
-        diff_benchmark = np.vstack(list(benchmark_difference.values()))
-        diff_benchmark_height = np.vstack(list(benchmark_difference_height.values()))
-        r = np.sqrt(states[:, 0] ** 2 + states[:, 1] ** 2 + states[:, 2] ** 2) - h_AC
-        r_bench = np.sqrt(states_benchmark[:, 0] ** 2 + states_benchmark[:, 1] ** 2 + states_benchmark[:, 2] ** 2) - h_AC
-        error_r = np.sqrt(diff_benchmark[:, 0] ** 2 + diff_benchmark[:, 1] ** 2 + diff_benchmark[:, 2] ** 2)
-        error_h =  diff_benchmark_height
-        time_hrs = [t / 3600 for t in time]
-        time_hrs_bench = [t / 3600 for t in time_benchmark]
-        T_fs = (wavelength / (4 * np.pi * r)) ** 2
-        T_fs_bench = (wavelength / (4 * np.pi * r_bench)) ** 2
-        delta_T_fs = abs(T_fs - T_fs_bench)
-
+        # CREATE BENCHMARK MODEL
         fig1, ax = plt.subplots(3, 1, figsize=(20, 17))
-        fig1.suptitle('Comparison with benchmark')
-        ax[0].plot(time_hrs, error_r)
-        ax[0].set_xlim([min(time_hrs), max(time_hrs)])
-        ax[0].set_ylabel('$\Delta$ r (m)')
-        ax[0].grid()
 
-        ax[1].plot(time_hrs, error_h)
+        # Define step size (Can be one number or multiple in a list)
+        step_sizes = [7, 41]
+        step_sizes = [7]
+        for step_size in step_sizes:
+            print('step size: ',step_size)
+            coefficient_set = propagation_setup.integrator.rkf_78
+
+            integrator_settings = propagation_setup.integrator.runge_kutta_variable_step_size(
+                self.simulation_start_epoch, step_size, coefficient_set,
+                step_size, step_size, np.inf, np.inf)
+
+            dynamics_simulator = numerical_simulation.SingleArcSimulator(
+                self.bodies, integrator_settings, propagator_settings)
+
+            states = dynamics_simulator.state_history
+            states = result2array(states)
+            dependent_variables = dynamics_simulator.dependent_variable_history
+            dependent_variables = result2array(dependent_variables)
+            time = states[:, 0]
+
+            if integrator_testing == True:
+
+                fig1.suptitle('Comparison of integrators (RK4, RK7)')
+
+                # Define integrator settings for benchmark
+                coefficient_set = propagation_setup.integrator.rkf_78
+
+                integrator_settings = propagation_setup.integrator.runge_kutta_variable_step_size(
+                    self.simulation_start_epoch, step_size, coefficient_set,
+                    step_size, step_size, np.inf, np.inf)
+
+                benchmark_dynamics_simulator = numerical_simulation.SingleArcSimulator(
+                    self.bodies, integrator_settings, propagator_settings)
+
+                states_benchmark = benchmark_dynamics_simulator.state_history
+                states_benchmark = result2array(states_benchmark)
+                dependent_variables_benchmark = benchmark_dynamics_simulator.dependent_variable_history
+                dependent_variables_benchmark = result2array(dependent_variables_benchmark)
+                time_benchmark = states[:, 0]
+
+                h = dependent_variables[:, 1]
+                h_bench = dependent_variables_benchmark[:, 1]
+                delta_x = states_benchmark[:, 0] - states[:, 0]
+                delta_y = states_benchmark[:, 1] - states[:, 1]
+                delta_z = states_benchmark[:, 2] - states[:, 2]
+                delta_r = np.sqrt(delta_x ** 2 + delta_y ** 2 + delta_z ** 2)
+                delta_h = abs(h_bench - h)
+                time_hrs = [t / 3600 for t in time]
+                T_fs = (wavelength / (4 * np.pi * h)) ** 2
+                T_fs_bench = (wavelength / (4 * np.pi * h_bench)) ** 2
+                delta_T_fs = abs(W2dB(T_fs) - W2dB(T_fs_bench))
+
+                print('plotting')
+                ax[0].plot(time_hrs, delta_r, label=str(step_size)+'s')
+                ax[1].plot(time_hrs, delta_h)
+                ax[2].plot(time_hrs, delta_T_fs)
+
+            elif acceleration_testing == True:
+
+                # Add radiation pressure interface to vehicle
+                spacecraft_mass = 100.0
+                spacecraft_reference_area = 5
+                radiation_pressure_coefficient = 1.2
+                radiation_pressure_settings = environment_setup.radiation_pressure.cannonball(
+                    "Sun", spacecraft_reference_area, radiation_pressure_coefficient, self.central_bodies)
+                environment_setup.add_radiation_pressure_interface(
+                    self.bodies, "sat", radiation_pressure_settings)
+                self.bodies.get_body("sat").set_constant_mass(spacecraft_mass)
+
+                # Create aerodynamic coefficients interface
+                drag_coefficient = 1.2
+                aero_coefficient_settings = environment_setup.aerodynamic_coefficients.constant(
+                    spacecraft_reference_area, [drag_coefficient, 0, 0])
+                environment_setup.add_aerodynamic_coefficient_interface(
+                    self.bodies, "sat", aero_coefficient_settings)
+
+                accelerations_names = [
+                    # 'point', '(2,0)', '(2,2)', '(4,4)', '(8,8)', '(16,16)','(32,32)',
+                                       'Mars (point gravity)', 'Moon (point gravity)', 'Sun (point gravity)', 'Sun (radiation)'
+                                       ]
+                accelerations = [
+                               # propagation_setup.acceleration.spherical_harmonic_gravity(2, 0),
+                               # propagation_setup.acceleration.spherical_harmonic_gravity(2, 2),
+                               # propagation_setup.acceleration.spherical_harmonic_gravity(4, 4),
+                               # propagation_setup.acceleration.spherical_harmonic_gravity(8, 8),
+                               # propagation_setup.acceleration.spherical_harmonic_gravity(16, 16),
+                               # propagation_setup.acceleration.spherical_harmonic_gravity(32, 32),
+                                 propagation_setup.acceleration.point_mass_gravity(),
+                                 propagation_setup.acceleration.point_mass_gravity(),
+                                 propagation_setup.acceleration.point_mass_gravity(),
+                                 propagation_setup.acceleration.cannonball_radiation_pressure()
+
+                                 ]
+
+                fig1.suptitle('Comparison of accelerations (Earth Spherical Harmonic terms)')
+                # fig1.suptitle('Comparison of other perturbations (Moon, Mars, Sun)')
+                for acceleration in range(len(accelerations)):
+                    # Define accelerations for benchmark
+                    # if acceleration < 6:
+                    #     acceleration_settings_benchmark = dict(
+                    #         Earth=[accelerations[acceleration]],
+                    # )
+                    if acceleration == 0:
+                        acceleration_settings_benchmark = dict(
+                            Earth=[propagation_setup.acceleration.spherical_harmonic_gravity(2, 0)],
+                            Mars=[propagation_setup.acceleration.point_mass_gravity()],
+                        )
+                    if acceleration == 1:
+                        acceleration_settings_benchmark = dict(
+                            Earth=[propagation_setup.acceleration.spherical_harmonic_gravity(2, 0)],
+                            Moon=[propagation_setup.acceleration.point_mass_gravity()],
+                        )
+                    if acceleration == 2:
+                        acceleration_settings_benchmark = dict(
+                            Earth=[propagation_setup.acceleration.spherical_harmonic_gravity(2, 0)],
+                            Sun=[propagation_setup.acceleration.point_mass_gravity()],
+                        )
+                    if acceleration == 3:
+                        acceleration_settings_benchmark = dict(
+                            Earth=[propagation_setup.acceleration.spherical_harmonic_gravity(2, 0)],
+                            Sun=[propagation_setup.acceleration.cannonball_radiation_pressure()],
+                        )
+                    print(acceleration)
+                    print(accelerations_names[acceleration])
+                    print(acceleration_settings_benchmark)
+
+                    acceleration_settings_benchmark = {"sat": acceleration_settings_benchmark}
+                    # Create acceleration models
+                    acceleration_models_benchmark = propagation_setup.create_acceleration_models(
+                        self.bodies, acceleration_settings_benchmark, self.bodies_to_propagate, self.central_bodies
+                    )
+
+                    # Create propagation settings
+                    propagator_settings_benchmark = propagation_setup.propagator.translational(
+                        self.central_bodies,
+                        acceleration_models_benchmark,
+                        self.bodies_to_propagate,
+                        initial_state,
+                        self.termination_condition,
+                        output_variables=dependent_variables_to_save)
+
+                    # Propagate benchmark dynamics
+                    benchmark_dynamics_simulator = numerical_simulation.SingleArcSimulator(
+                        self.bodies, integrator_settings, propagator_settings_benchmark)
+                    states_benchmark = benchmark_dynamics_simulator.state_history
+                    states_benchmark = result2array(states_benchmark)
+                    dependent_variables_benchmark = benchmark_dynamics_simulator.dependent_variable_history
+                    dependent_variables_benchmark = result2array(dependent_variables_benchmark)
+                    time_benchmark = states_benchmark[:, 0]
+
+                    h = dependent_variables[:,1]
+                    h_bench = dependent_variables_benchmark[:,1]
+                    delta_x = states_benchmark[:, 0] - states[:, 0]
+                    delta_y = states_benchmark[:, 1] - states[:, 1]
+                    delta_z = states_benchmark[:, 2] - states[:, 2]
+                    delta_r = np.sqrt(delta_x**2 + delta_y**2 + delta_z**2)
+                    delta_h = abs(h_bench - h)
+                    time_hrs = [t / 3600 for t in time]
+                    T_fs = (wavelength / (4 * np.pi * h)) ** 2
+                    T_fs_bench = (wavelength / (4 * np.pi * h_bench)) ** 2
+                    delta_T_fs = abs(W2dB(T_fs) - W2dB(T_fs_bench))
+
+                    print('plotting')
+                    ax[0].plot(time_hrs, delta_r, label=accelerations_names[acceleration])
+                    ax[1].plot(time_hrs, delta_h)
+                    ax[2].plot(time_hrs, delta_T_fs)
+
+
+        ax[0].set_xlim([min(time_hrs), max(time_hrs)])
+        ax[0].set_ylabel('$\Delta$ r (m)',fontsize=10)
+        ax[0].grid()
+        ax[0].legend()
+
         ax[1].set_xlim([min(time_hrs), max(time_hrs)])
-        ax[1].set_ylabel('$\Delta$ h (m)')
+        ax[1].set_ylabel('$\Delta$ h (m)',fontsize=10)
         ax[1].grid()
 
-        ax[2].plot(time_hrs, W2dB(T_fs), label='T_fs of test model')
-        ax[2].plot(time_hrs_bench, W2dB(T_fs_bench), label='T_fs of benchmark model')
-        ax[2].plot(time_hrs, W2dB(delta_T_fs), label= '$\Delta$T_fs over $\Delta$r')
         ax[2].set_xlim([min(time_hrs), max(time_hrs)])
-        ax[2].set_ylabel('$\Delta$ Free space loss (dB)')
+        ax[2].set_ylabel('$\Delta$ Free space \n loss (dB)',fontsize=10)
         ax[2].grid()
-        ax[2].legend()
 
-
-        # ax[2].plot(time / 3600, states_benchmark[:, 1], states_benchmark[:, 2], states_benchmark[:, 3],
-        #            label='Benchmark model, integrator: '+str(integrator_ver))
-        # ax[2].set_xlim([min(time), max(time)])
-        # ax[2].set_ylabel('$\Delta$ r (m)')
-
-
-        ax[1].set_xlabel('Time (hours)')
-
+        ax[2].set_xlabel('Time (hours)',fontsize=10)
         plt.show()
-
-

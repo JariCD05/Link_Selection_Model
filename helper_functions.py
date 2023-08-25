@@ -1,17 +1,19 @@
-import numpy as np
 import sqlite3
-from tudatpy.kernel import constants as cons_tudat
-from matplotlib import pyplot as plt
-from matplotlib import cm
-from matplotlib.ticker import MaxNLocator
+
+import numpy as np
+import scipy.signal
 from input import *
 
-
-from scipy.special import j0, j1
-from scipy.signal import butter, filtfilt, welch, bessel
+import random
+from scipy.special import j0, j1, binom
+from scipy.stats import rv_histogram, norm
+from scipy.signal import butter, filtfilt, welch
 from scipy.fft import rfft, rfftfreq
 from scipy.special import erfc, erf, erfinv, erfcinv
+from scipy.special import erfc, erfcinv
 from tudatpy.kernel.math import interpolators
+from tudatpy.kernel.astro import two_body_dynamics
+from tudatpy.kernel.astro import element_conversion
 from tudatpy.util import result2array
 import csv
 
@@ -34,6 +36,8 @@ def interpolator(x,y,x_interpolate, interpolation_type='cubic spline'):
     elif interpolation_type == 'linear':
         interpolator_settings = interpolators.linear_interpolation(
             boundary_interpolation=interpolators.BoundaryInterpolationType.use_boundary_value)
+    elif interpolation_type == 'lagrange':
+        interpolator_settings = interpolators.lagrange_interpolation(8)
 
     y_dict = dict(zip(x, zip(y)))
     interpolator = interpolators.create_one_dimensional_vector_interpolator(y_dict, interpolator_settings)
@@ -42,27 +46,38 @@ def interpolator(x,y,x_interpolate, interpolation_type='cubic spline'):
         y_interpolated[i] = interpolator.interpolate(i)
     return result2array(y_interpolated)[:,1]
 
+
+def cross_section(elevation_cross_section, elevation, time_links):
+    time_cross_section = []
+    indices = []
+    for e in elevation_cross_section:
+        index = np.argmin(abs(elevation - np.deg2rad(e)))
+        indices.append(index)
+        t = time_links[index] / 3600
+        time_cross_section.append(t)
+    return indices, time_cross_section
+
 def h_p_airy(angle, D_r, focal_length):
     # REF: Handbook of Image and Video Processing (Second Edition), 2005, EQ.1.6
     # x = k_number * D_r / focal_length * r
     # return (2 * j1(x) / x)**2
 
     # REF: Wikipedia Airy Disk
-    I_norm = 2 * j1(k_number * D_r * np.sin(angle)) / (k_number * D_r * np.sin(angle))
+    # Fraunhofer diffraction pattern
+    I_norm = (2 * j1(k_number * D_r/2 * np.sin(angle)) /
+                    (k_number * D_r/2 * np.sin(angle)))**2
 
     r = angle * focal_length
     omega_0 = 0.90 * wavelength * focal_length / D_r
     I_norm_gauss_approx = np.exp(-2*r / omega_0)
-    return I_norm_gauss_approx
 
-def h_p_gaussian(angles, L, w_z):
-    r = angles * L[:, None]
-    v = np.sqrt(np.pi)*r / (np.sqrt(2) * w_z[:, None])
-    A0 = erf(v)**2
-    w_z_eq = w_z[:, None]**2 * np.sqrt(np.pi) * erf(v) / (2 * v * np.exp(-v**2))
-    h_p_power = A0 * np.exp(-2 * r**2 / w_z_eq**2)
-    h_p_intensity = np.exp(-angles ** 2 / angle_div ** 2)
-    return h_p_power, h_p_intensity
+    P_norm = (j0(k_number * D_r/2 * np.sin(angle)) )**2 + (j1(k_number * D_r/2 * np.sin(angle)) )**2
+    # P_norm = 1 - P_norm
+    return P_norm
+
+def h_p_gaussian(angles, angle_div):
+    h_p_intensity = np.exp(-2*angles ** 2 / angle_div ** 2)
+    return h_p_intensity
 
 def I_to_P(I, r, w_z):
     return I * np.trapz(np.exp(-2 * r ** 2 / w_z ** 2), x=r)
@@ -70,23 +85,21 @@ def I_to_P(I, r, w_z):
 def P_to_I(P, r, w_z):
     return P / np.trapz(np.exp(-2 * r ** 2 / w_z ** 2), x=r)
 
-def acquisition():
-    # Add latency due to acquisition process (a reference value of 50 seconds is taken)
+def acquisition(current_index, current_acquisition_time, step_size):
+    # Add latency due to acquisition process (a reference value of 50 seconds is taken, found in input.py)
     # A more detailed method can be added here for analysis of the acquisition phase
-    acquisition_time = 50.0  # seconds
-    acquisition_indices = int(acquisition_time/step_size_AC)
-    return acquisition_time, acquisition_indices
+    total_acquisition_time = current_acquisition_time + acquisition_time
+    index = current_index + int(acquisition_time / step_size)
+    return total_acquisition_time, index
 
 def radius_of_curvature(ranges):
     z_r = np.pi * w0 ** 2 * n_index / wavelength
     R = ranges * (1 + (z_r / ranges)**2)
     return R
 
-def beam_spread(w0, ranges):
-    z_r = np.pi * w0 ** 2 * n_index / wavelength
-    w_r = w0 * np.sqrt(1 + (ranges / z_r) ** 2)
-    # w_r = angle_div * ranges
-    return w_r, z_r
+def beam_spread(angle_div, ranges):
+    w_r = angle_div * ranges
+    return w_r
 
 def beam_spread_turbulence_ST(Lambda0, Lambda, var, w_r):
     # REF: LASER BEAM PROPAGATION THROUGH RANDOM MEDIA, L.ANDREWS, 2005, EQ.6.101
@@ -118,7 +131,7 @@ def data_rate_func(P_r, PPB):
     # REF: FREE-SPACE LASER COMMUNICATIONS, PRINCIPLES AND ADVANCES, A.MAJUMDAR, 2008, CH.3 EQ.29
     # REF: DEEP SPACE OPTICAL COMMUNICATIONS, H.HEMMATI, 2004, EQ.4.1-1
     # data_rate = P_r / (Ep * N_p) / eff_quantum
-    return P_r / (Ep * PPB *eff_quantum)
+    return P_r / (h * v * PPB)
 
 def save_to_file(data):
     data_merge = (data[0]).copy()
@@ -134,70 +147,6 @@ def save_to_file(data):
     except IOError:
         print("I/O error")
 
-def save_to_database(data, data_metrics, iterable):
-    # Convert data array to dictionary with all SLQT3 column names as keys
-    data_array = np.empty((len(iterable), len(data_metrics)))
-    for i in range(len(data_metrics)):
-        data_array[:, i] = data[data_metrics[i]]
-
-    # Add row to data array with zero values
-    data = np.vstack((np.zeros(len(data_metrics)), data_array))
-
-    # Save data to sqlite3 database, 7 metrics are saved for each elevation angle (8 columns and N rows)
-    filename = 'link_data_8_metrics_constant_data_rate.db'
-    con = sqlite3.connect(filename)
-    cur = con.cursor()
-    cur.execute("CREATE TABLE performance_metrics(elevation, P_r, PPB, h_tot, P_margin_req_BER3, P_margin_req_BER6, P_margin_req_BER9, total_errors, total_errors_coded)")
-    cur.executemany("INSERT INTO performance_metrics VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?)", data)
-    con.commit()
-    cur.close()
-    con.close()
-
-
-def load_from_database(metric, index_lb=0.0, index_ub=0.0):
-    try:
-        filename = 'link_data_8_metrics_constant_data_rate.db'
-        # filename = 'test.db'
-        con = sqlite3.connect(filename)
-        cur = con.cursor()
-
-        cur.execute('SELECT * FROM performance_metrics')
-        data = cur.fetchall()
-
-        if metric == "elevation":
-            cur.execute('SELECT elevation FROM performance_metrics')
-            data = cur.fetchall()
-            data = np.array(data).flatten()
-
-        elif metric == "all":
-            cur.execute('SELECT * FROM performance_metrics')
-            desc = cur.description
-            column_names = [col[0] for col in desc]
-
-            data1 = np.array(data).flatten().reshape(len(data), -1)[index_lb, :]
-            data2 = np.array(data).flatten().reshape(len(data), -1)[index_ub, :]
-            data_array = (data1 + data2) / 2
-
-            # data_array = np.array(data).flatten().reshape(len(data), -1)
-            # data_array = data_array[index_lb, :]
-            # data_array = np.array(data).flatten().reshape(len(data), -1)[index_lb, :]
-
-
-            # Convert data array to dictionary with all SLQT3 column names as keys
-            data = dict()
-            for i in range(len(column_names)):
-                column_name = column_names[i]
-                data[column_name] = data_array[:,i]
-        return data
-
-    except sqlite3.Error as error:
-        print("Failed to read data from table", error)
-    # if data == None:
-    #     raise LookupError(("No database file found with name: "+str(filename)))
-
-    finally:
-        if con:
-            con.close()
 
 
 def filtering(effect: str,                  # Effect is eiter turbulence (scintillation, beam wander, angle of arrival) or jitter (TX jitter, RX jitter)
@@ -210,104 +159,101 @@ def filtering(effect: str,                  # Effect is eiter turbulence (scinti
               f_sampling=10E3,              # 10 kHz is taken as the standard sampling frequency for all temporal fluctuations
               plot='no',                  # Option to plot the frequency domain of the sampled data and input data
               ):
-    order_test = 2 * order
-    # Digital filter settings
-    if filter_type == 'lowpass':
-        # This filter is initiated when the option 'lowpass' is used.
-        # This is the case for the turbulence filter.
-        b,  a  = butter(N=order, Wn=f_cutoff_low, btype=filter_type, analog=False, fs=f_sampling)
-        b_test, a_test  = butter(N=order_test, Wn=f_cutoff_low, btype=filter_type, analog=False, fs=f_sampling)
+    # # Digital filter settings
+    # if filter_type == 'lowpass':
+    #     # This filter is initiated when the option 'lowpass' is used.
+    #     # This is the case for the turbulence filter.
+    #     b,  a  = butter(N=order, Wn=f_cutoff_low, btype=filter_type, analog=False, fs=f_sampling)
+    #
+    # elif filter_type == 'multi':
+    #     # This filter is initiated when the option 'multi' is used. Here, both 'lowpass' and 'bandpass' filters are used.
+    #     # This is the case for the mechanical jitter filter.
+    #     b,  a  = butter(N=order, Wn=f_cutoff_low, btype='lowpass', analog=False, fs=f_sampling)
+    #     b1, a1 = butter(N=order, Wn=f_cutoff_band, btype='bandpass', analog=False,fs=f_sampling)
+    #
+    #     if f_cutoff_band1:
+    #         # An extra bandpass filter is initiated when this options is chosen.
+    #         b2, a2 = butter(N=order, Wn=f_cutoff_band1, btype='bandpass', analog=False, fs=f_sampling)
 
-    elif filter_type == 'multi':
-        # This filter is initiated when the option 'multi' is used. Here, both 'lowpass' and 'bandpass' filters are used.
-        # This is the case for the mechanical jitter filter.
-        b,  a  = butter(N=order, Wn=f_cutoff_low, btype='lowpass', analog=False, fs=f_sampling)
-        b1, a1 = butter(N=order, Wn=f_cutoff_band, btype='bandpass', analog=False,fs=f_sampling)
-        b_test, a_test = butter(N=order_test, Wn=f_cutoff_low, btype='lowpass', analog=False, fs=f_sampling)
-        b1_test, a1_test = butter(N=order_test, Wn=f_cutoff_band, btype='bandpass', analog=False, fs=f_sampling)
 
-        if f_cutoff_band1:
-            # An extra bandpass filter is initiated when this options is chosen.
-            b2, a2 = butter(N=order, Wn=f_cutoff_band1, btype='bandpass', analog=False, fs=f_sampling)
-            b2_test, a2_test = butter(N=order_test, Wn=f_cutoff_band1, btype='bandpass', analog=False, fs=f_sampling)
+
 
     # Applying a lowpass filter in order to obtain the frequency response of the turbulence (~1000 Hz) and jitter (~ 1000 Hz)
     # For beam wander the displacement values (m) are filtered.
     # For angle of arrival and mechanical pointing jitter for TX and RX, the angle values (rad) are filtered.
     # if effect == 'scintillation' or effect == 'beam wander' or effect == 'angle of arrival':
 
+    eps = 1.0E-9
+    # z, p, k = scipy.signal.tf2zpk(b, a)
+    # r = np.max(np.abs(p))
+    # approx_impulse_len = int(np.ceil(np.log(eps) / np.log(r)))
+
     if effect == 'scintillation' or effect == 'beam wander' or effect == 'angle of arrival':
         data_filt = np.empty(np.shape(data))
-        data_filt_test = np.empty(np.shape(data))
         for i in range(len(data)):
-            data_filt[i] = filtfilt(b, a, data[i])
-            data_filt_test[i] = filtfilt(b_test, a_test, data[i])
+            # Digital filter settings
+            b, a = butter(N=order, Wn=f_cutoff_low[i], btype=filter_type, analog=False, fs=f_sampling)
+
+            z, p, k = scipy.signal.tf2zpk(b, a)
+            r = np.max(np.abs(p))
+            approx_impulse_len = int(np.ceil(np.log(eps) / np.log(r)))
+            data_filt[i] = filtfilt(b, a, data[i], method="gust", irlen=approx_impulse_len)
+
 
     elif effect == 'TX jitter' or effect == 'RX jitter':
-        data_filt_low = filtfilt(b, a, data)
-        data_filt_low_test = filtfilt(b_test,  a_test, data)
+        # Digital filter settings
+        b, a   = butter(N=order, Wn=f_cutoff_low,   btype='lowpass',  analog=False, fs=f_sampling)
+        b1, a1 = butter(N=order, Wn=f_cutoff_band,  btype='bandpass', analog=False, fs=f_sampling)
+        b2, a2 = butter(N=order, Wn=f_cutoff_band1, btype='bandpass', analog=False, fs=f_sampling)
+
+        z, p, k = scipy.signal.tf2zpk(b, a)
+        r = np.max(np.abs(p))
+        approx_impulse_len = int(np.ceil(np.log(eps) / np.log(r)))
+        data_filt_low = filtfilt(b, a, data, method="gust", irlen=approx_impulse_len)
 
         if not f_cutoff_band1:
-            data_filt      = filtfilt(b1, a1, data_filt_low)
+            data_filt      = filtfilt(b1, a1, data_filt_low, method="gust", irlen=approx_impulse_len)
             data_filt      = data_filt + data_filt_low
-            data_filt_test = filtfilt(b1_test, a1_test, data_filt_low_test)
-            data_filt_test = data_filt_test + data_filt_low_test
         else:
-            data_filt1 = filtfilt(b1, a1, data_filt_low)
-            data_filt2 = filtfilt(b2, a2, data_filt_low)
+            data_filt1 = filtfilt(b1, a1, data_filt_low, method="gust", irlen=approx_impulse_len)
+            data_filt2 = filtfilt(b2, a2, data_filt_low, method="gust", irlen=approx_impulse_len)
             data_filt  = data_filt1 + data_filt2 + data_filt_low
-
-            data_filt1_test = filtfilt(b1_test, a1_test, data_filt_low_test)
-            data_filt2_test = filtfilt(b2_test, a2_test, data_filt_low_test)
-            data_filt_test  = data_filt1_test + data_filt2_test + data_filt_low_test
-
-    elif effect == 'extinction':
-        data_filt = filtfilt(b, a, data)
-        data_filt_test = filtfilt(b_test, a_test, data)
 
     if plot == "yes":
         # Create PSD of the filtered signal with the defined sampling frequency
         f_0, psd_0 = welch(data, f_sampling, nperseg=1024)
         f, psd_data = welch(data_filt, f_sampling, nperseg=1024)
-        f_test, psd_data_test = welch(data_filt_test, f_sampling, nperseg=1024)
 
         # Plot the frequency domain
         fig, ax = plt.subplots(2,1)
         ax[0].set_title(str(filter_type)+' (butter) filtered signal of '+str(effect), fontsize=15)
-        print(data.ndim)
         if data.ndim > 1:
             uf = rfft(data[0])
             yf = rfft(data_filt[0])
-            yf_test = rfft(data_filt_test[0])
             xf = rfftfreq(len(data[0]), 1 / f_sampling)
             # Plot Amplitude over frequency domain
             ax[0].plot(xf, abs(uf), label=str(effect)+ ': sampling freq='+str(f_sampling)+' Hz')
             ax[0].plot(xf, abs(yf), label='Filtered: cut-off freq='+str(f_cutoff_low)+' Hz, order= '+str(order))
-            ax[0].plot(xf, abs(yf_test), label='Filtered: cut-off freq='+str(f_cutoff_low)+' Hz, order= '+str(order_test))
             ax[0].set_ylabel('Amplitude [rad]')
 
             # Plot PSF over frequency domain
             ax[1].semilogy(f_0, psd_0[0], label='unfiltered')
             ax[1].semilogy(f, psd_data[0], label='order='+str(order))
-            ax[1].semilogy(f, psd_data_test[0], label='order='+str(order_test))
             ax[1].set_xscale('log')
             ax[1].set_xlabel('frequency [Hz]')
-            ax[1].set_ylabel('PSD [rad**2/Hz]')
+            ax[1].set_ylabel('PSD [W/Hz]')
 
 
         elif data.ndim == 1:
             uf = rfft(data)
             yf = rfft(data_filt)
-            yf_test = rfft(data_filt_test)
             xf = rfftfreq(len(data), 1 / f_sampling)
             ax[0].plot(xf, abs(uf), label=str(effect)+ ': sampling freq='+str(f_sampling)+' Hz')
             ax[0].plot(xf, abs(yf), label='Filtered: cut-off freq=(lowpass='+str(f_cutoff_low)+', bandpass='+str(f_cutoff_band)+', '+ str(f_cutoff_band1)+' Hz, order= '+str(order))
-            ax[0].plot(xf, abs(yf_test), label='Filtered: cut-off freq=(lowpass='+str(f_cutoff_low)+', bandpass='+str(f_cutoff_band)+', '+ str(f_cutoff_band1)+' Hz, order= '+ str(order_test))
             # ax[0].set_xscale('log')
             ax[0].set_ylabel('Amplitude [rad]')
             ax[1].semilogy(f_0, psd_0, label='unfiltered')
             ax[1].semilogy(f, psd_data, label='order='+str(order))
-            ax[1].semilogy(f, psd_data_test, label='order='+str(order_test))
             ax[1].set_xscale('log')
             if effect == 'extinction':
                 ax[1].set_xlim(1.0E-3, 1.0E0)
@@ -331,114 +277,222 @@ def filtering(effect: str,                  # Effect is eiter turbulence (scinti
 
     return data_filt
 
-def sensitivity_dim1(elevation, P_r, errors, bits):
-    errors = errors * step_size_AC / interval_dim1
-    bits = bits / interval_dim1
-    elevation_01 = np.rad2deg(elevation)
-    elevation_02 = elevation_01[::2]
-    elevation_04 = elevation_01[::4]
-    elevation_06 = elevation_01[::6]
-    elevation_08 = elevation_01[::8]
-    elevation_10 = elevation_01[::10]
 
-    d_elev_01 = abs(np.diff(elevation_01))
-    d_elev_02 = abs(np.diff(elevation_02))
-    d_elev_04 = abs(np.diff(elevation_04))
-    d_elev_06 = abs(np.diff(elevation_06))
-    d_elev_08 = abs(np.diff(elevation_08))
-    d_elev_10 = abs(np.diff(elevation_10))
+def conversion_ECEF_to_ECI(pos_ECEF, time):
+    theta_earth = omega_earth * time
+    pos_ECI = np.zeros((len(pos_ECEF), 3))
+    for i in range(len(pos_ECEF)):
+        ECEF_to_ECI = np.array(((np.cos(theta_earth[i]), -np.sin(theta_earth[i]), 0),
+                                (np.sin(theta_earth[i]), np.cos(theta_earth[i]), 0),
+                                (0, 0, 1)))
 
-    Pr_01 = W2dBm(P_r.mean(axis=1))
-    Pr_02 = Pr_01[::2]
-    Pr_04 = Pr_01[::4]
-    Pr_06 = Pr_01[::6]
-    Pr_08 = Pr_01[::8]
-    Pr_10 = Pr_01[::10]
+        pos_ECI[i] = np.matmul(pos_ECEF[i], ECEF_to_ECI)
 
-    d_Pr_01 = abs(np.diff(Pr_01))
-    d_Pr_02 = abs(np.diff(Pr_02))
-    d_Pr_04 = abs(np.diff(Pr_04))
-    d_Pr_06 = abs(np.diff(Pr_06))
-    d_Pr_08 = abs(np.diff(Pr_08))
-    d_Pr_10 = abs(np.diff(Pr_10))
+    return pos_ECI.tolist()
 
-    errors_01 = errors
-    errors_02 = errors_01[::2]
-    errors_04 = errors_01[::4]
-    errors_06 = errors_01[::6]
-    errors_08 = errors_01[::8]
-    errors_10 = errors_01[::10]
+def Strehl_ratio_func(D_t, r0, tip_tilt="YES"):
+    # REF: R. SAATHOF, SLIDES LECTURE 3, 2021
+    # REF: R. PARENTI, 2006, EQ.1-3
+    if tip_tilt == "NO":
+        var_WFE = 1.03 * (D_t / r0) ** (5 / 3)
+    elif tip_tilt == "YES":
+        var_WFE = 0.134 * (D_t / r0) ** (5 / 3)
 
-    d_errors_01 = abs(np.diff(errors_01))
-    d_errors_02 = abs(np.diff(errors_02))
-    d_errors_04 = abs(np.diff(errors_04))
-    d_errors_06 = abs(np.diff(errors_06))
-    d_errors_08 = abs(np.diff(errors_08))
-    d_errors_10 = abs(np.diff(errors_10))
+    return np.exp(-var_WFE)
 
-    elevation = np.concatenate((elevation_01[1:], elevation_02[1:], elevation_04[1:], elevation_06[1:], elevation_08[1:], elevation_10[1:]))
-    d_elevation = np.concatenate((d_elev_01,      d_elev_02,        d_elev_04,        d_elev_06,        d_elev_08,        d_elev_10))
-    Pr_mean         = np.concatenate((Pr_01[1:],  Pr_02[1:],        Pr_04[1:],        Pr_06[1:],        Pr_08[1:],        Pr_10[1:]))
-    d_Pr_mean       = np.concatenate((d_Pr_01,    d_Pr_02,          d_Pr_04,          d_Pr_06,          d_Pr_08,          d_Pr_10))
-    errors   = np.concatenate((errors_01[1:],     errors_02[1:],    errors_04[1:],    errors_06[1:],    errors_08[1:],    errors_10[1:]))
-    d_errors = np.concatenate((d_errors_01,       d_errors_02,      d_errors_04,      d_errors_06,      d_errors_08,      d_errors_10))
+def flatten(l):
+    new_data = [item for sublist in l for item in sublist]
+    return np.array(new_data)
 
-    fig, ax = plt.subplots(2, 2)
-    ax[0,0].set_title('Elevation w.r.t. mean power at RX')
-    ax[0,0].scatter(elevation, Pr_mean, s=10)
-    # ax[0].scatter(np.linspace(0,100, len(elevation)), elevation)
-    ax[0,0].set_ylabel('$P_{RX}$ (dBm)')
+def autocorr(x):
+    x = np.array(x)
+    result_tot = []
+    for x_i in x:
+        mean = x_i.mean()
+        var = x_i.var()
+        norm_x_i = x_i - mean
 
-    # d_Pr_fit = np.polyfit(elevation_01[1:], d_Pr_01 / 1.0E6, 2)
-    # d_Pr_fit = np.poly1d(d_Pr_fit)
-    ax[1,0].scatter(elevation_01[1:], d_Pr_01, s=10, label='$\Delta \epsilon$= '+ str(np.round(d_elev_01[0], 2)) + ' ($\degree$)')
-    ax[1,0].scatter(elevation_10[1:], d_Pr_10, s=10,
-                     label='$\Delta \epsilon$= ' + str(np.round(d_elev_10[0], 2)) + ' ($\degree$)')
-    # ax[1].plot(elevation_01[1:], d_Pr_fit(elevation_01[1:]))
-    ax[1,0].set_ylabel('$\Delta$ mean $P_{RX}$ ($\Delta$ dBm) \n'
-                     'for $\Delta \epsilon$='+str(np.round(d_elev_01[0],2))+' ($\degree$)')
+        auto_corr = np.correlate(norm_x_i, norm_x_i, mode='full')[len(norm_x_i)-1:]
+        auto_corr = auto_corr / var / len(norm_x_i)
+        result_tot.append(auto_corr)
+    return np.array(result_tot)
 
-    ax[0,1].set_title('Elevation w.r.t. error bits per second')
-    ax[0,1].scatter(elevation, np.ones(len(elevation))*bits/1.0E6, s=10, label='Total Mbits/s='+str(bits/1E6))
-    ax[0,1].scatter(elevation, errors/1.0E6, s=10, label='Error Mbits/s')
-    # ax[0].scatter(np.linspace(0,100, len(elevation)), elevation)
-    ax[0,1].set_ylabel('Errors per second (Gbits/s)')
-    ax[0,1].set_yscale('log')
-    # d_e_fit = np.polyfit(elevation_01[1:], d_errors_01/1.0E6, 1)
-    # d_e_fit = np.poly1d(d_e_fit)
-    ax[1,1].scatter(elevation_01[1:], d_errors_01/bits, s=10, label='$\Delta \epsilon$= '+ str(np.round(d_elev_01[0], 2)) + ' ($\degree$)')
-    ax[1,1].scatter(elevation_10[1:], d_errors_10/bits, s=10, label='$\Delta \epsilon$= '+ str(np.round(d_elev_10[0], 2)) + ' ($\degree$)')
-    ax[1,1].set_yscale('log')
-    ax[1,1].set_ylabel('$\Delta$ errors / Total bits (per second)')
+def autocovariance(x, scale='micro'):
+    x -= x.mean()
+    auto_cor = scipy.signal.correlate(x, x)
+    auto_cor = auto_cor / np.max(auto_cor)
+    lags = scipy.signal.correlation_lags(len(x), len(x))
+    if scale == 'micro':
+        lags = lags * step_size_channel_level * 1000
+    elif scale == 'macro':
+        lags = lags * step_size_link / 60
 
-    ax[1,0].set_xlabel('Elevation $\epsilon$ ($\degree$)')
-    ax[1,1].set_xlabel('Elevation $\epsilon$ ($\degree$)')
+    return auto_cor, lags
 
-    ax[0,0].grid()
-    ax[0,1].grid()
-    ax[1,0].grid()
-    ax[1,1].grid()
-    ax[1,0].legend(fontsize=20)
-    ax[0,1].legend(fontsize=20)
-    ax[1,1].legend(fontsize=20)
+def data_to_time(data, data_list, time):
+    time_list = []
+    indices = []
+    for d in data:
+        index = np.argmin(abs(data_list - np.deg2rad(d)))
+        indices.append(index)
+        t = time[index] / 3600
+        time_list.append(t)
+    return time_list
 
-    fig1 = plt.figure(figsize=(6, 6), dpi=125)
-    ax = fig1.add_subplot(111, projection='3d')
-    ax.set_title('Sensitivity analysis of elevation w.r.t. error bits received \n '
-                 '(' + str(len(elevation)) + ' distributed samples of $\epsilon$)')
-    x = elevation
-    y = d_elevation
-    z = np.log(d_errors) #d_Pr_mean
+def distribution_function(data, length, min, max, steps):
+    x = np.linspace(min, max, steps)
+    if length == 1:
+        hist = np.histogram(data, bins=steps)
+        dist = rv_histogram(hist, density=True)
+        pdf = dist.pdf(x)
+        cdf = dist.cdf(x)
+        std  = dist.std()
+        mean = dist.mean()
 
-    surf = ax.plot_trisurf(x, y, z, cmap=cm.coolwarm, linewidth=0)
-    fig.colorbar(surf)
+    else:
+        pdf = np.empty((length, len(x)))
+        cdf = np.empty((length, len(x)))
+        std  = np.empty(length)
+        mean = np.empty(length)
+        for i in range(length):
+            hist = np.histogram(data[i], bins=steps)
+            dist = rv_histogram(hist, density=True)
+            pdf[i] = dist.pdf(x)
+            cdf[i] = dist.cdf(x)
+            std[i]  = dist.std()
+            mean[i] = dist.mean()
 
-    ax.xaxis.set_major_locator(MaxNLocator(5))
-    ax.yaxis.set_major_locator(MaxNLocator(6))
-    ax.zaxis.set_major_locator(MaxNLocator(5))
+    return pdf, cdf, x, std, mean
+    # return dist, x
 
-    ax.set_ylabel('$\Delta$ $\epsilon$ [$\Delta \degree$]')
-    ax.set_zlabel('log($\Delta$ errors) [$\Delta$ bits]')
-    ax.set_xlabel('Elevation $\epsilon$ [$\degree$]')
-    fig.tight_layout()
-    plt.show()
+def pdf_function(data, length, min, max, steps):
+    x = np.linspace(min, max, steps)
+    if length == 1:
+        hist = np.histogram(data, bins=steps*1)
+        rv = rv_histogram(hist, density=True)
+        pdf = rv.pdf(x)
+    else:
+        pdf = np.empty((length, len(x)))
+        for i in range(length):
+            hist = np.histogram(data[i], bins=steps*1)
+            rv = rv_histogram(hist, density=True)
+            pdf[i] = rv.pdf(x)
+    return pdf, x
+
+def cdf_function(data, length, min, max, steps):
+    x = np.linspace(min, max, steps)
+    if length == 1:
+        hist = np.histogram(data, bins=int(steps*1))
+        dist = rv_histogram(hist, density=True)
+        cdf = dist.cdf(x)
+    else:
+        cdf = np.empty((length, len(x)))
+        for i in range(length):
+            hist = np.histogram(data[i], bins=int(steps*1))
+            dist = rv_histogram(hist, density=True)
+            cdf[i] = dist.cdf(x)
+    return cdf, x
+
+def shot_noise(Sn, R, P, Be, eff_quantum):
+    noise_sh = 4 * Sn * R ** 2 * P * Be / eff_quantum
+    return noise_sh
+
+def background_noise(Sn, R, I, D, delta_wavelength, FOV, Be):
+    # This noise types defines the solar background noise, which is simplified to direct incoming sunlight.
+    # Solar- and atmospheric irradiance are defined in input.py, atmospheric irradiance is neglected by default and can be added as an extra contribution.
+    A_r = 1 / 4 * np.pi * D ** 2
+    P_bg = I * A_r * delta_wavelength * 1E9 * FOV
+    noise_bg = 4 * Sn * R ** 2 * P_bg * Be
+    return noise_bg
+
+def BER_avg_func(pdf_x, pdf_y, LCT, total=False):
+    # Pr = P_r_0[:, None] * pdf_h_x
+    Pr = dBm2W(pdf_x)
+    noise_sh, noise_th, noise_bg, noise_beat = LCT.noise(P_r=Pr, I_sun=I_sun)
+    SNR, Q = LCT.SNR_func(P_r=Pr,
+                          detection=detection,
+                          noise_sh=noise_sh, noise_th=noise_th,
+                          noise_bg=noise_bg,noise_beat=noise_beat)
+    BER = LCT.BER_func(Q=Q, modulation=modulation)
+
+    if total == False:
+        BER_avg = np.trapz(pdf_y * BER, x=pdf_x, axis=1)
+    else:
+        BER_avg = np.trapz(pdf_y * BER, x=pdf_x, axis=0)
+
+    return BER_avg
+
+def penalty(P_r, desired_frac_fade_time):
+    # This functions computes a power penalty, based on the method of Giggenbach.
+
+    if P_r.ndim > 1:
+        closest_P_min = np.empty(len(P_r))
+        for i in range(len(P_r)):
+            closest_frac_fade_time = np.inf
+            # P_min_range = np.arange(W2dBm(P_r[i].min()), W2dBm(P_r[i].max()), 0.5)
+            P_min_range = np.arange(-100.0, -10.0, 0.1)
+            for P_min in P_min_range:
+                P_min = dBm2W(P_min)
+                frac_fade_time = np.count_nonzero(P_r[i] < P_min) / len(P_r[i])
+                # Check if the current fractional fade time is closer to the desired value than the previous closest value
+                if abs(frac_fade_time - desired_frac_fade_time) < abs(closest_frac_fade_time - desired_frac_fade_time):
+                    closest_frac_fade_time = frac_fade_time
+                    closest_P_min[i] = P_min
+    else:
+        closest_frac_fade_time = np.inf
+        P_min_range = np.linspace((P_r).min(), (P_r).max(), 1000)
+        for P_min in P_min_range:
+            frac_fade_time = np.count_nonzero(P_r < P_min) / len(P_r)
+            # Check if the current fractional fade time is closer to the desired value than the previous closest value
+            if abs(frac_fade_time - desired_frac_fade_time) < abs(closest_frac_fade_time - desired_frac_fade_time):
+                closest_frac_fade_time = frac_fade_time
+                closest_P_min = P_min
+
+    h_penalty = (closest_P_min / P_r.mean(axis=1)).clip(min=0.0, max=1.0)
+    return h_penalty
+
+
+def get_difference_wrt_kepler_orbit(
+        state_history: dict,
+        central_body_gravitational_parameter: float):
+
+    """"
+    This function takes a Cartesian state history (dict of time as key and state as value), and
+    computes the difference of these Cartesian states w.r.t. an unperturbed orbit. The Keplerian
+    elemenets of the unperturbed trajectory are taken from the first entry of the state_history input
+    (converted to Keplerian elements)
+
+    Parameters
+    ----------
+    state_history : Cartesian state history
+    central_body_gravitational_parameter : Gravitational parameter that is to be used for Cartesian<->Keplerian
+                                            conversion
+
+    Return
+    ------
+    Dictionary (time as key, Cartesian state difference as value) of difference of unperturbed trajectory
+    (semi-analytically propagated) w.r.t. state_history, at the epochs defined in the state_history.
+    """
+
+    # Obtain initial Keplerian elements abd epoch from input
+    initial_keplerian_elements = element_conversion.cartesian_to_keplerian(
+        list(state_history.values())[0], central_body_gravitational_parameter)
+    initial_time = list(state_history.keys())[0]
+
+    # Iterate over all epochs, and compute state difference
+    keplerian_solution_difference = dict()
+    for epoch in state_history.keys():
+
+        # Semi-analytically propagated Keplerian state to current epoch
+        propagated_kepler_state = two_body_dynamics.propagate_kepler_orbit(
+            initial_keplerian_elements, epoch - initial_time, central_body_gravitational_parameter)
+
+        # Converted propagated Keplerian state to Cartesian state
+        propagated_cartesian_state = element_conversion.keplerian_to_cartesian(
+            propagated_kepler_state, central_body_gravitational_parameter)
+
+        # Compute difference w.r.t. Keplerian orbit
+        keplerian_solution_difference[epoch] = propagated_cartesian_state - state_history[epoch]
+
+    return keplerian_solution_difference
+

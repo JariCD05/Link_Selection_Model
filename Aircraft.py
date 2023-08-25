@@ -33,14 +33,23 @@ class aircraft:
             flight = pandas.read_csv(filename)
             t0 = parser.parse(str((flight['timestamp'].to_numpy())[0]))
             t1 = parser.parse(str((flight['timestamp'].to_numpy())[-1]))
-            interval = (t1-t0).total_seconds()
+            interval = (t1 - t0).total_seconds()
+
+            # t0_string = flight['timestamp'].to_numpy()[0][:-6]
+            # dt = datetime.strptime(t0_string, '%Y-%m-%d %H:%M:%S')
+            # t0 = dt.year * 3.154e7 + dt.month * 2628336.2137829 + dt.day * 86400.0 + dt.hour * 3600 + dt.minute * 60 + dt.second
+            # t1_string = flight['timestamp'].to_numpy()[-1][:-6]
+            # dt = datetime.strptime(t1_string, '%Y-%m-%d %H:%M:%S')
+            # t1 = dt.year * 3.154e7 + dt.month * 2628336.2137829 + dt.day * 86400.0 + dt.hour * 3600 + dt.minute * 60 + dt.second
+
             time_0 = np.zeros(len(flight['timestamp'].to_numpy()))
 
             for i in range(len(flight['timestamp'].to_numpy())):
                 date_time_str = flight['timestamp'].to_numpy()[i][:-6]
                 dt = datetime.strptime(date_time_str, '%Y-%m-%d %H:%M:%S')
-                t = dt.hour * 3600 + dt.minute * 60 + dt.second
+                t = dt.year * 3.154e7 + dt.month * 2628336.2137829 + dt.day * 86400.0 + dt.hour * 3600 + dt.minute * 60 + dt.second
                 time_0[i] = t
+
             time_0 -= time_0[0]
 
             # lat = flight['latitude'].to_numpy()
@@ -52,18 +61,52 @@ class aircraft:
             vertical_speed = flight['vertical_rate'].to_numpy() * 0.00508 #Convert ft/min to m/s
 
             R = R_earth + heights
-            pos = np.transpose(np.array((np.cos(lat) * np.cos(lon),
-                                         np.cos(lat) * np.sin(lon),
-                                         np.sin(lat))) * R).tolist()
+            e2 = 6.69437999014E-3
+            N = R_earth / np.sqrt(1 - e2 * np.sin(lat)**2)
+
+            pos_ECEF = np.transpose(np.array(((np.cos(lat) * np.cos(lon)) * R,
+                                              (np.cos(lat) * np.sin(lon)) * R,
+                                              (np.sin(lat))               * R  )))  # .tolist()
+
+
+            # pos_ECEF = np.transpose(np.array(((np.cos(lat) * np.cos(lon)) * (N + heights),
+            #                                   (np.cos(lat) * np.sin(lon)) * (N + heights),
+            #                                   (np.sin(lat)) * ((1 - e2) * N + heights))        ))#.tolist()
+
+            pos = conversion_ECEF_to_ECI(pos_ECEF, time_0)
+            pos = np.array(pos)
+
+            d_x = pos_ECEF[-1, 0] - pos[-1, 0]
+            d_y = pos_ECEF[-1, 1] - pos[-1, 1]
+            d_z = pos_ECEF[-1, 2] - pos[-1, 2]
+
+
+            delta_r = np.sqrt(d_x**2 + d_y**2 + d_z**2)
+
+            # fig = plt.figure(figsize=(6, 6), dpi=125)
+            # ax = fig.add_subplot(111, projection='3d')
+            # ax.plot(pos_ECEF[:, 0]*1e-3,
+            #         pos_ECEF[:, 1]*1e-3,
+            #         pos_ECEF[:, 2]*1e-3,
+            #         linewidth=3, label='ECEF')
+            # ax.plot(pos[:, 0]*1e-3,
+            #         pos[:, 1]*1e-3,
+            #         pos[:, 2]*1e-3,
+            #         linewidth=3, label='ECI')
+            # ax.plot((pos_ECEF[:, 0] - pos[:, 0]) * 1e-3,
+            #         (pos_ECEF[:, 1] - pos[:, 1]) * 1e-3,
+            #         (pos_ECEF[:, 2] - pos[:, 2]) * 1e-3,
+            #         linewidth=3, label='Diff')
+            #
+            # ax.set_xlabel('X [km]',fontsize=10)
+            # ax.set_ylabel('Y [km]',fontsize=10)
+            # ax.set_zlabel('Z [km]',fontsize=10)
+            # ax.legend(fontsize=10)
+            # plt.show()
+
+
             speed = np.sqrt(ground_speed**2 + vertical_speed**2)
             pos = np.asarray(pos)
-
-            # # Option to plot one of the above state variables of the aircraft (lat, lon, heights, ground_speed, vertical_speed)
-            # fig, ax = plt.subplots(1, 2)
-            # # fig.suptitle('Aircraft trajectory \n'
-            # #              +aircraft_filename_load[84:-4], fontsize=20)
-            # ax[0].scatter(time_0/60.0, speed, s=8, label='raw')
-            # ax[1].scatter(time_0/60.0, heights * 1.0E-3, s=8, label='raw')
 
             # ------------------------------------------------------------------------
             # -------------------------------INTERPOLATE------------------------------
@@ -78,27 +121,16 @@ class aircraft:
             pos     = np.transpose(np.vstack((pos_x, pos_y, pos_z)))
             speed   = interpolator(time_0, speed, time, interpolation_type='linear')
 
-            # ax[0].scatter(time/60.0, speed, s=1, label='interpolated')
-            # ax[1].scatter(time/60.0, heights * 1.0E-3, s=1, label='interpolated')
-            # ax[0].set_ylabel('Speed (m/s)', fontsize=10)
-            # ax[1].set_ylabel('Altitude (km)', fontsize=10)
-            # ax[1].set_xlabel('Time (min)', fontsize=10)
-            # ax[0].set_xlabel('Time (min)', fontsize=10)
-            # ax[0].legend(fontsize=10)
-            # # ax[1].legend(fontsize=10)
-            # ax[0].grid()
-            # ax[1].grid()
-            # plt.show()
-
             print('AIRCRAFT PROPAGATION MODEL')
             print('------------------------------------------------')
             print('Aircraft positional data retrieved from OPENSKY database')
-            print('Initial latitude and longitude: (' + str(np.round(np.rad2deg(lat[0]), 1)) + 'deg, ' +
-                                                        str(np.round(np.rad2deg(lon[0]), 1)) + 'deg)')
+            print('Initial latitude and longitude: (' + str(np.round(np.rad2deg(lat[1]), 1)) + 'deg, ' +
+                                                        str(np.round(np.rad2deg(lon[1]), 1)) + 'deg)')
             print('Final latitude and longitude  : ('   + str(np.round(np.rad2deg(lat[-1]), 1)) + 'deg, ' +
-                                                        str(np.round(np.rad2deg(lon[-1]), 1)) + 'deg)')
-            print('Average altitude             : ' + str(np.round(heights[heights != 'nan'].mean() / 1e3, 2)) + ' km')
-            print('Average flight speed          : '+str(np.round(speed.mean(),2))+' m/s')
+                                                       str(np.round(np.rad2deg(lon[-1]), 1)) + 'deg)')
+            print('Average altitude              : ' + str(np.round(heights[1:].mean() / 1e3, 2)) + ' km')
+            print('Cruise altitude               : ' + str(np.round(heights[int(len(heights)/2)] / 1e3, 2)) + ' km')
+            print('Average flight speed          : '+  str(np.round(speed.mean(),2))+' m/s')
             print('------------------------------------------------')
             return pos, heights, lat, lon, speed, time
 
@@ -137,6 +169,7 @@ class aircraft:
                 pos[i] = np.transpose(np.array((np.cos(lat[i]) * np.cos(lon[i]),
                                                  np.cos(lat[i]) * np.sin(lon[i]),
                                                  np.sin(lat[i]))) * R[i])
+
             heights = R - R_earth
 
             # Correct for BC conditions (-pi < lat < pi)
@@ -166,15 +199,3 @@ class aircraft:
             print('------------------------------------------------')
             return pos, heights, lat, lon, speed, time
 
-        elif method == 'fixed':
-            time = np.arange(simulation_start_epoch, simulation_end_epoch, stepsize)
-
-            lat = np.ones(len(time)) * np.deg2rad(self.lat_init)
-            lon = np.ones(len(time)) * np.deg2rad(self.lon_init)
-            R   = np.ones(len(time)) * (R_earth + height)
-            heights = R - R_earth
-            pos = np.transpose(np.array((np.cos(lat[0])    * np.cos(lon[0]),
-                                            np.cos(lat[0]) * np.sin(lon[0]),
-                                            np.sin(lat[0])                 )) * R)
-            speed = np.zeros(len(time))
-            return pos, heights, lat, lon, speed, time

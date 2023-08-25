@@ -5,7 +5,6 @@ import numpy as np
 from matplotlib import pyplot as plt
 
 from helper_functions import *
-
 from input import *
 
 class distributions:
@@ -21,9 +20,10 @@ class distributions:
 
     # Log-normal distribution
     def lognorm_pdf(self, sigma, mean, steps):
-        x = np.linspace(0.0, 3.0, steps)
+        x = np.linspace(0.0, 2.0, steps)
         pdf = 1 / (sigma * x * np.sqrt(2*np.pi)) * np.exp(-(np.log(x)- mean)**2/(2 * sigma**2))
         return x, pdf
+
     def lognorm_rvs(self, data, sigma, mean):
         return np.exp(mean + sigma * data)
 
@@ -49,7 +49,6 @@ class distributions:
         pdf = beta * x ** (beta - 1)
         return x, pdf
 
-
     # Gamma Gamma distribution
     def gg_pdf(self, alpha, beta, steps):
         # x_alpha = np.linspace(gamma.ppf(0.01, alpha), gamma.ppf(0.99, alpha), steps)
@@ -72,78 +71,115 @@ class distributions:
         rvs = rng.rvs(size=steps)
         return rvs
 
-    def plot(self, ax, sigma, mean, x, pdf, data, index, effect, name):
-        range_x = x.max() - x.min()
+    def plot_pdf_verification(self, ax,
+                              sigma, mean, x, pdf,
+                              sigma_num, mean_num, x_num, pdf_num,
+                              data, elevation, effect):
         samples = len(x)
-        number_of_intervals = int(np.sqrt(samples))
-        number_of_intervals_norm = int(np.sqrt(samples))
-        width_of_intervals = range_x / number_of_intervals
+        var_theory = sigma ** 2
+
         if effect == "scintillation" or effect == "beam wander" or effect == "angle of arrival":
-            ax[0].set_title('PDF & Histogram: ' + str(effect) + ', ' + str(name))
-            for i in range(len(index)):
+            for i in range(len(data)):
                 if effect == "scintillation":
-                    sigma_I = np.var(data[i]) / np.mean(data[i])**2 - 1
-                    sigma_I_theory = np.exp(-2 * mean) - 1
-                    # sigma_I_theory = sigma**2
+                    ax[0].set_title('Numerical and theoretical PDF: ' + str(effect))
+
+                    var_num = sigma_num**2
 
                     # Create histogram parameters
-                    shape, loc, scale = lognorm.fit(data[i])
-                    sigma_hist = lognorm.std(s=shape, loc=loc, scale=scale)
-                    # Convert to lognormal parameters
-                    sigma_hist = np.sqrt(np.log(sigma_hist ** 2 + 1))
-                    mean_hist = -0.5 * sigma_hist ** 2
+                    # dist_data, x_data = distribution_function(data[i], 1, min=data[i].min(), max=data[i].max(),steps=100)
+                    # pdf_data = dist_data.pdf(x_data)
+                    # std_data = dist_data.std()
+                    # # mean_data = dist_data.mean()
+                    #
+                    # pdf_data, cdf_data, x_data, std_data, mean_data = \
+                    #     distribution_function(data[i], length=1, min=data.min(), max=data.max(), steps=100)
 
-                    pdf_data = lognorm.pdf(x, shape, loc, scale)
                     # PDF, fitted to histogram
-                    ax[i].hist(data[i], density=True, bins=1000, range=(x.min(), x.max()))
-                    ax[i].plot(x, pdf_data, label='pdf fitted to hist., '
-                                                  '$\sigma$=' + str(np.round(sigma_hist, 3)) + ', '
-                                                  '$\mu$=' + str(np.round(mean_hist, 3))+', $\sigma_I$='+str(sigma_I_theory[i]), color='red')
-                    # Theoretical PDF
-                    ax[i].plot(x, pdf[i], label='pdf theory, '
-                                                '$\sigma$=' + str(np.round(sigma[i], 3)) + ', '
-                                                '$\mu$=' + str(np.round(mean[i], 3)))
+                    # ax[i].hist(data[i], density=True, bins=1000, range=(x.min(), x.max()))
+                    # ax[i].plot(x_data, pdf_data, label='pdf fitted to numerical data, '
+                    #                               '$\sigma_{I}^2$=' + str(np.round(std_data**2, 3))+
+                    #                               ', $\mu$=' + str(np.round(mean_data,3)), color='red')
+                    if i == 2:
+                        ax[i].plot(x_num, pdf_num[i], label='numerical, '
+                                                         '$\sigma_{I}^2$=' + str(np.round(var_num[i], 2)), color='red', linewidth=2)
+                        # Theoretical PDF
+                        ax[i].plot(x, pdf[i], label='theory, '
+                                                    '$\sigma_{I}^2$=' + str(np.round(var_theory[i,0], 2)), linewidth=2)
+                    else:
+                        ax[i].plot(x_num, pdf_num[i], label='$\sigma_{I}^2$=' + str(np.round(var_num[i], 2)), color='red', linewidth=2)
+                        # Theoretical PDF
+                        ax[i].plot(x, pdf[i], label='$\sigma_{I}^2$=' + str(np.round(var_theory[i,0], 2)), linewidth=2)
+
                 else:
-                    loc, scale = rayleigh.fit(data[i])
-                    pdf_data = rayleigh.pdf(x=x, loc=loc, scale=scale)
-                    mean_hist = np.mean(data[i])
+                    ax[0].set_title('Numerical and theoretical PDF: ' + str(effect), fontsize=15)
+
+                    # Create histogram parameters
+                    # dist_data, x_data = distribution_function(data[i], 1, min=data[i].min(), max=data[i].max(),steps=100)
+                    # pdf_data = dist_data.pdf(x_data)
+                    # std_data = dist_data.std()
+                    # mean_data = dist_data.mean()
+
+                    # pdf_data, cdf_data, x_data, std_data, mean_data = \
+                    #     distribution_function(data[i], length=1, min=data.min(), max=data.max(), steps=100)
+                    # std_data = np.sqrt(2 / (4 - np.pi) * std_data ** 2)
 
                     # PDF, fitted to histogram
-                    ax[i].hist(data[i], density=True, bins=1000, range=(x.min(), x.max()))
-                    ax[i].plot(x, pdf_data, label='pdf fitted to hist., '
-                                                  '$\sigma$='+ str(np.round(scale*1.0E6,3))+'urad, '
-                                                  '$\mu$=' + str(np.round(mean_hist*1.0E6,3))+'urad', color='red')
-                    # Theoretical PDF
-                    ax[i].plot(x, pdf[i], label='pdf theory, '
-                                                '$\sigma$=' + str(np.round(sigma[i]*1.0E6,3))+'urad, '
-                                                '$\mu$=' + str(np.round(mean[i]*1.0E6,3))+'urad')
+                    # ax[i].hist(data[i], density=True, bins=1000, range=(x.min(), x.max()))
+                    # ax[i].plot(x_data, pdf_data, label='pdf fitted to numerical data, '
+                    #                               '$\sigma$='+ str(np.round(std_data*1.0E6,3))+'urad, '
+                    #                               '$\mu$=' + str(np.round(mean_data*1.0E6,3))+'urad', color='red')
 
-                ax[i].legend()
-                ax[i].set_ylabel('Probability density')
+                    if i == 2:
+                        ax[i].plot(x_num*1.0E6, pdf_num[i], label='numerical, '
+                                                      '$\sigma$=' + str(np.round(sigma_num[i] * 1.0E6, 1)) + 'urad, '
+                                                      '$\mu$=' + str(np.round(mean_num[i] * 1.0E6, 1)) + 'urad', color='red', linewidth=2)
+                        # Theoretical PDF
+                        ax[i].plot(x*1.0E6, pdf[i], label='theory, '
+                                                    '$\sigma$=' + str(np.round(sigma[i,0]*1.0E6,1))+'urad, '
+                                                    '$\mu$=' + str(np.round(mean[i,0]*1.0E6,1))+'urad', linewidth=2)
+                    else:
+                        ax[i].plot(x_num * 1.0E6, pdf_num[i], label='$\sigma$=' + str(np.round(sigma_num[i] * 1.0E6, 1)) + 'urad, '
+                                                                 '$\mu$=' + str(np.round(mean_num[i] * 1.0E6, 1)) + 'urad', color='red', linewidth=2)
+                        # Theoretical PDF
+                        ax[i].plot(x * 1.0E6, pdf[i], label='$\sigma$=' + str(np.round(sigma[i, 0] * 1.0E6, 1)) + 'urad, '
+                                                                '$\mu$=' + str(np.round(mean[i, 0] * 1.0E6, 1)) + 'urad', linewidth=2)
+
+
+                ax[i].legend(fontsize=10, loc= 'upper right')
+                ax[i].set_ylabel('PDF \n $\epsilon$=' + str(np.round(np.rad2deg(elevation[i]),0)), fontsize=12)
 
 
         elif effect == "TX jitter" or effect == "RX jitter":
-            ax.set_title('PDF & Histogram: ' + str(effect) + ', ' + str(name))
+            ax.set_title('Numerical and theoretical PDF: Platform jitter (TX & RX)')
+
             # Create histogram parameters
-            loc, scale = rayleigh.fit(data)
-            mean_hist = np.mean(data)
+            # dist_data, x_data = distribution_function(data, 1, min=data.min(), max=data.max(), steps=100)
+            # pdf_data  = dist_data.pdf(x_data)
+            # std_data  = dist_data.std()
+            # mean_data = dist_data.mean()
 
-            pdf_data = rayleigh.pdf(x=x, loc=loc, scale=scale)
-            # PDF, fitted to histogram
-            ax.hist(data, density=True, bins=1000, range=(x.min(), x.max()))
-            ax.plot(x, pdf_data, label='pdf fitted to histogram, '
-                                       '$\sigma$='+str(np.round(scale*1.0E6,3))+'urad, '
-                                       '$\mu$='+str(np.round(mean_hist*1.0E6,3)), color='red')
+            # pdf_data, cdf_data, x_data, std_data, mean_data = \
+            #     distribution_function(data, length=1, min=data.min(), max=data.max(), steps=100)
+            # std_data  = np.sqrt(2 / (4 - np.pi) * std_data ** 2)
+
+            # ax.hist(data, density=True, bins=1000, range=(x.min(), x.max()))
+            ax.plot(x_num*1.0E6, pdf_num, label='numerical, '
+                                           '$\sigma$=' + str(np.round(sigma_num * 1.0E6, 1)) + 'urad, '
+                                           '$\mu$=' + str(np.round(mean_num * 1.0E6, 1)) + 'urad', color='red', linewidth=2)
+
+            # ax.plot(x_data, pdf_data, label='pdf numerical, '
+            #                                '$\sigma$='+str(np.round(std_data*1.0E6,3))+'urad, '
+            #                                '$\mu$='+str(np.round(mean_data*1.0E6,3))+'urad', color='red')
+
             # Theoretical PDF
-            ax.plot(x, pdf, label='pdf theory, '
-                                  '$\sigma$='+str(np.round(sigma*1.0E6,3))+'urad, '
-                                  '$\mu$='+str(np.round(mean*1.0E6,3))+'urad')
-            ax.legend()
-            ax.set_ylabel('Probability density')
-
+            ax.plot(x*1.0E6, pdf, label='theory, '
+                                  '$\sigma$='+str(np.round(sigma*1.0E6,1))+'urad, '
+                                  '$\mu$='+str(np.round(mean*1.0E6,1))+'urad', linewidth=2)
+            ax.legend(fontsize=10, loc= 'lower right')
+            ax.set_ylabel('PDF', fontsize=12)
 
         elif effect == "combined":
-            ax.set_title('PDF & Histogram: ' + str(effect) + ', ' + str(name))
+            ax.set_title('PDF & Histogram: ' + str(effect))
             # Create histogram parameters
             hist = np.histogram(data, bins=1000)
             rv  = rv_histogram(hist, density=False)
@@ -158,13 +194,15 @@ class distributions:
             # Theoretical PDF
             ax.plot(x, pdf, label='pdf theory, $\sigma$=' + str(np.round(sigma * 1.0E6, 3)) + 'urad, $\mu$=' + str(np.round(mean * 1.0E6, 3)) + 'urad')
             ax.legend()
-            ax.set_ylabel('Probability density')
+            ax.set_ylabel('PDF', fontsize=12)
 
 
         if effect == "scintillation" or effect == "combined":
-            ax[-1].set_xlabel('Normalized intensity [I/I0]')
+            ax[-1].set_xlabel('Normalized intensity [I/I0]', fontsize=12)
         elif effect == "beam wander" or effect == "angle of arrival":
-            ax[-1].set_xlabel('Angular displacement [rad]')
+            ax[-1].set_xlabel('Angular displacement [urad]', fontsize=12)
+        else:
+            ax.set_xlabel('Angular displacement [urad]', fontsize=12)
         plt.show()
 
 

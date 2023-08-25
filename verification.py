@@ -1,4 +1,5 @@
 import matplotlib.pyplot as plt
+from matplotlib import ticker
 import numpy as np
 from scipy.signal import lsim, lsim2, bessel, butter, filtfilt, lfilter, lfilter_zi
 from scipy.fft import fft, rfft, ifft, fftfreq, rfftfreq
@@ -99,6 +100,12 @@ def test_filter():
 # -------------------------------------------------------------------------------
 
 def test_RS_coding(method):
+    LCT = terminal_properties()
+    P_r = np.logspace(-(60 + 30) / 10, -(0 + 30) / 10, num=100, base=10)
+    noise_sh, noise_th, noise_bg, noise_beat = LCT.noise(P_r=P_r, I_sun=I_sun)
+    SNR, Q = LCT.SNR_func(P_r=P_r, detection=detection, noise_sh=noise_sh, noise_th=noise_th, noise_bg=noise_bg,
+                          noise_beat=noise_beat)
+
     if method == 'simple':
         # Method 1
         # REF: CCSDS Historical Document, 2006, CH.5.5, EQ.3-4
@@ -114,85 +121,62 @@ def test_RS_coding(method):
         number_of_codewords = number_of_bits / (number_of_bits_per_codeword)
 
         # OOK-NRZ modulation scheme
-        SNR = np.linspace(0, 50, samples)
-        Vb = 1/2 * erfc( np.sqrt(SNR) )
-        Vs = 1 - (1 - Vb)**symbol_length
+        # Pr = np.linspace(0, 50, samples)
+        # SNR = np.linspace(0, 50, samples)
 
-        k_values = np.arange(E, N - 1)
-        binom_values = binom(N - 1, k_values)
-        SER_coded = Vs * (binom_values * np.power.outer(Vs, k_values) * np.power.outer(1 - Vs, N - k_values - 1)).sum(axis=1)
-        BER_coded = 2**(symbol_length-1)/N * SER_coded
+        BER = LCT.BER_func(Q=Q, modulation=modulation)
+        # BER = 1 / 2 * erfc(np.sqrt(SNR))
+        # Vs = 1 - (1 - Vb) ** symbol_length
 
-        if method == 'complex':
-            # Method 2
-            Vb = np.ones(samples) * 1E-5
-            Vs = 1 - (1 - Vb)**symbol_length
-
-            step_size_codewords = K / data_rate
-            mapping = list(np.arange(0, samples, step_size_codewords).astype(int))
-
-            bits_per_codeword = number_of_bits / number_of_codewords
-            Vs_per_codeword = Vs[0, mapping]
-            Vb_per_codeword = Vb[0, mapping]
-
-            codewords = t[mapping]
+        # k_values = np.arange(E, N - 1)
+        # binom_values = binom(N - 1, k_values)
+        # SER_coded = Vs * (binom_values * np.power.outer(Vs, k_values) * np.power.outer(1 - Vs, N - k_values - 1)).sum(axis=1)
+        # BER_coded = 2**(symbol_length-1)/N * SER_coded
+        #
+        BER_c = LCT.coding(K, N, BER)
 
 
-            SER_uncoded = Vs[mapping]
-            BER_uncoded = Vb[mapping]
-            SER_coded = np.zeros(samples)
-            BER_coded = np.zeros(samples)
+        fig = plt.figure()
+        ax = fig.add_subplot(1,1,1)
+        ax.plot(W2dBm(P_r), BER, label='Uncoded (Channel BER)')
+        ax.plot(W2dBm(P_r), BER_c, label='(255,223) RS coded')
+        ax.invert_yaxis()
+        ax.set_ylim(1.0E-9, 1.0E-1)
+        ax.set_yscale('log')
+        ax.grid()
+        ax.set_title('Uncoded BER vs RS coded BER (255,223)')
+        ax.set_xlabel('Pr (dB)')
+        ax.set_ylabel('Probability of Error (# Error bits/total bits)')
+        ax.legend()
+        plt.show()
 
-            for i in range(number_of_codewords):
-                SER_coded[i] = Vs[i] * sum(binom(N - 1, k) * Vs[i] ** k * (1 - Vs[i]) ** (N - k - 1) for k in range(E, N - 1))
-
-            BER_coded = Vb/Vs * SER_coded
-
-    fig = plt.figure()
-    ax = fig.add_subplot(1,1,1)
-    ax.plot(W2dB(SNR), Vb, label='Uncoded (Channel BER)')
-    ax.plot(W2dB(SNR), BER_coded, label='(255,223) RS coded')
-    ax.invert_yaxis()
-    ax.set_ylim(1.0E-9, 1.0E-1)
-    ax.set_yscale('log')
-    ax.grid()
-    ax.set_title('Uncoded BER vs RS coded BER (255,223)')
-    ax.set_xlabel('SNR (dB)')
-    ax.set_ylabel('Probability of Error (# Error bits/total bits)')
-    ax.legend()
-    plt.show()
+    elif method == 'integrated':
+        return
 
 # -------------------------------------------------------------------------------
 # Sensitivity verification
 # -------------------------------------------------------------------------------
-
 def test_sensitivity(method):
-    BER_thres = 1.0E-9
     modulation = "OOK-NRZ"
     detection = "APD"
     data_rate = 10.0E9
 
     LCT = terminal_properties()
 
-    P_r = np.linspace(dBm2W(-40), dBm2W(-30), 1000)
+    P_r = np.logspace(-(60+30)/10, -(0+30)/10, num=100, base=10)
     N_p = Np_func(P_r, data_rate)
     N_p = W2dB(N_p)
 
-    noise_sh = LCT.noise(noise_type="shot", P_r=P_r)
-    noise_th = LCT.noise(noise_type="thermal")
-    noise_bg = LCT.noise(noise_type="background", P_r=P_r, I_sun=I_sun)
-    noise_beat = LCT.noise(noise_type="beat")
-    LCT.threshold(modulation=modulation, detection=detection)
 
-    SNR, Q = LCT.SNR_func(P_r=P_r, detection=detection,
-                          noise_sh=noise_sh, noise_th=noise_th, noise_bg=noise_bg, noise_beat=noise_beat)
+    noise_sh, noise_th, noise_bg, noise_beat = LCT.noise(P_r=P_r, I_sun=I_sun)
+    LCT.BER_to_P_r(modulation=modulation, detection=detection, BER=BER_thres, threshold=True)
+    SNR, Q = LCT.SNR_func(P_r=P_r, detection=detection, noise_sh=noise_sh, noise_th=noise_th, noise_bg=noise_bg, noise_beat=noise_beat)
     BER = LCT.BER_func(Q=Q, modulation=modulation)
 
     if method == "BER/PPB":
-        plt.plot(W2dB(SNR), BER)
-        plt.yscale('log')
-        ax = plt.gca()
-        # ax.invert_xaxis()
+        fig, ax = plt.subplots(1, 1)
+        ax.plot(W2dB(SNR), BER)
+        ax.yscale('log')
         ax.grid()
         ax.set_title('BER vs PPB')
         ax.set_xlabel('PPB (dB)')
@@ -200,31 +184,26 @@ def test_sensitivity(method):
         plt.show()
 
     elif method == "compare_backward_threshold_function_with_forward_BER_function":
-        BER_thres = 1.0E-6
-        modulation = "OOK-NRZ"
-        detection = "APD"
-        data_rate = 10.0E9
-
-        LCT = terminal_properties()
-
-        P_r = np.linspace(dBm2W(-40), dBm2W(-20), 100)
-        N_p = Np_func(P_r, data_rate)
-        N_p = W2dB(N_p)
-
-        noise_sh, noise_th, noise_bg, noise_beat = LCT.noise(P_r=P_r, I_sun=I_sun)
-        LCT.threshold(modulation=modulation, detection=detection, BER_thres=BER_thres)
-
-        SNR, Q = LCT.SNR_func(P_r=P_r, detection=detection,
-                              noise_sh=noise_sh, noise_th=noise_th, noise_bg=noise_bg, noise_beat=noise_beat)
-        BER = LCT.BER_func(Q=Q, modulation=modulation)
-
         fig, ax = plt.subplots(1, 1)
-        ax.plot(W2dBm(P_r), BER)
-        ax.plot(W2dBm(LCT.P_r_thres * np.ones(2)), [BER.min(), BER.max()], label='Pr threshold')
-        ax.plot([W2dBm(P_r.min()), W2dBm(P_r.max())], BER_thres * np.ones(2), label='BER threshold')
+        detection = ['PIN', 'APD', 'quantum limit']
+        ax.plot([W2dBm(P_r.min()), W2dBm(P_r.max())], BER_thres[1] * np.ones(2), label='BER thres')
 
+        for d in detection:
+            label = str(d)
+            noise_sh, noise_th, noise_bg, noise_beat = LCT.noise(P_r=P_r, I_sun=I_sun)
+            LCT.BER_to_P_r(modulation=modulation, detection=d, BER=BER_thres, threshold=True)
+            SNR, Q = LCT.SNR_func(P_r=P_r, detection=d, noise_sh=noise_sh, noise_th=noise_th,
+                                  noise_bg=noise_bg, noise_beat=noise_beat)
+            BER = LCT.BER_func(Q=Q, modulation=modulation)
+            ax.plot(W2dBm(P_r), BER, label=label)
+            ax.plot(W2dBm(LCT.P_r_thres[1] * np.ones(2)), [1.0E-10, 0.5], label='Pr thres,' + label)
+
+
+
+        # ax.set_ylim(1.0E-15, 0.0)
         ax.set_ylabel('BER')
         ax.set_yscale('log')
+        ax.set_ylim(1.0E-10, 0.5)
         ax.set_xlabel('Pr')
         ax.grid()
         ax.legend()
@@ -331,37 +310,277 @@ def test_sensitivity(method):
 # -------------------------------------------------------------------------------
 
 def test_windspeed():
-    slew_rate = 1 / np.sqrt((R_earth+h_SC)**3 / mu_earth)
-    speed_AC = [10, 100, 150, 200]
-    axs = plt.subplot(111)
+    # slew_rate = [0, np.ones(2) * (1 / np.sqrt((R_earth+h_SC)**3 / mu_earth))]
+    # speed_AC = [0, 250]
+    # axs = plt.subplot(111)
+    # h_AC = 10.0E3
+    # ranges = np.ones(2) * (h_SC - h_AC)
+    # heights_SC = np.ones(2) * h_SC
+    # heights_AC = np.ones(2) * h_AC
+    # zenith = np.ones(2) * np.pi/4
+    #
+    # turb = turbulence(ranges=ranges, h_AC=heights_AC, h_SC=heights_SC, zenith_angles=zenith, angle_div=angle_div)
+    # # axs.set_title(f'Windspeed (Bufton)  vs  heights')
+    # for Vg in speed_AC:
+    #     turb.windspeed_func(slew=slew_rate, Vg=Vg, wind_model_type=wind_model_type)
+    #     turb.Cn_func(turbulence_model=turbulence_model)
+    #     heights = turb.height_profiles[0]
+    #     windspeed = turb.windspeed[0]
+    #     axs.plot(heights, windspeed, label='V ac (m/s) = '+str(Vg)+', slew ($\degree$/s): '+str(np.round(np.rad2deg(slew_rate[0]),3))+', $V_{rms}$='+str(np.round(turb.windspeed_rms[0],1)))
+    #
+    #
+    # turb.windspeed_func(slew=slew_rate*2, Vg=Vg, wind_model_type=wind_model_type)
+    # turb.Cn_func(turbulence_model=turbulence_model)
+    # heights = turb.height_profiles[0]
+    # windspeed = turb.windspeed[0]
+    # axs.plot(heights, windspeed, label='V ac (m/s) = '+str(Vg)+', slew ($\degree$/s): '+str(np.round(np.rad2deg(slew_rate[0])*2,3))+', $V_{rms}$='+str(np.round(turb.windspeed_rms[0],1)))
+    #
+    # # turb.windspeed_func(slew=slew_rate, Vg=speed_AC[0], wind_model_type=wind_model_type)
+    # # turb.Cn_func(turbulence_model="HVB_57")
+    # # axs.plot(turb.heights, turb.windspeed, label='V wind (m/s rms) = ' + str(np.round(turb.windspeed_rms,2))+', V ac (m/s) = '+str(speed_AC[0])+', A: yes')
+    # axs.set_ylabel('Wind speed [m/s]')
+    # axs.set_xlabel('Altitude $h$ [m]')
+    # axs.legend(fontsize=8)
+    # axs.grid()
+    # plt.show()
 
-    turb = turbulence()
-    axs.set_title(f'Windspeed (Bufton)  vs  heights')
-    for Vg in speed_AC:
-        turb.windspeed_func(slew=slew_rate, Vg=Vg, wind_model_type=wind_model_type)
-        turb.Cn_func(turbulence_model=turbulence_model)
-        heights = turb.heights[turb.heights<20000]
-        windspeed = turb.windspeed[turb.heights<20000]
-        axs.plot(heights, windspeed, label='V wind (m/s rms) = ' + str(np.round(turb.windspeed_rms,2))+', V ac (m/s) = '+str(Vg)+', slew: '+str(np.round(slew_rate,4)))
+    fig, axs = plt.subplots(1,2)
+    h_AC = 0.0E3
+    ranges = np.ones(2) * (h_SC - h_AC)
+    heights_SC = np.ones(2) * h_SC
+    heights_AC = np.ones(2) * h_AC
+    zenith = np.ones(2) * np.pi/4
+    slew_rate = np.array([np.deg2rad(0.05), np.deg2rad(0.3)])
+    speed_AC = np.array([200, 200])
 
 
-    turb.windspeed_func(slew=slew_rate*2, Vg=Vg, wind_model_type=wind_model_type)
-    turb.Cn_func(turbulence_model=turbulence_model)
-    heights = turb.heights[turb.heights<20000]
-    windspeed = turb.windspeed[turb.heights<20000]
-    axs.plot(heights, windspeed, label='V wind (m/s rms) = ' + str(np.round(turb.windspeed_rms,2))+', V ac (m/s) = '+str(Vg)+', slew: '+str(np.round(slew_rate*2,4)))
+    turb = turbulence(ranges=ranges, h_AC=heights_AC, h_SC=heights_SC, zenith_angles=zenith, angle_div=angle_div)
+    turb.windspeed_func(slew=slew_rate, Vg=speed_AC)
+    heights = turb.height_profiles_masked[0]
 
-    turb.windspeed_func(slew=slew_rate, Vg=speed_AC[0], wind_model_type=wind_model_type)
-    turb.Cn_func(turbulence_model="HVB_57")
-    axs.plot(turb.heights, turb.windspeed, label='V wind (m/s rms) = ' + str(np.round(turb.windspeed_rms,2))+', V ac (m/s) = '+str(speed_AC[0])+', A: yes')
 
-    axs.set_yscale('log')
-    axs.set_ylim(1.0E-20, 1.0E-14)
-    axs.set_xscale('log')
-    axs.set_ylabel('Wind speed [m/s]')
-    axs.set_xlabel('Altitude $h$ [m]')
-    axs.legend()
+    turb.Cn_func()
+    axs[0].plot(heights*1e-3, turb.windspeed[0],
+                label='$V_{AC}$=0 m/s, slew=0$\degree$/s')
+    axs[1].plot(heights*1e-3, turb.Cn2[0], label='$V_{rms}$=' + str(np.round(turb.windspeed_rms[0], 1))+'m/s', linewidth=2)
+
+
+    for i in range(len(speed_AC)):
+        print(slew_rate[i], speed_AC[i])
+        heights = turb.height_profiles_masked[i]
+        windspeed = turb.windspeed_total[i]
+        axs[0].plot(heights*1e-3, windspeed, label='$V_{AC}$=' + str(speed_AC[i]) + 'm/s, slew=' + str(
+                    np.round(np.rad2deg(slew_rate[i]), 3))+'$\degree$/s')
+        axs[1].plot(heights*1e-3, turb.Cn2_total[i], label='$V_{rms}$=' + str(np.round(turb.windspeed_rms_total[i], 1))+'m/s')
+
+
+    turb.Cn_func(A='yes')
+    axs[1].plot(heights*1e-3, turb.Cn2[0], ':', label='$V_{rms}$=' + str(np.round(turb.windspeed_rms[0], 1))+'m/s, A=1.7e-14', linewidth=2)
+
+    axs[0].set_ylabel('Wind speed [m/s]')
+    axs[1].set_ylabel('$C_n^2$ [$m^{-2/3}$]')
+    axs[1].yaxis.tick_right()
+    axs[1].yaxis.set_label_position("right")
+    axs[0].set_xlabel('Altitude $h$ [km]')
+    axs[1].set_xlabel('Altitude $h$ [km]')
+    axs[0].set_xscale('log')
+    axs[1].set_xscale('log')
+    axs[1].set_yscale('log')
+    axs[0].legend(fontsize=10)
+    axs[1].legend(fontsize=10, loc='lower left')
+    axs[0].grid()
+    axs[1].grid()
     plt.show()
+
+def Cn_profile():
+    # fig,axs = plt.subplots(1,1)
+    # slew_rate = np.array(np.deg2rad([0.0, 0.2]))
+    # speed_AC = np.array([20.0, 220.0])
+    # h_ac = np.array([0.0])
+    # h_sc = np.array([h_SC])
+    # zenith = np.array([0.0])
+    # elevation = np.array(np.pi/2 - zenith)
+    # ranges = np.array((h_SC - h_ac) / np.sin(elevation))
+    #
+    # for Vg in speed_AC:
+    #     for slew in slew_rate:
+    #         turb = turbulence(ranges=ranges, h_AC=h_ac, h_SC=h_sc, zenith_angles=zenith, angle_div=angle_div)
+    #         axs.set_title(f'Cn2  vs  heights')
+    #         turb.windspeed_func(slew=np.array([slew]), Vg=Vg, wind_model_type=wind_model_type)
+    #         turb.Cn_func(turbulence_model=turbulence_model)
+    #         heights = turb.height_profiles_masked/1000.0
+    #         axs.plot(heights[0], turb.Cn2[0],
+    #                  label='$V_{ac}$(m/s)=' + str(Vg) + ', slew($\degree$/s)=' + str(np.round(np.rad2deg(slew), 2)))
+    #
+    # turb.windspeed_func(slew=np.array([slew]), Vg=Vg, wind_model_type=wind_model_type)
+    # turb.Cn_func(turbulence_model=turbulence_model, A='yes')
+    # heights = turb.height_profiles_masked / 1000.0
+    # axs.plot(heights[0], turb.Cn2[0], label='$V_{ac}$(m/s)='+str(speed_AC[0])+', slew($\degree$/s)=' + str(np.round(np.rad2deg(slew), 2))+ ', A=1.7e-14')
+    #
+    # axs.set_xlabel('Altitude $h$ (km)', fontsize=10)
+    # axs.set_ylabel('$C_n^2$ ($m^{-2/3}$)', fontsize=10)
+    # axs.set_yscale('log')
+    # axs.set_xscale('log')
+    # axs.grid()
+    # axs.legend(fontsize=10, loc='lower left')
+    # plt.show()
+
+    fig, axs = plt.subplots(1, 1)
+    slew_rate = np.array(np.deg2rad([0.0, 0.2]))
+    speed_AC = np.array([20.0, 220.0])
+    h_ac = np.array([0.0])
+    h_sc = np.array([h_SC])
+    zenith = np.array([0.0])
+    elevation = np.array(np.pi / 2 - zenith)
+    ranges = np.array((h_SC - h_ac) / np.sin(elevation))
+
+    for Vg in speed_AC:
+        for slew in slew_rate:
+            turb = turbulence(ranges=ranges, h_AC=h_ac, h_SC=h_sc, zenith_angles=zenith, angle_div=angle_div)
+            axs.set_title(f'Cn2  vs  heights')
+            turb.windspeed_func(slew=np.array([slew]), Vg=Vg, wind_model_type=wind_model_type)
+            turb.Cn_func(turbulence_model=turbulence_model)
+            heights = turb.height_profiles_masked / 1000.0
+            axs.plot(heights[0], turb.Cn2[0],
+                     label='$V_{ac}$(m/s)=' + str(Vg) + ', slew($\degree$/s)=' + str(np.round(np.rad2deg(slew), 2)))
+
+    turb.windspeed_func(slew=np.array([slew]), Vg=Vg, wind_model_type=wind_model_type)
+    turb.Cn_func(turbulence_model=turbulence_model, A='yes')
+    heights = turb.height_profiles_masked / 1000.0
+    axs.plot(heights[0], turb.Cn2[0], label='$V_{ac}$(m/s)=' + str(speed_AC[0]) + ', slew($\degree$/s)=' + str(
+        np.round(np.rad2deg(slew), 2)) + ', A=1.7e-14')
+
+    axs.set_xlabel('Altitude $h$ (km)', fontsize=10)
+    axs.set_ylabel('$C_n^2$ ($m^{-2/3}$)', fontsize=10)
+    axs.set_yscale('log')
+    axs.set_xscale('log')
+    axs.grid()
+    axs.legend(fontsize=10, loc='lower left')
+    plt.show()
+
+
+
+
+# -------------------------------------------------------------------------------
+# Turbulence (Scintillation variance)
+# -------------------------------------------------------------------------------
+
+def test_scintillation():
+    from Routing_network import routing_network
+    from Link_geometry import link_geometry
+
+    t_macro = np.arange(0.0, (end_time - start_time), step_size_link)
+    link_geometry = link_geometry()
+    link_geometry.propagate(time=t_macro, step_size_AC=step_size_AC, step_size_SC=step_size_SC,
+                            aircraft_filename=aircraft_filename_load, step_size_analysis=False, verification_cons=False)
+    link_geometry.geometrical_outputs()
+    link_geometry.geometrical_outputs()
+    time = link_geometry.time
+
+
+    routing_network = routing_network(time)
+    routing_output, routing_total_output, mask = routing_network.routing(link_geometry.geometrical_output, time)
+    time_hrs = time[mask] / 3600
+
+    time_links = routing_output['time'][link_number]
+    time_links_hrs = time_links / 3600.0
+    ranges = routing_output['ranges'][link_number]
+    elevation = routing_output['elevation'][link_number]
+    zenith = routing_output['zenith'][link_number]
+    slew_rates = routing_output['slew rates'][link_number]
+    heights_SC = routing_output['heights SC'][link_number]
+    heights_AC = routing_output['heights AC'][link_number]
+    speeds_AC = routing_output['speeds AC'][link_number]
+
+    slew_rates_simple = np.ones(np.shape(slew_rates)) * (1 / np.sqrt((R_earth + h_SC) ** 3 / mu_earth))
+    slew_rates_0      = np.zeros(np.shape(slew_rates))
+
+    turb = turbulence(ranges=ranges,
+                      h_AC=heights_AC,
+                      h_SC=heights_SC,
+                      zenith_angles=zenith,
+                      angle_div=angle_div)
+    turb.windspeed_func(slew=slew_rates,
+                        Vg=speeds_AC,
+                        wind_model_type=wind_model_type)
+
+    turb.Cn_func()
+    r0 = turb.r0_func()
+    turb.var_rytov_func()
+
+
+    D_r = [1.0]
+    fig, ax = plt.subplots(2, 1)
+    ax[0].set_title('Scintillation variance for uplink and downlink', fontsize=13)
+    # Plotting irridiance scintillation uplink and downlink
+    turb.var_scint_func(link='up')
+    ax[0].plot(np.rad2deg(zenith), turb.var_rytov, label='$\sigma_I^2$, weak theory')
+    ax[0].plot(np.rad2deg(zenith), turb.var_scint_I, label='$\sigma_I^2$, general theory')
+    ax[0].plot(np.rad2deg(zenith), turb.var_scint_P, label='$\sigma_P^2$')
+
+    turb.var_scint_func(link='down')
+    ax[1].plot(np.rad2deg(zenith), turb.var_Bu, label='$\sigma_I^2$, weak theory')
+    ax[1].plot(np.rad2deg(zenith), turb.var_scint_I, label='$\sigma_I^2$, general theory')
+    ax[1].plot(np.rad2deg(zenith), turb.var_scint_P, label='$\sigma_P^2$')
+
+    ax[0].set_ylabel('Uplink   $\sigma_I^2$ (-)', fontsize=12)
+    ax[1].set_ylabel('Downlink $\sigma_I^2$ (-)', fontsize=12)
+    ax[1].set_xlabel('Zenith angle ($\degree$)', fontsize=12)
+
+    # ax[0].set_ylim(0, 2)
+    ax[0].set_yscale('log')
+    # ax[1].set_ylim(0, 2)
+    ax[1].set_yscale('log')
+
+    ax[0].legend(fontsize=10, loc='upper left')
+    ax[1].legend(fontsize=10, loc='upper left')
+    ax[0].grid()
+    ax[1].grid()
+
+    plt.show()
+
+    D_r = [D_sc, 0.15, 0.30, 1.0]
+    fig, ax = plt.subplots(2, 1)
+    ax[0].set_title('Scintillation: Intensity variance vs Power variance', fontsize=13)
+    for D in D_r:
+        # Plotting irridiance scintillation uplink and downlink
+        turb.var_scint_func(D_r=D, link='up')
+        ax[0].plot(np.rad2deg(zenith), turb.var_scint_P/turb.var_scint_I, label='$D_R$='+str(D*100)+'cm')
+        turb.var_scint_func(D_r=D, link='down')
+        ax[1].plot(np.rad2deg(zenith), turb.var_scint_P/turb.var_scint_I, label='$D_R$='+str(D*100)+'cm')
+
+    ax[0].set_ylabel('Uplink   $\sigma_{P}^2$ / $\sigma_{I}^2$ (-)', fontsize=12)
+    ax[1].set_ylabel('Downlink $\sigma_{P}^2$ / $\sigma_{I}^2$ (-)', fontsize=12)
+    ax[1].set_xlabel('Zenith angle ($\degree$)', fontsize=12)
+
+    ax[0].set_ylim(0,2)
+    ax[1].set_ylim(0,2)
+
+    ax[0].legend(fontsize=10)
+    ax[1].legend(fontsize=10)
+    ax[0].grid()
+    ax[1].grid()
+    plt.show()
+
+
+    turb.Strehl_ratio_func(tip_tilt="YES")
+    turb.beam_spread(zenith_angles=zenith)
+    turb.var_bw_func(zenith_angles=zenith)
+    turb.var_aoa_func(zenith_angles=zenith)
+
+    elevation_cross_section = [25.0, 50.0]
+    time_cross_section = []
+    indices = []
+    for e in elevation_cross_section:
+        index = np.argmin(abs(elevation - np.deg2rad(e)))
+        indices.append(index)
+        t = time_links[index] / 3600
+        time_cross_section.append(t)
+        turb.print(index=index, elevation=np.rad2deg(elevation), ranges=ranges)
+
+
+
+
 
 # -------------------------------------------------------------------------------
 # Turbulence (Strehl ratio)
@@ -474,146 +693,483 @@ def test_jitter():
     plt.show()
 
 
-# -------------------------------------------------------------------------------
-# PDF gaussian-rayleigh
-# -------------------------------------------------------------------------------
+def test_atmosphere():
+    from Atmosphere import attenuation
+    fig, ax = plt.subplots(1, 1)
+    # ax.set_title('Attenuation coefficient based on ISA model \n'
+    #              'For different elevation angles',fontsize=20)
 
-def test_PDF():
-    std_normal = 3.3E-6
-    mean_normal = 0.0
-    samples = 100000
-    f_sampling = 10E3
-    f_cutoff = 1E3
-    f_cutoff_band = [100.0, 200.0]
-    L = 500E3
-    w_r = beam_spread(w0, L)
+    h_0 = 0.0
+    h_1 = 100.0E3
+    h_profile = np.linspace(h_0, h_1, 1000)
+    zenith_angles = np.linspace(0.0, 80.0, 5)
+    att = attenuation(att_coeff=att_coeff, H_scale=scale_height)
 
-    X1 = np.empty((2, samples))
-    X2 = np.empty((2, samples))
-    for i in range(2):
-        X1[i] = np.random.standard_normal(size=samples)
-        X2[i] = np.random.standard_normal(size=samples)
+    for zenith_angle in zenith_angles:
+        range_link = h_profile / np.cos(np.deg2rad(zenith_angle))
+        h_ext = att.h_ext_func(range_link=range_link, zenith_angles=np.deg2rad(zenith_angle), method="ISA profile")
 
-    X1_norm = filtering(effect='beam wander', order=2, data=X1, f_cutoff_low=f_cutoff,
-                        filter_type='lowpass', f_sampling=f_sampling, plot='no')
+        number_density = np.exp(-range_link / scale_height)
+        att_coeff_range = att_coeff * number_density
 
-    X2_norm = filtering(effect='beam wander', order=2, data=X2, f_cutoff_low=f_cutoff,
-                        filter_type='lowpass', f_sampling=f_sampling, plot='no')
+        h_ext_test = np.exp(- np.trapz(att_coeff_range, x=range_link))
 
-    X1_norm = X1_norm[0]
-    X2_norm = X2_norm[0]
+        ax.plot(h_ext, h_profile / 1E3, label=str(np.round(zenith_angle,1)))
+        # ax.plot(h_ext_test*np.ones(2), np.array([h_0, h_1]) / 1E3, label=zenith_angle)
 
-    # ----------------------------------------------------------------------------
-    # Standard normal > lognormal distribution
-    mean_lognorm = -0.5 *  np.log(std_normal**2+ 1)
-    std_lognorm  = np.sqrt(np.log(std_normal**2 + 1))
-    # mean_lognorm = np.exp(mean_normal + std_normal**2 / 2)
-    # std_lognorm = np.sqrt((np.exp(std_normal**2) - 1) * np.exp(std_normal**2))
-    X1_lognorm = np.exp(mean_lognorm + std_lognorm * X1_norm)
-
-    # ----------------------------------------------------------------------------
-    # Standard normal > normal distribution > rice distribution: for TX jitter and RX jitter
-    X1_normal = std_normal * X1_norm + mean_normal
-    X2_normal = std_normal * X2_norm + mean_normal
-    mean_rice = np.sqrt(mean_normal**2 + mean_normal**2)
-    std_rice = std_normal
-    X_rice = np.sqrt(X1_normal**2 + X2_normal**2)
-
-    # ----------------------------------------------------------------------------
-    # Standard normal > rayleigh distribution: for Beam wander or Angle-of-Arrival
-    std_rayleigh = np.sqrt(2 / (4 - np.pi) * std_normal**2)
-    mean_rayleigh = np.sqrt(np.pi / 2) * std_rayleigh
-    X_rayleigh = std_rayleigh * np.sqrt(X1_norm**2 + X2_norm**2)
+        # ax.plot(number_density, h_profile/1E3)
 
 
-    # X domains
-    x_0 = np.linspace(-3, 3, 100)
-    x_normal = np.linspace(-angle_div, angle_div, 100)
-    x_lognorm = np.linspace(0.0, 3.0, 100)
-    x_rayleigh = np.linspace(0.0, angle_div, 100)
-    x_rice = np.linspace(0.0, angle_div, 100)
 
-    # Theoretical distributions
-    pdf_0 = 1 / np.sqrt(2 * np.pi * 1 ** 2) * np.exp(-((x_0 - 0) / 1) ** 2 / 2)
-    pdf_normal = 1/np.sqrt(2 * np.pi * std_normal**2) * np.exp(-((x_normal - mean_normal) / std_normal)**2/2)
-    pdf_lognorm = 1 / (x_lognorm * std_lognorm * np.sqrt(2 * np.pi)) * np.exp(-(np.log(x_lognorm) - mean_lognorm)**2 / (2 * std_lognorm**2))
-    pdf_rayleigh = x_rayleigh / std_rayleigh**2 * np.exp(-x_rayleigh**2 / (2 * std_rayleigh**2))
-    pdf_rice = x_rice / std_rice**2 * np.exp(-(x_rice**2 + mean_rice**2) / (2*std_rice**2)) * i0(x_rice * mean_rice / std_rice**2)
-    b = mean_rice / std_rice**2
-
-    fig, ax = plt.subplots(4, 1)
-
-    # plot normalized samples
-    ax[0].hist(X2_norm, density=True)
-    loc, scale = norm.fit(X2_norm)
-    pdf_data = norm.pdf(x_0, loc, scale)
-    std = norm.std(loc=loc, scale=scale)
-    mean = norm.mean(loc=loc, scale=scale)
-    ax[0].plot(x_0, pdf_data, label='pdf fitted to histogram, $\mu$=' + str(mean) + ', $\sigma$=' + str(std), color='red')
-    ax[0].plot(x_0, pdf_0, label='$\mu$=' + str(0) + ' $\sigma$=' + str(1))
-
-
-    # plot normal distribution
-    ax[1].hist(X1_normal, density=True)
-    loc, scale = norm.fit(X1_normal)
-    std = norm.std(loc=loc, scale=scale)
-    mean = norm.mean(loc=loc, scale=scale)
-    pdf_data = norm.pdf(x=x_normal, loc=loc, scale=scale)
-    ax[1].plot(x_normal, pdf_data, label='pdf fitted to histogram, $\mu$=' + str(mean) + ', $\sigma$=' + str(std), color='red')
-
-    ax[1].hist(X2_normal, density=True)
-    loc, scale = norm.fit(X2_normal)
-    std = norm.std(loc=loc, scale=scale)
-    mean = norm.mean(loc=loc, scale=scale)
-    pdf_data = norm.pdf(x=x_normal, loc=loc, scale=scale)
-    ax[1].plot(x_normal, pdf_data, label='pdf fitted to histogram, $\mu$=' + str(mean) + ', $\sigma$=' + str(std), color='red')
-    ax[1].plot(x_normal, pdf_normal, label='$\mu$=' + str(mean_normal) + ' $\sigma$=' + str(std_normal))
-
-    # plot lognormal distribution
-    # ax[2].hist(X1_lognorm, density=True, range=(x_lognorm.min(), x_lognorm.max()))
-    # shape, loc, scale = lognorm.fit(X1_lognorm)
-    # std = lognorm.std(s=shape, loc=loc, scale=scale)
-    # mean = lognorm.mean(s=shape, loc=loc, scale=scale)
-    # pdf_data = lognorm.pdf(x=x_lognorm, s=shape, loc=loc, scale=scale)
-    # ax[2].plot(x_lognorm, pdf_data, label='pdf fitted to histogram, $\mu$=' + str(mean) + ' $\sigma$=' + str(std), color='red')
-    # ax[2].plot(x_lognorm, pdf_lognorm, label='$\mu$='+ str(mean_lognorm)+', $\sigma$=' + str(std_lognorm))
-
-    # plot rayleigh distribution
-    ax[2].hist(X_rayleigh, density=True, bins=1000)
-    loc, scale = rayleigh.fit(X_rayleigh)
-    std = rayleigh.std(loc=loc, scale=scale)
-    # mean = rayleigh.mean(loc=loc, scale=scale)
-    # std = np.std(X_rayleigh)
-    mean = np.mean(X_rayleigh)
-
-    pdf_data = rayleigh.pdf(x=x_rayleigh, loc=loc, scale=scale)
-    ax[2].plot(x_rayleigh, pdf_data, label='pdf fitted to histogram, $\mu$=' + str(mean) + ' $\sigma$=' + str(scale), color='red')
-    ax[2].plot(x_rayleigh, pdf_rayleigh, label='$\mu$='+str(mean_rayleigh)+', $\sigma$=' + str(std_rayleigh))
-
-    # plot rician distribution
-    # ax[3].hist(X_rice, density=True)
-    # b, loc, scale = rice.fit(X_rice)
-    # std = rice.std(b=b, loc=loc, scale=scale)
-    # mean = rice.mean(b=b, loc=loc, scale=scale)
-    # pdf_data = rice.pdf(x=x_rice, b=b, loc=loc, scale=scale)
-    # ax[3].plot(x_rice, pdf_data, label='pdf fitted to histogram, $\mu$=' + str(mean) + ' $\sigma$=' + str(std), color='red')
-    # ax[3].plot(x_rice, pdf_rice, label='$\mu$=' +str(mean_rice)+' $\sigma$=' + str(std_rice))
-
-    ax[0].set_ylabel('Prob. denisty \n unfiltered stand. Gauss')
-    ax[1].set_ylabel('Prob. denisty \n filtered & norm. stand. Gauss')
-    ax[2].set_ylabel('Prob. denisty \n Rayleigh')
-    # ax[2].set_ylabel('Prob. denisty \n Lognormal')
-    ax[3].set_ylabel('Prob. denisty \n Rice')
-    ax[0].legend()
-    ax[1].legend()
-    ax[2].legend()
-    ax[3].legend()
+    ax.set_xlabel('Att. coefficient (I/I0)',fontsize=10)
+    ax.set_ylabel('Altitude (km)',fontsize=10)
+    ax.grid()
+    ax.legend(fontsize=10)
     plt.show()
 
-def test_noise_types():
+
+def test_PDF():
+    global interval_channel_level
+    sample_size_determination = 'no'
+    Monte_Carlo_generation = 'no'
+    pdf_verification = 'yes'
+    if Monte_Carlo_generation == 'yes':
+        std_normal = 3.3E-6
+        mean_normal = 0.0
+        samples = 100000
+        f_sampling = 10E3
+        f_cutoff = 1E3
+        f_cutoff_band = [100.0, 200.0]
+        L = 500E3
+        w_r = beam_spread(w0, L)
+
+        X1 = np.empty((2, samples))
+        X2 = np.empty((2, samples))
+        for i in range(2):
+            X1[i] = np.random.standard_normal(size=samples)
+            X2[i] = np.random.standard_normal(size=samples)
+
+        X1_norm = filtering(effect='beam wander', order=2, data=X1, f_cutoff_low=f_cutoff,
+                            filter_type='lowpass', f_sampling=f_sampling, plot='no')
+
+        X2_norm = filtering(effect='beam wander', order=2, data=X2, f_cutoff_low=f_cutoff,
+                            filter_type='lowpass', f_sampling=f_sampling, plot='no')
+
+        X1_norm = X1_norm[0]
+        X2_norm = X2_norm[0]
+
+        # ----------------------------------------------------------------------------
+        var_lognorm_0 = 0.9
+        std_lognorm_0 = np.sqrt(var_lognorm_0)
+        # Standard normal > lognormal distribution
+        mean_lognorm = -0.5 *  np.log(std_lognorm_0**2+ 1)
+        std_lognorm  = np.sqrt(1/4 * np.log(std_lognorm_0**2 + 1))
+        # mean_lognorm = np.exp(mean_normal + std_normal**2 / 2)
+        # std_lognorm = np.sqrt((np.exp(std_normal**2) - 1) * np.exp(std_normal**2))
+        X_lognorm = np.exp(mean_lognorm + std_lognorm * X1_norm)
+
+        # ----------------------------------------------------------------------------
+        # Standard normal > normal distribution > rice distribution: for TX jitter and RX jitter
+        X1_normal = std_normal * X1_norm + mean_normal
+        X2_normal = std_normal * X2_norm + mean_normal
+        mean_rice = np.sqrt(mean_normal**2 + mean_normal**2)
+        std_rice = std_normal
+        X_rice = np.sqrt(X1_normal**2 + X2_normal**2)
+
+        # ----------------------------------------------------------------------------
+        # Standard normal > rayleigh distribution: for Beam wander or Angle-of-Arrival
+        std_rayleigh = np.sqrt(2 / (4 - np.pi) * std_normal**2)
+        mean_rayleigh = np.sqrt(np.pi / 2) * std_rayleigh
+        X_rayleigh = std_rayleigh * np.sqrt(X1_norm**2 + X2_norm**2)
+
+
+        # X domains
+        x_0 = np.linspace(-3, 3, 100)
+        x_normal = np.linspace(-angle_div, angle_div, 100)
+        x_lognorm = np.linspace(0.0, 3.0, 100)
+        x_rayleigh = np.linspace(0.0, angle_div, 100)
+        x_rice = np.linspace(0.0, angle_div, 100)
+
+        # Theoretical distributions
+        pdf_0 = 1 / np.sqrt(2 * np.pi * 1 ** 2) * np.exp(-((x_0 - 0) / 1) ** 2 / 2)
+        pdf_normal = 1/np.sqrt(2 * np.pi * std_normal**2) * np.exp(-((x_normal - mean_normal) / std_normal)**2/2)
+        pdf_lognorm = 1 / (x_lognorm * std_lognorm * np.sqrt(2 * np.pi)) * np.exp(-(np.log(x_lognorm) - mean_lognorm)**2 / (2 * std_lognorm**2))
+        pdf_rayleigh = x_rayleigh / std_rayleigh**2 * np.exp(-x_rayleigh**2 / (2 * std_rayleigh**2))
+        pdf_rice = x_rice / std_rice**2 * np.exp(-(x_rice**2 + mean_rice**2) / (2*std_rice**2)) * i0(x_rice * mean_rice / std_rice**2)
+        b = mean_rice / std_rice**2
+
+        fig, ax = plt.subplots(4, 1)
+        ax[0].set_title('Generation of distributions with $\sigma$='+str(std_normal)+ ' \n'
+                        'sampling='+str(f_sampling/1000)+'kHz, cut-off='+str(f_cutoff/1000)+'kHz')
+
+        # plot normalized samples
+        ax[0].hist(X2_norm, density=True, bins=1000)
+        loc, scale = norm.fit(X2_norm)
+        pdf_data = norm.pdf(x_0, loc, scale)
+        std = norm.std(loc=loc, scale=scale)
+        mean = norm.mean(loc=loc, scale=scale)
+        ax[0].plot(x_0, pdf_data, label='numerical, $\mu$=' + str(np.round(mean,1)) + ', $\sigma$=' + str(np.round(std,1)), color='red')
+        ax[0].plot(x_0, pdf_0, label='theoretical, $\mu$=' + str(0) + ' $\sigma$=' + str(1))
+
+
+        # plot normal distribution
+        ax[1].hist(X1_normal, density=True, bins=1000)
+        loc, scale = norm.fit(X1_normal)
+        std = norm.std(loc=loc, scale=scale)
+        mean = norm.mean(loc=loc, scale=scale)
+        pdf_data = norm.pdf(x=x_normal, loc=loc, scale=scale)
+        ax[1].plot(x_normal, pdf_data, label='numerical, $\mu$=' + str(np.round(mean,1)) + ', $\sigma$=' + str(np.round(std*1.0E6,1))+'e-06', color='red')
+        ax[1].plot(x_normal, pdf_normal, label='theoretical, $\mu$=' + str(mean_normal) + ' $\sigma$=' + str(np.round(std_normal*1.0E6,1))+'e-06')
+        # ax[1].hist(X2_normal, density=True, bins=1000)
+        # loc, scale = norm.fit(X2_normal)
+        # std = norm.std(loc=loc, scale=scale)
+        # mean = norm.mean(loc=loc, scale=scale)
+        # pdf_data = norm.pdf(x=x_normal, loc=loc, scale=scale)
+        # ax[1].plot(x_normal, pdf_data, label='pdf fitted to histogram, $\mu$=' + str(np.round(mean,2)) + ', $\sigma$=' + str(std), color='red')
+
+        # plot rayleigh distribution
+        ax[2].hist(X_rayleigh, density=True, bins=1000)
+        loc, scale = rayleigh.fit(X_rayleigh)
+        std = rayleigh.std(loc=loc, scale=scale)
+        std = np.sqrt(2 / (4 - np.pi) * std ** 2)
+        mean = rayleigh.mean(loc=loc, scale=scale)
+        pdf_data = rayleigh.pdf(x=x_rayleigh, loc=loc, scale=scale)
+        ax[2].plot(x_rayleigh, pdf_data, label='numerical, $\mu$=' + str(np.round(mean*1e6,1)) + 'e-6 $\sigma$=' + str(np.round(std*1E6,1))+'e-06', color='red')
+        ax[2].plot(x_rayleigh, pdf_rayleigh, label='theoretical, $\mu$=' + str(np.round(mean_rayleigh*1e6,1)) + 'e-6 $\sigma$=' + str(np.round(std_rayleigh*1E6,1))+'e-06')
+
+        # plot lognormal distribution
+        ax[3].hist(X_lognorm, density=True, bins=1000)
+        shape, loc, scale = lognorm.fit(X_lognorm)
+        std = lognorm.std(s=shape, loc=loc, scale=scale)
+        mean = lognorm.mean(s=shape, loc=loc, scale=scale)
+        pdf_data = lognorm.pdf(x=x_lognorm, s=shape, loc=loc, scale=scale)
+        ax[3].plot(x_lognorm, pdf_data, label='numerical, $\sigma$=' + str(np.round(std,1)), color='red')
+        ax[3].plot(x_lognorm, pdf_lognorm, label='theoretical, $\sigma$=' + str(np.round(std_lognorm,1)))
+
+        formatter = ticker.ScalarFormatter(useMathText=True)
+        formatter.set_scientific(True)
+        formatter.set_powerlimits((-1, 1))
+        ax[1].yaxis.set_major_formatter(formatter)
+        ax[2].yaxis.set_major_formatter(formatter)
+
+        ax[0].set_ylabel('Stand. \n Gaussian', fontsize=10)
+        ax[1].set_ylabel('Normalized \n Filtered', fontsize=10)
+        ax[2].set_ylabel('Rayleigh', fontsize=10)
+        ax[3].set_ylabel('Lognormal \n'
+                         '$\sigma_I^2$='+str(np.round(std_lognorm_0**2,1)), fontsize=10)
+        # ax[2].set_xlabel('$\mu$rad')
+        ax[3].set_xlabel('$I/I_0$')
+
+
+        ax[0].legend(loc='upper right')
+        ax[1].legend(loc='upper right')
+        ax[2].legend(loc='upper right')
+        ax[3].legend(loc='upper right')
+        plt.show()
+
+    elif pdf_verification == 'yes':
+
+        # effect = 'beam wander'
+        effect = 'scintillation'
+        # effect = 'angle of arrival'
+        # effect = 'TX jitter'
+        LCT = terminal_properties()
+        LCT.BER_to_P_r(BER=BER_thres,
+                       modulation="OOK-NRZ",
+                       detection="APD",
+                       threshold=True)
+        # h_AC = np.array([10.0E3, 10.0E3, 10.0E3])
+        # h_SC = np.array([600.0E3, 600E3, 600E3])
+        # P_r_0 = np.array([dBm2W(-25), dBm2W(-25), dBm2W(-25)])
+        # elevation = np.array([np.deg2rad(25.0), np.deg2rad(50.0), np.deg2rad(70.0)])
+
+        h_AC = np.array([10.0E3, 10.0E3, 10.0E3, 10.0E3, 10.0E3])
+        h_SC = np.array([1200.0E3, 1200.0E3, 1200.0E3, 1200.0E3, 1200.0E3])
+        P_r_0 = np.array([dBm2W(-25)])
+        elevation = np.array([np.deg2rad(5.0), np.deg2rad(10.0), np.deg2rad(20.0), np.deg2rad(30.0), np.deg2rad(60.0)])
+
+        zenith = np.pi / 2 - elevation
+        ranges = (h_SC - h_AC) / np.sin(elevation)
+        V_ac = np.array([220.0, 220.0, 220.0, 220.0, 220.0])
+        slew_rate = np.ones(np.shape(h_AC)) * (1 / np.sqrt((R_earth + h_SC) ** 3 / mu_earth))
+        index = 0
+
+        turb = turbulence(ranges=ranges, zenith_angles=zenith, h_AC=h_AC, h_SC=h_SC, angle_div=angle_div)
+        turb.windspeed_func(slew=slew_rate, Vg=V_ac, wind_model_type=wind_model_type)
+        turb.Cn_func()
+        turb.frequencies()
+        r0 = turb.r0_func()
+        turb.var_rytov_func()
+        turb.var_scint_func()
+        turb.WFE(tip_tilt="YES")
+        turb.beam_spread()
+        turb.var_bw_func()
+        turb.var_aoa_func()
+        # turb.print(index=index, elevation=np.rad2deg(elevation), ranges=ranges)
+
+        if pdf_verification == 'yes':
+            if effect == 'TX jitter' or effect == 'RX jitter':
+                fig, ax = plt.subplots(1, 1)
+            else:
+                fig, ax = plt.subplots(3, 1)
+            interval_channel_level = [10.0]
+
+        elif sample_size_determination == 'yes':
+            fig, ax = plt.subplots(3, 1)
+            # interval_channel_level = np.arange(0.1, 20.0, 0.1)
+            interval_channel_level = np.arange(0.1,10.1,0.1)
+            std_list = []
+            mean_list = []
+
+        for interval in interval_channel_level:
+            t = np.arange(0.0, interval, step_size_channel_level)
+            samples = len(t)
+            np.random.seed(seed=random.randint(0, 1000))
+            angle_pj_t_X = norm.rvs(scale=1, loc=0, size=samples)
+            angle_pj_t_Y = norm.rvs(scale=1, loc=0, size=samples)
+            angle_pj_r_X = norm.rvs(scale=1, loc=0, size=samples)
+            angle_pj_r_Y = norm.rvs(scale=1, loc=0, size=samples)
+
+            h_scint = np.empty((len(P_r_0), samples))      # Should have 2D with size ( len of P_r_0 list, # of samples )
+            angle_bw_X = np.empty((len(P_r_0), samples))   # Should have 2D with size ( len of P_r_0 list, # of samples )
+            angle_bw_Y = np.empty((len(P_r_0), samples))   # Should have 2D with size ( len of P_r_0 list, # of samples )
+            angle_aoa_X = np.empty((len(P_r_0), samples))  # Should have 2D with size ( len of P_r_0 list, # of samples )
+            angle_aoa_Y = np.empty((len(P_r_0), samples))  # Should have 2D with size ( len of P_r_0 list, # of samples )
+
+            for i in range(len(P_r_0)):
+                h_scint[i] = norm.rvs(scale=1, loc=0, size=samples)
+                angle_bw_X[i] = norm.rvs(scale=1, loc=0, size=samples)
+                angle_bw_Y[i] = norm.rvs(scale=1, loc=0, size=samples)
+                angle_aoa_X[i] = norm.rvs(scale=1, loc=0, size=samples)
+                angle_aoa_Y[i] = norm.rvs(scale=1, loc=0, size=samples)
+
+            sampling_frequency = 1 / step_size_channel_level  # 0.1 ms intervals
+            nyquist = sampling_frequency / 2
+
+            h_scint = filtering(effect='scintillation', order=frequency_filter_order, data=h_scint,
+                                f_cutoff_low=turb.freq,
+                                filter_type='lowpass', f_sampling=sampling_frequency, plot='no')
+            angle_bw_X = filtering(effect='beam wander', order=frequency_filter_order, data=angle_bw_X,
+                                   f_cutoff_low=turb.freq,
+                                   filter_type='lowpass', f_sampling=sampling_frequency, plot='no')
+            angle_bw_Y = filtering(effect='beam wander', order=frequency_filter_order, data=angle_bw_Y,
+                                   f_cutoff_low=turb.freq,
+                                   filter_type='lowpass', f_sampling=sampling_frequency, plot='no')
+            angle_aoa_X = filtering(effect='angle of arrival', order=frequency_filter_order, data=angle_aoa_X,
+                                    f_cutoff_low=turb.freq,
+                                    filter_type='lowpass', f_sampling=sampling_frequency, plot='no')
+            angle_aoa_Y = filtering(effect='angle of arrival', order=frequency_filter_order, data=angle_aoa_Y,
+                                    f_cutoff_low=turb.freq,
+                                    filter_type='lowpass', f_sampling=sampling_frequency, plot='no')
+            angle_pj_t_X = filtering(effect='TX jitter', order=frequency_filter_order, data=angle_pj_t_X,
+                                     f_cutoff_low=jitter_freq_lowpass, f_cutoff_band=jitter_freq1,f_cutoff_band1=jitter_freq2,
+                                     filter_type='multi', f_sampling=sampling_frequency, plot='no')
+            angle_pj_t_Y = filtering(effect='TX jitter', order=frequency_filter_order, data=angle_pj_t_Y,
+                                     f_cutoff_low=jitter_freq_lowpass, f_cutoff_band=jitter_freq1,f_cutoff_band1=jitter_freq2,
+                                     filter_type='multi', f_sampling=sampling_frequency, plot='no')
+            angle_pj_r_X = filtering(effect='RX jitter', order=frequency_filter_order, data=angle_pj_r_X,
+                                     f_cutoff_low=jitter_freq_lowpass, f_cutoff_band=jitter_freq1, f_cutoff_band1=jitter_freq2,
+                                     filter_type='multi', f_sampling=sampling_frequency, plot='no')
+            angle_pj_r_Y = filtering(effect='RX jitter', order=frequency_filter_order, data=angle_pj_r_Y,
+                                     f_cutoff_low=jitter_freq_lowpass, f_cutoff_band=jitter_freq1, f_cutoff_band1=jitter_freq2,
+                                     filter_type='multi', f_sampling=sampling_frequency, plot='no')
+
+            h_scint, std_scint_dist, mean_scint_dist = turb.create_turb_distributions(data=h_scint,
+                                                         steps=samples,
+                                                         effect="scintillation")
+            angle_bw_R, std_bw_dist, mean_bw_dist = turb.create_turb_distributions(data=[angle_bw_X, angle_bw_Y],
+                                                         steps=samples,
+                                                         effect="beam wander")
+            angle_aoa_R, std_aoa_dist, mean_aoa_dist = turb.create_turb_distributions(data=[angle_aoa_X, angle_aoa_Y],
+                                                         steps=samples,
+                                                         effect="angle of arrival")
+            angle_pj_t_R, std_pj_t_dist, mean_pj_t_dist = LCT.create_pointing_distributions(data=[angle_pj_t_X, angle_pj_t_Y],
+                                                             steps=samples,
+                                                             effect='TX jitter')
+            angle_pj_r_R, std_pj_r_dist, mean_pj_r_dist = LCT.create_pointing_distributions(data=[angle_pj_r_X, angle_pj_r_Y],
+                                                             steps=samples,
+                                                             effect='RX jitter')
+
+            h_bw   = h_p_gaussian(angle_bw_R, angle_div)
+            h_pj_t = h_p_gaussian(angle_pj_t_R, angle_div)
+            h_pj_r = h_p_airy(angle_pj_r_R, D_r, focal_length)
+            h_aoa  = h_p_airy(angle_aoa_R, D_r, focal_length)
+
+            if effect == "scintillation":
+                # Analytical solution
+                std_norm = turb.std_scint_I[:, None]
+                std_dist = std_scint_dist[:, None]
+                mean_dist = turb.mean_scint_X[:, None]
+                # x = turb.x_scint
+                # pdf = turb.pdf_scint
+                # Numerical solution
+                data = h_scint
+                # dist_data, x_data = distribution_function(data, length=1, min=data.min(), max=data.max(), steps=100)
+                # pdf_numerical = dist_data.pdf(x_data)
+                # std_numerical = dist_data.std()
+                # mean_numerical = dist_data.mean()
+                data = h_scint
+                pdf_numerical, cdf_numerical, x_data, std_numerical, mean_numerical = \
+                    distribution_function(data=data, length=len(elevation), min=0, max=2, steps=200)
+                # std_numerical = np.sqrt(1 / 4 * np.log(std_numerical + 1))
+                # std_numerical = np.sqrt(1 / 4 * np.log(std_numerical ** 2 + 1))
+                # std_numerical = np.sqrt(np.exp(4*std_numerical ** 2) - 1)
+                # mean_numerical = -0.5 * np.log(std_numerical + 1)
+
+                std_numerical =  np.sqrt(np.exp(4*std_numerical ** 2) - 1)
+
+                if dist_scintillation == 'lognormal':
+                    x, pdf = dist.lognorm_pdf(sigma=std_dist, mean=mean_dist, steps=samples)
+
+                std_dist = np.sqrt(np.exp(4*std_dist ** 2) - 1)
+
+            elif effect == "beam wander":
+                std_norm = turb.std_bw[:, None]
+                std_dist = std_bw_dist[:, None]
+                mean_dist = mean_bw_dist[:, None]
+                data = angle_bw_R
+                pdf_numerical, cdf_numerical, x_data, std_numerical, mean_numerical = \
+                    distribution_function(data=data, length=len(elevation), min=0, max=angle_div, steps=500)
+
+                std_numerical = np.sqrt(2 / (4 - np.pi) * std_numerical ** 2)
+
+
+                if dist_beam_wander == 'rayleigh':
+                    x, pdf = dist.rayleigh_pdf(sigma=std_dist, steps=samples)
+                elif dist_beam_wander == 'rice':
+                    x, pdf = dist.rice_pdf(sigma=std_dist, mean=mean_dist, steps=samples)
+
+
+            elif effect == 'angle of arrival':
+                std_norm = turb.std_aoa[:, None]
+                std_dist = std_aoa_dist[:, None]
+                mean_dist = mean_aoa_dist[:, None]
+                data = angle_aoa_R
+                pdf_numerical, cdf_numerical, x_data, std_numerical, mean_numerical = \
+                    distribution_function(data=data, length=len(elevation), min=0, max=angle_div, steps=500)
+
+                std_numerical = np.sqrt(2 / (4 - np.pi) * std_numerical ** 2)
+
+                if dist_AoA == 'rayleigh':
+                    x, pdf = dist.rayleigh_pdf(sigma=std_dist, steps=samples)
+                elif dist_AoA == 'rice':
+                    x, pdf = dist.rice_pdf(sigma=std_dist, mean=mean_dist, steps=samples)
+
+
+            elif effect == 'TX jitter':
+                std_norm = std_pj_t
+                std_dist = std_pj_t_dist
+                mean_dist = mean_pj_t_dist
+                data = LCT.angle_pe_t_R
+                pdf_numerical, cdf_numerical, x_data, std_numerical, mean_numerical = \
+                    distribution_function(data=data, length=1, min=0, max=angle_div*3, steps=500)
+
+                # mean_numerical = np.sqrt(np.pi / 2 * std_numerical ** 2)
+                std_numerical = np.sqrt(2 / (4 - np.pi) * std_numerical ** 2)
+
+                if dist_pointing == 'rayleigh':
+                    x, pdf = dist.rayleigh_pdf(sigma=std_dist, steps=samples)
+                elif dist_pointing == 'rice':
+                    x, pdf = dist.rice_pdf(sigma=std_dist, mean=mean_dist, steps=samples)
+
+            elif effect == 'RX jitter':
+                std_norm = std_pj_r
+                std_dist = std_pj_r_dist
+                mean_dist = mean_pj_r_dist
+                data = LCT.angle_pe_r_R
+                pdf_numerical, cdf_numerical, x_data, std_numerical, mean_numerical = \
+                    distribution_function(data=data, length=1, min=data.min(), max=data.max(), steps=500)
+                std_numerical = np.sqrt(2 / (4 - np.pi) * std_numerical ** 2)
+
+                if dist_pointing == 'rayleigh':
+                    x, pdf = dist.rayleigh_pdf(sigma=std_dist, steps=samples)
+                elif dist_pointing == 'rice':
+                    x, pdf = dist.rice_pdf(sigma=std_dist, mean=mean_dist, steps=samples)
+
+            print('theory: ', std_dist**2, ', simulated: ', std_numerical**2 )
+            if pdf_verification == 'yes':
+                dist.plot_pdf_verification(ax=ax,
+                                           sigma=std_dist,
+                                           mean=mean_dist,
+                                           x=x,
+                                           pdf=pdf,
+                                           sigma_num=std_numerical,
+                                           mean_num=mean_numerical,
+                                           pdf_num=pdf_numerical,
+                                           x_num=x_data,
+                                           data=data,
+                                           elevation=elevation,
+                                           effect=effect)
+                plt.show()
+
+            else:
+                ax[0].set_title("Stability testing of Monte Carlo sampling for "+effect+" effect \n"
+                                                                                        "Sample step size = "+str(np.round(step_size_channel_level*1000,1))+" ms", fontsize=15)
+                # Analytical solution
+                std_analytical  = std_dist
+                mean_analytical = mean_dist
+                pdf_analytical  = pdf
+
+                if effect == "scintillation" or effect == "beam wander" or effect == "angle of arrival":
+                    # Analytical solution
+                    std_analytical = std_analytical[0]
+                    mean_analytical = mean_analytical[0]
+                    pdf_analytical = pdf[0]
+                    # Numerical solution
+                    pdf_numerical = pdf_numerical
+                    std_numerical = std_numerical
+                    mean_numerical = mean_numerical
+
+                # print('--------------------------------------------')
+                # print('Analytical', std_analytical, mean_analytical)
+                # print('Numerical', std_numerical, mean_numerical)
+
+                std_list.append(std_numerical)
+                mean_list.append(mean_numerical)
+                print(interval)
+                if interval == 1 or interval == 5 or interval == 10 or interval == 20 or interval == 50:
+                    ax[0].plot(x_data, pdf_numerical,
+                                 label='Interval size=' + str(np.round(interval,1)) + 's')
+        ax[0].plot(x, pdf_analytical,
+                     label='Analytical')
+
+
+        sample_list = interval_channel_level / step_size_channel_level
+
+        ax[1].set_ylabel('Sample standard deviation ($\sigma$)', fontsize=15)
+        ax[1].plot(interval_channel_level, std_list)
+        ax[1].plot([(interval_channel_level[0]), (interval_channel_level[-1])], std_analytical * np.ones(2),
+                     label='Analytical std')
+        ax[1].plot([(interval_channel_level[0]), (interval_channel_level[-1])], (std_analytical * 1.05) * np.ones(2),
+                     label='-5% diff', color='black')
+        ax[1].plot([(interval_channel_level[0]), (interval_channel_level[-1])], (std_analytical * 0.95) * np.ones(2),
+                     label='+5% diff', color='grey')
+
+        ax[2].set_ylabel('Sample mean ($\mu$)', fontsize=15)
+        ax[2].plot(interval_channel_level, mean_list)
+        ax[2].plot([(interval_channel_level[0]), (interval_channel_level[-1])], mean_analytical * np.ones(2), label='True mean')
+        ax[2].plot([(interval_channel_level[0]), (interval_channel_level[-1])], (mean_analytical * 1.05) * np.ones(2),
+                     label='-5% diff', color='black')
+        ax[2].plot([(interval_channel_level[0]), (interval_channel_level[-1])], (mean_analytical * 0.95) * np.ones(2),
+                     label='+5% diff', color='grey')
+
+        ax[2].set_xlabel('Interval of Monte Carlo simulation (sec)', fontsize=15)
+        ax[0].legend(loc='upper right', fontsize=15)
+        ax[0].grid()
+        ax[1].legend(loc='upper right', fontsize=15)
+        ax[1].grid()
+        ax[2].legend(loc='upper right', fontsize=15)
+        ax[2].grid()
+
+        plt.show()
+
+def noise_and_SNR_BER_verification():
     fig, ax = plt.subplots(nrows=1, ncols=2)
-    fig_noise, ax_noise = plt.subplots(1, 1)
+    fig_noise, (ax_noise, ax_noise1) = plt.subplots(1, 2)
     from input import data_rate
+
+    t = np.arange(0.0, interval_channel_level, step_size_channel_level)
+    samples_channel_level = int(len(t))
 
     SNR_dict = dict()
     BER_dict = dict()
@@ -630,28 +1186,40 @@ def test_noise_types():
     # ------------------------------------------------------------------------
     LCT = terminal_properties()
     noise_sh, noise_th, noise_bg, noise_beat = LCT.noise(P_r=P_r, I_sun=I_sun)
-    ax_noise.set_title('Noise types vs. $P_{RX}$', fontsize=15)
-    ax[0].set_title('SNR vs. $P_{RX}$', fontsize=15)
-    ax[1].set_title('BER vs. $P_{RX}$', fontsize=15)
+    ax_noise.set_title('NF='+str(noise_factor)+', M='+str(M), fontsize=13)
     ax_noise.plot(W2dBm(P_r), W2dB(noise_sh), label='shot noise')
     ax_noise.plot(W2dBm(P_r), np.ones(len(P_r)) * W2dB(noise_th), label='thermal noise')
     ax_noise.plot(W2dBm(P_r), np.ones(len(P_r)) * W2dB(noise_bg), label='background noise')
     ax_noise.plot(W2dBm(P_r), np.ones(len(P_r)) * W2dB(noise_beat), label='beat noise')
 
+    LCT = terminal_properties(noise_factor=8, M=300)
+    noise_sh, noise_th, noise_bg, noise_beat = LCT.noise(P_r=P_r, I_sun=I_sun)
+    ax_noise1.set_title('NF=' + str(8) + ', M=' + str(300), fontsize=13)
+    ax_noise1.plot(W2dBm(P_r), W2dB(noise_sh), label='shot noise')
+    ax_noise1.plot(W2dBm(P_r), np.ones(len(P_r)) * W2dB(noise_th), label='thermal noise')
+    ax_noise1.plot(W2dBm(P_r), np.ones(len(P_r)) * W2dB(noise_bg), label='background noise')
+    ax_noise1.plot(W2dBm(P_r), np.ones(len(P_r)) * W2dB(noise_beat), label='beat noise')
+
+
     for detection in detection_list:
+        noise_sh, noise_th, noise_bg, noise_beat = LCT.noise(P_r=P_r, I_sun=I_sun)
         SNR, Q = LCT.SNR_func(P_r=P_r, detection=detection,
                               noise_sh=noise_sh, noise_th=noise_th, noise_bg=noise_bg, noise_beat=noise_beat)
-        ax[0].plot(W2dBm(P_r), W2dB(SNR), label=str(detection))
+        if detection == 'APD':
+            ax[0].plot(W2dBm(P_r), W2dB(SNR), label=str(detection)+' (NF='+str(noise_factor)+',G='+str(M)+')')
+        else:
+            ax[0].plot(W2dBm(P_r), W2dB(SNR), label=str(detection))
 
         for modulation in modulation_list:
-            LCT.threshold(BER_thres=BER_thres,
-                          modulation=modulation,
-                          detection=detection)
+            LCT.BER_to_P_r(BER=BER_thres,
+                           modulation=modulation,
+                           detection=detection,
+                           threshold=True)
 
             BER = LCT.BER_func(Q=Q, modulation=modulation)
             BER[BER < 1e-100] = 1e-100
             x_BER = np.linspace(-30.0, 0.0, 1000)
-            BER_pdf = pdf_function(np.log10(BER), len(BER), x_BER)
+            # BER_pdf = pdf_function(np.log10(BER), len(BER), x_BER, steps=100)
 
             total_bits = LCT.data_rate * interval_channel_level         # Should be a scalar
             total_bits_per_sample = total_bits / samples_channel_level  # Should be a scalar
@@ -660,71 +1228,39 @@ def test_noise_types():
             ax[1].plot(W2dBm(P_r), BER, label=str(detection) + ', ' + str(modulation))
 
     ax[1].set_yscale('log')
-    ax[0].set_ylabel('Signal-to-Noise ratio \n [$i_r$ / $\sigma_n$] (dB)', fontsize=15)
-    ax[1].set_ylabel('Error probability \n [# Error bits / total bits]', fontsize=15)
-    ax[0].set_xlabel('Received power (dBm)', fontsize=15)
-    ax[1].set_xlabel('Received power (dBm)', fontsize=15)
+    ax[0].set_ylabel('Signal-to-Noise ratio \n [$i_r$ / $\sigma_n$] (dB)', fontsize=10)
+    ax[1].set_ylabel('Error probability \n [# Error bits / total bits]', fontsize=10)
+    ax[0].set_xlabel('Received power (dBm)', fontsize=10)
+    ax[1].set_xlabel('Received power (dBm)', fontsize=10)
     ax[0].legend(fontsize=10)
-    ax[1].legend(fontsize=10)
+    # ax[1].legend(fontsize=10)
     ax[0].grid()
     ax[1].grid()
 
-    ax_noise.set_ylabel('noise (dBm)', fontsize=15)
-    ax_noise.set_xlabel('Received power (dBm)', fontsize=15)
+    ax_noise.set_ylabel('noise (dBm)', fontsize=10)
+    ax_noise.set_xlabel('Received power (dBm)', fontsize=10)
+    ax_noise1.set_xlabel('Received power (dBm)', fontsize=10)
 
     ax_noise.legend(fontsize=10)
     ax_noise.grid()
+    ax_noise1.legend(fontsize=10)
+    ax_noise1.grid()
 
     plt.show()
-
 
 def test_airy_disk():
-    angle = np.linspace(1.0E-6, 20.0E-5, 100)
-    I_norm_airy, I_norm_gaussian_approx = h_p_airy(angle, D_r, focal_length)
-
+    angle = np.linspace(1.0E-6, 100.0E-6, 1000)
+    I_norm_airy, P_norm_airy = h_p_airy(angle, D_r, focal_length)
     r = focal_length * np.sin(angle)
     fig, ax = plt.subplots(1, 1)
-    ax.set_title('Spot profile, focal length='+str(focal_length)+'m, Dr='+str(np.round(D_r,3))+'m, Div. angle='+str(angle_div*1.0E6)+'$\mu$rad')
-    ax.plot(r*1.0E6, I_norm_airy, label= 'Airy disk profile')
-    ax.plot(r*1.0E6, I_norm_gaussian_approx, label='Gaussian approx. of Airy disk profile')
-    ax.set_xlabel('r-position ($\mu$m) [r= focal length * sin(angle)]')
-    ax.set_ylabel('Normalized intensity at r=0.0 $\mu$m')
-    ax.legend()
+    # ax.set_title('Spot profile, focal length='+str(focal_length)+'m, Dr='+str(np.round(D_r,3))+'m')
+    ax.plot(angle*1.0E6, I_norm_airy, label='I(r)/$I_0$')
+    # ax.plot(angle*1.0E6, I_norm_gaussian_approx, label='Gaussian approx. I(r)/$I_0$')
+    ax.plot(angle*1.0E6, P_norm_airy, label='P(r)/$P_0$')
+    ax.set_xlabel('Angular displacement ($\mu$rad)', fontsize=12)
+    ax.set_ylabel('Normalized \n intensity and power', fontsize=12)
+    ax.legend(fontsize=15)
     ax.grid()
-    plt.show()
-
-def test_mapping_dim1_dim2():
-    elevation_angles = np.deg2rad(np.arange(0.0, 90.0, 0.1))
-    time = np.linspace(0, 60 * 5, len(elevation_angles))
-
-    data_dim1 = get_data('elevation')
-
-    # data_dim1 = data_dim1[1:]
-    a_s = (data_dim1[-1] - data_dim1[1]) / (len(data_dim1) - 1)
-    a_0 = data_dim1[1]
-    mapping_lb = (np.rad2deg(elevation_angles) - a_0).astype(int) + 1
-    mapping_ub = mapping_lb + 1
-
-    for i in range(len(elevation_angles)):
-        if elevation_angles[i] < elevation_min:
-            mapping_lb[i] = 0.0
-            mapping_ub[i] = 0.0
-
-    mapping_lb = list(mapping_lb)
-    mapping_ub = list(mapping_ub)
-
-    performance_data = get_data('all', mapping_lb, mapping_ub)
-    # performance_data = get_data('all', mapping_lb)
-
-    fig, ax = plt.subplots(1, 1)
-    ax.plot(time, np.ones(len(time)) * np.rad2deg(elevation_min), label='Minimum elevation angle')
-    ax.plot(time, np.rad2deg(elevation_angles), label='geometrical data')
-    ax.plot(time, performance_data['elevation'], label='mapped data')
-
-    ax.set_xlabel('Time (seconds)')
-    ax.set_ylabel('Elevation angle ($\degree$)')
-    ax.legend()
-
     plt.show()
 
 def test_interleaving():
@@ -771,498 +1307,551 @@ def simple_losses():
 
     a_scint = 4.343 * ( erfinv(2 * P_thres - 1) * (2 * np.log(PSI + 1))**(1/2) - 1/2 * np.log(PSI + 1))
 
-def multiscaling():
+def coverage():
+    LOS_verification = False
+
+    from Link_geometry import link_geometry
+    from Routing_network import routing_network
+
+    t_macro = np.arange(0.0, (end_time - start_time), step_size_link)
+
+    routes = [r"C:\Users\wiege\Documents\TUDelft_Spaceflight\Thesis\ac_sc_data\traffic_trajectories\OSL_ENEV.csv",
+              r"C:\Users\wiege\Documents\TUDelft_Spaceflight\Thesis\ac_sc_data\traffic_trajectories\SYD_MEL.csv"]
+
+    fig = plt.figure(figsize=(6, 6), dpi=125)
+    fig1, ax1 = plt.subplots(2, 1)
+    fig2, ax2 = plt.subplots(2, 1)
+
+    ax = fig.add_subplot(111, projection='3d')
+    for route in routes:
+        print(route)
+        link = link_geometry()
+        link.propagate(step_size_AC=step_size_AC,
+                       step_size_SC=step_size_SC,
+                       step_size_analysis=False,
+                       verification_cons=False,
+                       aircraft_filename=route,
+                       time=t_macro)
+        link.geometrical_outputs()
+
+        time = link.time
+        routing = routing_network(time=time)
+        routing_output, routing_total_output, mask = routing.routing(link.geometrical_output, time, step_size_link)
+        link.plot(type='satellite sequence', routing_output=routing_output, fig=fig,ax=ax, aircraft_filename=route)
+
+        def plot_mission_geometrical_output_slew_rates():
+            if link_number == 'all':
+                pdf_slew, cdf_slew, x_slew, std_slew, mean_slew = distribution_function(
+                    data=routing_total_output['slew rates'],
+                    length=1,
+                    min=routing_total_output['slew rates'].min(),
+                    max=routing_total_output['slew rates'].max(),
+                    steps=1000)
+                # ax[1, 0].plot(x_elev, pdf_elev)
+                ax1[0].set_title('Slew rate analysis', fontsize=15)
+                ax1[0].plot(np.rad2deg(x_slew), cdf_slew, label=str(route[84:-4]))
+
+                for i in range(len(routing_output['link number'])):
+                    if np.any(np.isnan(routing_output['slew rates'][i])) == False:
+                        pdf_slew, cdf_slew, x_slew, std_slew, mean_slew = distribution_function(
+                            data=routing_output['slew rates'][i],
+                            length=1,
+                            min=routing_output['slew rates'][i].min(),
+                            max=routing_output['slew rates'][i].max(),
+                            steps=1000)
+                        ax1[1].plot(np.rad2deg(x_slew), cdf_slew)
+
+
+                ax1[0].set_ylabel('Prob. density \n all links combined', fontsize=15)
+                ax1[1].set_ylabel('Prob. density \n for each link', fontsize=15)
+                ax1[1].set_xlabel('Slew rate (deg/sec)', fontsize=15)
+                ax1[0].grid()
+                ax1[1].grid()
+                ax1[0].legend(fontsize=10)
+                ax1[1].legend(fontsize=10)
+
+        def plot_mission_geometrical_output_coverage():
+            if link_number == 'all':
+                elevation = flatten(routing_output['elevation'])
+
+                pdf_elev, cdf_elev, x_elev, std_elev, mean_elev = distribution_function(data=elevation, length=1,
+                                                                                        min=elevation.min(),
+                                                                                        max=elevation.max(), steps=1000)
+
+                fig2.suptitle('Coverage analysis \n Total mission time (hrs): ' + str(
+                    np.round((time[-1] - time[0]) / 3600, 2)) + ', '
+                                                                'total acquisition time (min)=' + str(
+                    np.round(routing.total_acquisition_time / 60, 2)) + '\n '
+                                                                                'Fractional link time (%):' + str(
+                    np.round(routing.frac_comm_time * 100, 2)), fontsize=15)
+                ax2[0].plot(np.rad2deg(x_elev), cdf_elev, label=str(route[84:-4]))
+
+                for e in range(len(routing_output['elevation'])):
+                    if np.any(np.isnan(routing_output['elevation'][e])) == False:
+                        elevation = routing_output['elevation'][e]
+                        pdf_elev, cdf_elev, x_elev, std_elev, mean_elev = distribution_function(data=elevation,
+                                                                                                length=1,
+                                                                                                min=elevation.min(),
+                                                                                                max=elevation.max(),
+                                                                                                steps=1000)
+                        ax2[1].plot(np.rad2deg(x_elev), cdf_elev)
+
+                ax2[0].set_ylabel('Prob. density \n all links combined', fontsize=15)
+                ax2[1].set_ylabel('Prob. density \n for each link', fontsize=15)
+                ax2[1].set_xlabel('Elevation (rad)', fontsize=15)
+
+                ax2[0].grid()
+                ax2[1].grid()
+                ax2[0].legend(fontsize=10)
+                ax2[1].legend(fontsize=10)
+
+        plot_mission_geometrical_output_coverage()
+        plot_mission_geometrical_output_slew_rates()
+
+    plt.show()
+
+    if LOS_verification == True:
+        link = link_geometry()
+        link.propagate(step_size_AC=step_size_AC,
+                       step_size_SC=step_size_SC,
+                       step_size_analysis=False,
+                       verification_cons=False,
+                       aircraft_filename=aircraft_filename_load,
+                       time=t_macro)
+
+        link.geometrical_outputs()
+        elevation = link.geometrical_output['elevation']
+        # fig, ax = plt.subplots(1,1)
+        # for i in range(len(elevation)):
+
+def stability_verification():
+    global range_delta_t, angle_div, w0, turbulence_freq_lowpass, interval_channel_level
     from channel_level import channel_level
     from bit_level import bit_level
     from Link_geometry import link_geometry
     from Routing_network import routing_network
     from Atmosphere import attenuation
 
-    loop_through_range_of_stepsizes = 'no'
-    probability_domain = 'yes'
-    plot_index = 20
+    input_variable = 'aperture' #'frequency' or 'aperture' or 'none'
+    model_variable = 'macro: step size'  #'micro: sample size' or 'macro: step size'
+    test_scope = 'global' #'global' or 'local'
+    elevation_cross_section = [40.0]
 
-    if loop_through_range_of_stepsizes == 'yes':
-        range_delta_t = np.arange(1.0, 10.0, 0.05)
+    # Define input variable which is used for the verification test
+    if input_variable == 'aperture':
+        unit = 'm'
+        variable_range = np.array([0.02, 0.05, 0.08, 0.1])
+        # variable_range = np.array([0.05])
+
+    elif input_variable == 'frequency':
+        unit = 'Hz'
+        variable_range = np.array([500, 750.0, 1000.0, 1500.0])
+        # variable_range = np.array([1000.0])
+
+    else:
+        variable_range = [0.0]
+
+
+    # Define model variable which is used for the verification test
+    if model_variable == 'macro: step size':
+        range_delta_t = np.arange(1.0, 10.5, 0.5)
+        # range_delta_t = np.arange(3.0, 10.0, 1.0)
+        interval_channel_level = [5.0]
+
         fig_T, ax_T = plt.subplots(4, 1)
-        ax_T[0].set_title('Macroscale $\Delta$T determination')
+        ax_T[0].set_title('Model stability: Macroscale step size \n Input variable: '+str(input_variable), fontsize=15)
+
+    elif model_variable == 'micro: sample size':
+        range_delta_t = [5.0]
+        interval_channel_level = np.arange(0.1, 10.6, 0.5)
+        interval_channel_level = np.array([5.0, 10.0, 25.0, 50.0, 80.0])
+        # interval_channel_level = [1.0]
+
+        fig_T, ax_T = plt.subplots(4, 1)
+        ax_T[0].set_title('Model stability: Microscale population size \n Input variable: '+str(input_variable), fontsize=15)
+
+
+    fig_fades, ax_fades = plt.subplots(3, 1)
+    for variable in variable_range:
         fractional_fade_time_list = []
-        var_BER_list = []
+        mean_fade_time_list = []
         var_P_r_list = []
         mean_P_r_list = []
 
-    else:
-        range_delta_t = [5.0]
-        fig_T, ax_T = plt.subplots(2, 2)
-        ax_T[0,0].set_title('Probability domain analysis')
+        if input_variable == 'frequency':
+            turbulence_freq_lowpass = variable
+        elif input_variable == 'aperture':
+            w0 = variable / clipping_ratio / 2
+            angle_div = wavelength / (np.pi * w0)
 
-    for delta_t in range_delta_t:
+        for delta_t in range_delta_t:
+            interval_link_level = int(end_time - start_time)
+            t_macro = np.arange(0.0, interval_link_level, delta_t)
+            samples_macro = int(len(t_macro))
 
-        # Initiate LINK GEOMETRY class, with inheritance of AIRCRAFT class and CONSTELLATION class
-        link = link_geometry()
-        link.propagate(stepsize_AC=delta_t, stepsize_SC=delta_t)
-        link.geometrical_outputs()
-        time = link.time
-        network = routing_network(time)
-        slew_rate = 1 / np.sqrt((R_earth + h_SC) ** 3 / mu_earth)
-        geometrical_output, mask = network.routing(link.geometrical_output, time)
-        time_hr = time[mask] / 3600.0
-        # link.plot(type='satellite sequence', sequence=geometrical_output['pos SC'],
-        #                    links=network.number_of_links)
-        # plt.show()
+            print('--------------------------')
+            print(delta_t, 'of', range_delta_t[-1])
 
-        # Create slow variable: Attenuation (h_ext)
-        att = attenuation()
-        # samples = len(time)
-        # duration = end_time - start_time
-        # sampling_frequency = 1 / step_size_link
-        # ext_frequency = 1/600 # 10 minute frequency of the transmission due to clouds
-        # h_clouds = norm.rvs(scale=1, loc=0, size=samples)
-        # order = 2
-        # h_clouds = filtering(effect='extinction', order=order, data=h_clouds, f_cutoff_low=ext_frequency,
-        #                     filter_type='lowpass', f_sampling=sampling_frequency, plot='no')
-        #
-        att.h_ext_func(range_link=geometrical_output['ranges'], zenith_angles=geometrical_output['zenith'], method="standard_atmosphere")
-        # att.h_clouds_func(data=h_clouds)
-        # T_fs = (wavelength / (4 * np.pi * geometrical_output['ranges'])) ** 2
-
-        # att.h_clouds = att.h_clouds[mask]
-        # h_ext = att.h_ext #* att.h_clouds
-        # fig, ax = plt.subplots(3,1)
-        # ax[0].scatter(time_hr, W2dB(att.h_clouds), s=1,label='$h_{clouds}$')
-        # ax[0].scatter(time_hr, W2dB(att.h_ext), s=1,label='$h_{ext}$')
-        # ax[1].scatter(time_hr, W2dB(h_ext), s=1,label='$h_{ext}$')
-        # ax[2].scatter(time_hr, W2dB(T_fs), s=1)
-        #
-        # ax[0].legend()
-        # ax[1].legend()
-        # ax[2].legend()
-        # ax[0].grid()
-        # ax[1].grid()
-        # ax[2].grid()
-        # plt.show()
-
-        # x_ext = np.linspace(0.0, h_clouds.max(), 1000)
-        # hist_ext = np.histogram(h_clouds, bins=1000)
-        # rv = rv_histogram(hist_ext, density=True)
-        # pdf_ext = rv.pdf(x_ext)
-        # cdf_ext = rv.cdf(x_ext)
-
-        # Create slow variable: Elevation (e) and Range (R)
-        elevation = geometrical_output['elevation']
-        ranges = geometrical_output['ranges']
-        samples = len(elevation)
-        bins = 100
-        interval = len(time) * step_size_AC
-
-        # CREATE DISTRIBUTION (HISTOGRAM) OF GEOMETRICAL DATA
-        x_elev = np.linspace(elevation.min(), elevation.max(), bins)
-        hist_e = np.histogram(elevation, bins=bins)
-        rv   = rv_histogram(hist_e, density=False)
-        pdf_elev  = rv.pdf(x_elev)
-        cdf_elev  = rv.cdf(x_elev)
-        hist_e_midpoints = hist_e[1][:-1] + np.diff(hist_e[1])/2
-        elev_counts = hist_e[0]
-
-        x_R = np.linspace(ranges.min(), ranges.max(), bins)
-        hist_R = np.histogram(ranges, bins=bins)
-        rv = rv_histogram(hist_R, density=False)
-        pdf_R = rv.pdf(x_R)
-        cdf_R = rv.cdf(x_R)
-        hist_R_midpoints = hist_R[1][:-1] + np.diff(hist_R[1]) / 2
-        R_counts = hist_R[0]
-        T_fs = W2dB((wavelength / (4 * np.pi * hist_R_midpoints)) ** 2)
-
-        # fig, ax = plt.subplots(2,2)
-        # ax[0,0].set_title('bins: ' + str(bins) + '\n'
-        #                   '$\Delta L$: '+ str(np.round(np.diff(hist_R_midpoints)[0]/1000,2)) +
-        #                   'km, $T_{fs}$='+str(np.round(np.diff(T_fs)[0],2)))
-        #
-        # ax[0,1].set_title('Samples: '+str(samples))
-        # ax[0,0].plot(x_R, pdf_R)
-        # ax[0,0].plot(x_R, cdf_R)
-        # ax[0,0].hist(ranges, density=True, bins=bins)
-        # ax[0,0].set_ylabel('Prob. density')
-        # ax[0,0].set_xlabel('Range (m)')
-        # ax[0,1].scatter(time_hr, ranges/1000, s=0.5)
-        # ax[0,1].set_ylabel('Range (km)')
-        # ax[0,1].set_xlabel('Time (hours)')
-        #
-        # ax[1, 0].set_title('$\Delta \epsilon$: ' + str(np.round(np.diff(hist_e_midpoints)[0], 2)) + '$\degree$')
-        # ax[1, 0].plot(x_elev, pdf_elev)
-        # ax[1, 0].plot(x_elev, cdf_elev)
-        # ax[1, 0].hist(elevation, density=True, bins=bins)
-        # ax[1, 0].set_ylabel('Prob. density')
-        # ax[1, 0].set_xlabel('Elevation (rad)')
-        # ax[1, 1].scatter(time_hr, elevation, s=0.5)
-        # ax[1, 1].set_ylabel('Elevation (degrees)')
-        # ax[1, 1].set_xlabel('Time (hours)')
-
-        # ax[0, 0].grid()
-        # ax[0, 1].grid()
-        # ax[1, 0].grid()
-        # ax[1, 1].grid()
-        # plt.show()
-
-        # # Probability domain
-        # elevation = hist_e_midpoints
-        # ranges = hist_R_midpoints
-        # zenith = np.pi/2 - elevation
-
-        # ------------------------------------------------------------------------
-        # -----------------------------------LCT----------------------------------
-        # ------------------------------------------------------------------------
-        LCT = terminal_properties()
-        LCT.threshold(BER_thres=BER_thres,
-                      modulation="OOK-NRZ",
-                      detection="APD")
-        # ------------------------------------------------------------------------
-        # -------------------------------TURBULENCE-------------------------------
-        # ------------------------------------------------------------------------
-
-        # The turbulence class is initiated here. Inside the turbulence class, there are multiple functions that are run.
-        turb = turbulence(ranges=geometrical_output['ranges'], link=link)
-        turb.windspeed_func(slew=slew_rate, Vg=speed_AC, wind_model_type=wind_model_type)
-        turb.Cn_func(turbulence_model=turbulence_model)
-        r0 = turb.r0_func(zenith_angles=geometrical_output['zenith'])
-        turb.var_rytov_func(zenith_angles=geometrical_output['zenith'])
-        turb.var_scint_func(zenith_angles=geometrical_output['zenith'])
-        turb.Strehl_ratio_func(tip_tilt="YES")
-        turb.beam_spread()
-        turb.var_bw_func(zenith_angles=geometrical_output['zenith'])
-        turb.var_aoa_func(zenith_angles=geometrical_output['zenith'])
-        turb.print(index=plot_index, elevation=np.rad2deg(geometrical_output['elevation']), ranges=geometrical_output['ranges'])
-        # ------------------------------------------------------------------------
-        # -------------------------------LINK-BUDGET------------------------------
-        # ------------------------------------------------------------------------
-        # The link budget class is initiated here.
-        link = link_budget(ranges=ranges, h_strehl=turb.h_strehl, w_ST=turb.w_ST,
-                           h_beamspread=turb.h_beamspread, h_ext=att.h_ext)
-        # The power at the receiver is computed from the link budget.
-        P_r_0 = link.P_r_0_func()
-        # ------------------------------------------------------------------------
-        # ------------------------SNR--BER--COARSE-SOLVER-------------------------
-        # ------------------------------------------------------------------------
-        noise_sh, noise_th, noise_bg, noise_beat = LCT.noise(P_r=P_r_0, I_sun=I_sun)
-        SNR_0, Q_0 = LCT.SNR_func(P_r=P_r_0, detection=detection,
-                              noise_sh=noise_sh, noise_th=noise_th, noise_bg=noise_bg, noise_beat=noise_beat)
-        BER_0 = LCT.BER_func(Q=Q_0, modulation=modulation)
-        margin_0 = LCT.P_r_thres[0] / P_r_0
-        errors_0 = BER_0 * data_rate
-
-        # ------------------------------------------------------------------------
-        # --------------------------SNR--BER--FINE-SOLVER-------------------------
-        # ------------------------------------------------------------------------
-
-        P_r, PPB, elevation_angles, pdf_h_tot, pdf_P_r, h_tot, h_scint, h_RX, h_TX = \
-            channel_level(plot_index=int(plot_index),
-                          LCT=LCT,
-                          turb=turb,
-                          P_r_0=P_r_0,
-                          ranges=geometrical_output['ranges'],
-                          elevation_angles=geometrical_output['elevation'],
-                          zenith_angles=geometrical_output['zenith'],
-                          samples=samples_channel_level)
-
-        # P_r, BER, pdf_BER, errors, margin = \
-        P_r, BER, pdf_BER, BER_coded, pdf_BER_coded, errors, errors_coded, margin = \
-            bit_level(LCT=LCT,
-                      link_budget=link,
-                      plot_index=int(plot_index),
-                      divide_index=N,
-                      samples=samples_channel_level,
-                      P_r_0=P_r_0,
-                      pdf_P_r=pdf_P_r,
-                      P_r=P_r,
-                      PPB=PPB,
-                      elevation_angles=geometrical_output['elevation'],
-                      pdf_h_tot=pdf_h_tot,
-                      h_tot=h_tot,
-                      h_scint=h_scint,
-                      h_RX=h_RX,
-                      h_TX=h_TX,
-                      coding='yes')
-
-        P_r_total = P_r.flatten()
-        x_P_r_total = np.linspace(W2dBm(P_r_total.min()), W2dBm(P_r_total.max()), 10000)
-        P_r_pdf_total = pdf_function(data=W2dBm(P_r_total), length=1, x=x_P_r_total)
-        BER_total = BER.flatten()
-        x_BER_total = np.linspace(-30.0, 0.0, 10000)
-        BER_pdf_total = pdf_function(data=np.log10(BER_total), length=1, x=x_BER_total)
-        BER_coded_total = BER_coded.flatten()
-        BER_coded_total_pdf = pdf_function(data=np.log10(BER_coded_total), length=1, x=x_BER_total)
-        errors_total = errors.flatten()
-        errors_coded_total = errors_coded.flatten()
-
-        if loop_through_range_of_stepsizes == 'yes':
-            mean_P_r = P_r.mean()
-            mean_P_r_dB = W2dB(mean_P_r)
-            var_P_r = P_r.var()
-            var_P_r_dB = W2dB(var_P_r)
-            # var_BER = BER.var()
-            fractional_fade_time = np.count_nonzero((P_r_total < LCT.P_r_thres[1]), axis=0) / len(P_r_total)
-            mean_P_r_list.append(mean_P_r_dB)
-            var_P_r_list.append(var_P_r_dB)
-            # var_BER_list.append(var_BER)
-            fractional_fade_time_list.append(fractional_fade_time)
-            if list(range_delta_t).index(delta_t) == 0:
-                ax_T[0].plot(W2dBm(x_P_r_total), P_r_pdf_total, label='True distribution= $\mu$='+ str(
-                    np.round(mean_P_r_dB, 3)) + 'dB' + ', $\sigma^2$=' + str(np.round(var_P_r_dB, 3)) + 'dB')
-            if list(range_delta_t).index(delta_t) == 19 or list(range_delta_t).index(delta_t) == 79 or list(range_delta_t).index(delta_t) == -19:
-                ax_T[0].plot(W2dBm(x_P_r_total), P_r_pdf_total, label='$\Delta$T=' + str(np.round(delta_t,2)) + ', $\mu$=' + str(np.round(mean_P_r_dB, 3)) + 'dB'+ ', $\sigma^2$=' + str(np.round(var_P_r_dB, 3)) + 'dB')
+            # Initiate LINK GEOMETRY class, with inheritance of AIRCRAFT class and CONSTELLATION class
+            link = link_geometry()
+            link.propagate(step_size_AC=delta_t,
+                           step_size_SC=step_size_SC,
+                           step_size_analysis=False,
+                           verification_cons=False,
+                           aircraft_filename=aircraft_filename_load,
+                           time=t_macro)
+            link.geometrical_outputs()
+            time = link.time
+            network = routing_network(time)
+            routing_output, routing_total_output, mask = network.routing(link.geometrical_output, time, delta_t)
 
 
-        elif probability_domain == 'yes':
-            time_cross_section = [0.52, 0.545]
+            time_links = flatten(routing_output['time'      ][:1])
+            elevation  = flatten(routing_output['elevation' ][:1])
+            ranges     = flatten(routing_output['ranges'    ][:1])
+            zenith     = flatten(routing_output['zenith'    ][:1])
+            heights_SC = flatten(routing_output['heights SC'][:1])
+            heights_AC = flatten(routing_output['heights AC'][:1])
+            slew_rates = flatten(routing_output['slew rates'][:1])
+
+            time_cross_section = []
             indices = []
-            for t in time_cross_section:
-                t = t * 3600
-                index = np.argmin(abs(time[mask] - t))
+            for e in elevation_cross_section:
+                index = np.argmin(abs(elevation - np.deg2rad(e)))
                 indices.append(index)
+                t = time_links[index] / 3600
+                time_cross_section.append(t)
 
-            fractional_fade_time_total = np.count_nonzero((P_r_total < LCT.P_r_thres[1]), axis=0) / len(P_r_total)
-            fractional_BER_fade_total = np.count_nonzero((BER_total > BER_thres[1]), axis=0) / len(BER_total)
-            fractional_BER_coded_fade_total = np.count_nonzero((BER_coded_total > BER_thres[1]), axis=0) / len(BER_coded_total)
-            for p in range(len(P_r_0)):
-                if p == 3 or p == 20:
-                    fractional_fade_time = np.count_nonzero((P_r[p] < LCT.P_r_thres[1]), axis=0) / samples_channel_level
-                    fractional_BER_fade = np.count_nonzero((BER[p] > BER_thres[1]), axis=0) / samples_channel_level
-                    fractional_BER_coded_fade = np.count_nonzero((BER_coded[p] > BER_thres[1]), axis=0) / samples_channel_level
-                    ax_T[1,0].plot(pdf_P_r[1], pdf_P_r[0][p], label='$\epsilon$='+str(np.round(np.rad2deg(geometrical_output['elevation'][p]),2))+'\n'
-                                    'Frac. fade time='+str(np.round(fractional_fade_time,2)))
-                    ax_T[1,1].plot(pdf_BER[1], pdf_BER[0][p], label='Uncoded, $\epsilon$='+str(np.round(np.rad2deg(geometrical_output['elevation'][p]),2))+'\n'
-                                    '% BER over threshold: '+str(np.round(fractional_BER_fade*100,2)))
-                    # ax_T[1,1].plot(pdf_BER_coded[1], pdf_BER_coded[0][p], label='Coded, $\epsilon$='+str(np.round(np.rad2deg(geometrical_output['elevation'][p]),2))+'\n'
-                    #                 '% BER over threshold: '+str(np.round(fractional_BER_coded_fade*100,2)))
+            if test_scope == 'local':
+                time_links = time_links[indices]
+                elevation = elevation[indices]
+                ranges = ranges[indices]
+                zenith = zenith[indices]
+                heights_SC = heights_SC[indices]
+                heights_AC = heights_AC[indices]
+                slew_rates = slew_rates[indices]
 
-            ax_T[0,0].plot(x_P_r_total, P_r_pdf_total, label='One distribution, $\mu$=' + str(np.round(W2dBm(P_r_total.mean()),2)) +
-                                                                    'dB' + ', $\sigma^2$=' + str(np.round(W2dBm(P_r_total.var()),2)) + 'dB')
-            ax_T[0,0].plot(np.ones(2) * W2dBm(P_r.mean()), [P_r_pdf_total.min(), P_r_pdf_total.max()], color='grey')
-            ax_T[0,0].plot(np.ones(2) * W2dBm(LCT.P_r_thres[1]), [P_r_pdf_total.min(), P_r_pdf_total.max()], c='black',
-                         linewidth=3, label='treshold BER=1.0E-6')
-            ax_T[0,0].set_ylabel('PDF of all dist combined')
+            def plot_mission_geometrical_output_coverage():
+                if link_number == 'all':
+                    pdf_elev, cdf_elev, x_elev, std_elev, mean_elev = distribution_function(data=elevation, length=1,
+                                                                                            min=elevation.min(),
+                                                                                            max=elevation.max(),
+                                                                                            steps=1000)
 
-            ax_T[0,1].plot(x_BER_total, BER_pdf_total, label='Uncoded, $\mu$=1E' + str(np.round(np.log10(BER_total.mean()),2)) +
-                                                             ', $\sigma^2$=1E' + str(np.round(np.log10(BER_total.var()),2)) + '\n'
-                                  '% BER over threshold: '+str(np.round(fractional_BER_fade_total*100,2)))
-            # ax_T[0,1].plot(x_BER_total, BER_coded_total_pdf,
-            #                 label='Coded, $\mu$=1E' + str(np.round(np.log10(BER_coded_total.mean()), 2)) +
-            #                       ', $\sigma^2$=1E' + str(np.round(np.log10(BER_coded_total.var()), 2)) +'\n'
-            #                       '% BER over threshold: '+str(np.round(fractional_BER_coded_fade_total*100,2)))
-            ax_T[0,1].plot(np.ones(2) * np.log10(BER_thres[1]), [BER_pdf_total.min(), BER_pdf_total.max()], c='black',
-                         linewidth=3, label='treshold BER=1.0E-6')
-            ax_T[0,1].set_ylabel('PDF of all dist combined')
+                    fig, ax = plt.subplots(2, 1)
+                    fig.suptitle('Coverage analysis \n Total mission time (hrs): ' + str(
+                        np.round((time[-1] - time[0]) / 3600, 2)) + ', '
+                                                                    'total acquisition time (min)=' + str(
+                        np.round(network.total_acquisition_time / 60, 2)) + '\n '
+                                                                                    'Fractional link time (%):' + str(
+                        np.round(network.frac_comm_time * 100, 2)), fontsize=15)
+                    ax[0].plot(np.rad2deg(x_elev), cdf_elev)
+                    ax[0].plot(np.ones(2) * elevation_cross_section[0], [0, 1], color='black',
+                               label='cross section for $\epsilon$=' + str(elevation_cross_section[0]) + 'deg')
+                    ax[0].plot(np.ones(2) * elevation_cross_section[1], [0, 1], color='black',
+                               label='cross section for $\epsilon$=' + str(elevation_cross_section[1]) + 'deg')
+
+                    for e in range(len(routing_output['elevation'])):
+                        if np.any(np.isnan(routing_output['elevation'][e])) == False:
+                            pdf_elev, x_elev = pdf_function(data=routing_output['elevation'][e], length=1,
+                                                            min=elevation.min(), max=elevation.max(), steps=1000)
+                            cdf_elev, x_elev = cdf_function(data=routing_output['elevation'][e], length=1,
+                                                            min=elevation.min(), max=elevation.max(), steps=1000)
+                            ax[1].plot(np.rad2deg(x_elev), cdf_elev,
+                                       label='link ' + str(routing_output['link number'][e]))
+
+                    ax[0].set_ylabel('Prob. density \n all links combined', fontsize=15)
+                    ax[1].set_ylabel('Prob. density \n for each link', fontsize=15)
+                    ax[1].set_xlabel('Elevation (rad)', fontsize=15)
+
+                    ax[0].grid()
+                    ax[1].grid()
+                    ax[0].legend(fontsize=10)
+                    ax[1].legend(fontsize=10)
+
+                else:
+                    fig, ax = plt.subplots(1, 1)
+                    fig.suptitle(
+                        'Coverage analysis \n Total mission time (hrs): ' + str(
+                            np.round((time[-1] - time[0]) / 3600, 2)) + ', '
+                                                                        'total acquisition time (min)=' + str(
+                            np.round(network.total_acquisition_time / 60, 2)) + '\n '
+                                                                                        'Fractional link time (%):' + str(
+                            np.round(network.frac_comm_time * 100, 2)), fontsize=20)
+                    for e in range(len(routing_output['elevation'])):
+                        if np.any(np.isnan(routing_output['elevation'][e])) == False:
+                            pdf_elev, cdf_elev, x_elev, std_elev, mean_elev = distribution_function(
+                                data=routing_output['elevation'][e],
+                                length=1,
+                                min=routing_output['elevation'][e].min(),
+                                max=routing_output['elevation'][e].max(),
+                                steps=1000)
+                            ax.plot(np.rad2deg(x_elev), cdf_elev, label='link ' + str(routing_output['link number'][e]))
+
+                    ax.set_ylabel('Prob. density \n for each link', fontsize=20)
+                    ax.set_xlabel('Elevation (rad)', fontsize=20)
+                    ax.grid()
+                    ax.legend(fontsize=20)
+
+                plt.show()
+            def plot_mission_geometrical_output_slew_rates():
+                if link_number == 'all':
+                    pdf_slew, cdf_slew, x_slew, std_slew, mean_slew = distribution_function(
+                        data=routing_total_output['slew rates'],
+                        length=1,
+                        min=routing_total_output['slew rates'].min(),
+                        max=routing_total_output['slew rates'].max(),
+                        steps=1000)
+                    fig, ax = plt.subplots(2, 1)
+                    # ax[1, 0].plot(x_elev, pdf_elev)
+                    ax[0].set_title('Slew rate analysis', fontsize=15)
+                    ax[0].plot(np.rad2deg(x_slew), cdf_slew)
+
+                    for i in range(len(routing_output['link number'])):
+                        if np.any(np.isnan(routing_output['slew rates'][i])) == False:
+                            pdf_slew, cdf_slew, x_slew, std_slew, mean_slew = distribution_function(
+                                data=routing_output['slew rates'][i],
+                                length=1,
+                                min=routing_output['slew rates'][i].min(),
+                                max=routing_output['slew rates'][i].max(),
+                                steps=1000)
+                            ax[1].plot(np.rad2deg(x_slew), cdf_slew,
+                                       label='link ' + str(routing_output['link number'][i]))
+
+                    ax[0].set_ylabel('Prob. density \n all links combined', fontsize=15)
+                    ax[1].set_ylabel('Prob. density \n for each link', fontsize=15)
+                    ax[1].set_xlabel('Slew rate (deg/sec)', fontsize=15)
+                    ax[0].grid()
+                    ax[1].grid()
+                    ax[0].legend(fontsize=10)
+                    ax[1].legend(fontsize=10)
+
+                else:
+                    fig, ax = plt.subplots(1, 1)
+                    fig.suptitle('Slew rate analysis', fontsize=20)
+
+                    for i in range(len(routing_output['link number'])):
+                        if np.any(np.isnan(routing_output['slew rates'][i])) == False:
+                            pdf_slew, cdf_slew, x_slew, std_slew, mean_slew = distribution_function(
+                                data=routing_output['slew rates'][i],
+                                length=1,
+                                min=routing_output['slew rates'][i].min(),
+                                max=routing_output['slew rates'][i].max(),
+                                steps=1000)
+                            ax.plot(np.rad2deg(x_slew), cdf_slew, label='link ' + str(routing_output['link number'][i]))
+
+                    ax.set_ylabel('Prob. density \n for each link', fontsize=20)
+                    ax.set_xlabel('Slew rate (deg/sec)', fontsize=20)
+                    ax.grid()
+                    ax.legend(fontsize=20)
+
+                plt.show()
+            # plot_mission_geometrical_output_coverage()
+            # plot_mission_geometrical_output_slew_rates()
+            # link.plot(type='satellite sequence', routing_output=routing_output,
+                               # links=network.number_of_links)
+
+            att = attenuation()
+            att.h_ext_func(range_link=ranges, zenith_angles=zenith, method=method_att)
+            att.h_clouds_func(method=method_clouds)
+            h_ext = att.h_ext * att.h_clouds
+
+            # ------------------------------------------------------------------------
+            # -----------------------------------LCT----------------------------------
+            # ------------------------------------------------------------------------
+            LCT = terminal_properties()
+            LCT.BER_to_P_r(BER=BER_thres,
+                          modulation="OOK-NRZ",
+                          detection="APD",
+                          threshold=True)
+            # ------------------------------------------------------------------------
+            # -------------------------------TURBULENCE-------------------------------
+            # ------------------------------------------------------------------------
+
+            # The turbulence class is initiated here. Inside the turbulence class, there are multiple functions that are run.
+            turb = turbulence(ranges=ranges,
+                              zenith_angles=zenith,
+                              angle_div=angle_div,
+                              h_AC=heights_AC,
+                              h_SC=heights_SC)
+            # link.speed_AC.mean()
+            turb.windspeed_func(slew=slew_rates, Vg=link.speed_AC.mean(), wind_model_type=wind_model_type)
+            turb.Cn_func(turbulence_model=turbulence_model)
+            r0 = turb.r0_func(zenith_angles=zenith)
+            turb.var_rytov_func(zenith_angles=zenith)
+            turb.var_scint_func(zenith_angles=zenith, D_r=D_r)
+            turb.WFE(tip_tilt="YES")
+            turb.beam_spread(zenith_angles=zenith)
+            turb.var_bw_func(zenith_angles=zenith)
+            turb.var_aoa_func(zenith_angles=zenith)
+            # turb.print(index=plot_index, elevation=np.rad2deg(elevation), ranges=ranges)
+            # ------------------------------------------------------------------------
+            # -------------------------------LINK-BUDGET------------------------------
+            # ------------------------------------------------------------------------
+            # The link budget class is initiated here.
+            link = link_budget(angle_div=angle_div, w0=w0, ranges=ranges, h_WFE=turb.h_WFE, w_ST=turb.w_ST,
+                               h_beamspread=turb.h_beamspread, h_ext=att.h_ext)
+            # The power at the receiver is computed from the link budget.
+            P_r_0 = link.P_r_0_func()
+
+            # link.print(elevation=elevation, index=indices[0], static=True)
 
 
-            ax_T[1,0].plot(np.ones(2) * W2dBm(LCT.P_r_thres[1]), [(pdf_P_r[0][-1]).min(), (pdf_P_r[0][-1]).max()], c='black',
-                         linewidth=3, label='treshold BER=1.0E-6')
-            ax_T[1,0].set_ylabel('PDF of each Pr dist')
-            ax_T[1,0].set_xlabel('Pr (dBm)')
+            for interval in interval_channel_level:
+                t_micro = np.arange(0.0, interval, step_size_channel_level)
+                samples_micro = int(len(t_micro))
 
-            ax_T[1,1].plot(np.ones(2) * np.log10(BER_thres[1]), [(pdf_BER[0][20]).min(), (pdf_BER[0][20]).max()], c='black',
-                         linewidth=3, label='treshold BER=1.0E-6')
-            ax_T[1,1].set_ylabel('PDF of each BER dist')
-            ax_T[1,1].set_xlabel('BER')
-            # ax_T[0,1].set_xscale('log')
-            # ax_T[1,1].set_xscale('log')
+                P_r, P_r_no_pointing_errors, PPB, elevation_angles, losses, angles = \
+                    channel_level(plot_index=int(0),
+                                  LCT=LCT,
+                                  t=t_micro,
+                                  turb=turb,
+                                  P_r_0=P_r_0,
+                                  ranges=ranges,
+                                  angle_div=link.angle_div,
+                                  elevation_angles=elevation,
+                                  zenith_angles=zenith,
+                                  samples=samples_micro,
+                                  turb_cutoff_frequency=turbulence_freq_lowpass)
 
-            ax_T[0, 0].legend()
-            ax_T[0, 1].legend()
-            ax_T[1, 0].legend()
-            ax_T[1, 1].legend()
-            plt.show()
+                h_tot = losses[0]
 
+                # Fade correction
+                # desired_frac_BER_fade = 0.05
+                P_min = penalty(P_r=P_r, desired_frac_fade_time=desired_frac_fade_time)
+                h_penalty = (P_min / P_r.mean(axis=1)).clip(min=0.0, max=1.0)
+                # P_r = P_r * h_penalty[:, None]
+                correction = (LCT.P_r_thres[1] / P_min).clip(min=1.0)
+                # P_r = P_r * correction[:, None]
 
+                P_r_total = P_r.flatten()
+                P_r_pdf_total, P_r_cdf_total, x_P_r_total, std_P_r, mean_P_r = distribution_function(data=W2dBm(P_r_total),
+                                                                                                     length=1, min=-80.0,
+                                                                                                     max=0.0, steps=10000)
 
-    if loop_through_range_of_stepsizes == 'yes':
-        # ax_T[0].plot(np.ones(2) * BER_thres[1], [BER_total_pdf.min(), BER_total_pdf.max()], c='black', linewidth=3)
-        ax_T[0].plot(np.ones(2) * W2dBm(LCT.P_r_thres[1]), [P_r_pdf_total.min(), P_r_pdf_total.max()], c='black', linewidth=3)
-        # ax_T[0].set_ylabel('PDF')
-        # ax_T[0].set_xlabel('BER')
-        # ax_T[0].set_xscale('log')
-        ax_T[0].set_ylabel('PDF')
-        ax_T[0].set_xlabel('Pr (dBm)')
+                # # In case of TOTAL variance
+                if test_scope == 'global':
+                    mean_P_r = P_r_total.mean()
+                    mean_P_r_dB = W2dB(mean_P_r)
+                    var_P_r = P_r_total.var()
+                    var_P_r_dB = W2dB(var_P_r)
 
-        ax_T[1].set_ylabel('Fractional fade time \n for $BER_{thres}$=1E-6')
-        ax_T[1].plot([range_delta_t[0], range_delta_t[-1]], fractional_fade_time_list[0] * 0.9 * np.ones(2), label='-10% diff from true', color='black')
-        ax_T[1].plot(range_delta_t, fractional_fade_time_list)
-        ax_T[1].plot([range_delta_t[0], range_delta_t[-1]], fractional_fade_time_list[0] * 1.1 * np.ones(2), label='+10% diff from true', color='black')
+                # In case of time step-specific variance
+                elif test_scope == 'local':
+                    mean_P_r = P_r.mean()
+                    mean_P_r_dB = W2dB(mean_P_r)
+                    var_P_r = P_r.var()
+                    var_P_r_dB = W2dB(var_P_r)
 
-        ax_T[2].set_ylabel('Sample variance of $P_r$ (dB)')
-        ax_T[2].plot(range_delta_t, var_P_r_list)
-        ax_T[2].plot([range_delta_t[0], range_delta_t[-1]], (var_P_r_list[0] - 0.1) * np.ones(2), label='-0.1 dB diff from true', color='black')
-        ax_T[2].plot([range_delta_t[0], range_delta_t[-1]], (var_P_r_list[0] + 0.1) * np.ones(2), label='+0.1 dB diff from true', color='grey')
-        ax_T[3].set_ylabel('Sample mean  of $P_r$ (dB)')
-        ax_T[3].set_xlabel('Macroscale $\Delta$T (sec)')
-        ax_T[3].plot(range_delta_t, mean_P_r_list)
-        ax_T[3].plot([range_delta_t[0], range_delta_t[-1]], (mean_P_r_list[0] - 0.1) * np.ones(2), label='-0.1 dB diff from true', color='black')
-        ax_T[3].plot([range_delta_t[0], range_delta_t[-1]], (mean_P_r_list[0] + 0.1) * np.ones(2), label='+0.1 dB diff from true', color='grey')
-
-        ax_T[0].legend(loc='upper right')
-        ax_T[0].grid()
-        ax_T[1].legend(loc='upper right')
-        ax_T[1].grid()
-        ax_T[2].legend(loc='upper right')
-        ax_T[2].grid()
-        ax_T[3].legend(loc='upper right')
-        ax_T[3].grid()
-        plt.show()
-
-    elif probability_domain == 'yes':
-        # # USING PROBABILITY DOMAIN
-        # total_errors = errors * (step_size_link / interval_channel_level) * elev_counts
-        # total_bits = data_rate * step_size_AC * elev_counts
-        # throughput = total_bits - total_errors
-        #
-        # fig, ax = plt.subplots(3, 1)
-        # ax[0].plot(np.rad2deg(geometrical_output['elevation']), W2dBm(P_r.mean(axis=1)), label='Pr (average from bit level)')
-        # ax[0].plot(np.rad2deg(geometrical_output['elevation']), W2dBm(np.ones(len(P_r_0)) * LCT.P_r_thres[0]), label='Sensitivty comm. (BER=1.0E-9)')
-        # ax[0].plot(np.rad2deg(geometrical_output['elevation']), W2dBm(np.ones(len(P_r_0)) * LCT.P_r_thres[1]), label='Sensitivty comm. (BER=1.0E-6)')
-        # ax[0].plot(np.rad2deg(geometrical_output['elevation']), W2dBm(np.ones(len(P_r_0)) * LCT.P_r_thres[2]), label='Sensitivty comm. (BER=1.0E-3)')
-        # ax[0].set_ylabel('Comm \n Power (dBm)')
-        #
-        # ax[1].plot(geometrical_output['elevation'], total_bits / 1.0E6, label='Total bits=' + str(total_bits.sum() / 1.0E12) + 'Tb')
-        # ax[1].plot(geometrical_output['elevation'], total_errors / 1.0E6, label='Total erroneous bits=' + str(total_errors.sum() / 1.0E9) + 'Gb')
-        # ax[1].plot(geometrical_output['elevation'], throughput / 1.0E6, label='Throughput=' + str(throughput.sum() / 1.0E12) + 'Tb')
-        # # ax[2].plot(time_hr, performance_output['total_errors_coded'] / 1.0E6,  label='RS coded (' + str(N) + ',' + str(K) + '), interleaving=' + str(
-        # #                     latency_interleaving) + 's, \n total throughput=' + str(performance_output['throughput_coded'].sum() / 1.0E12) + 'Tb')
-        # ax[1].set_ylabel('Transferred bits \n per $\Delta t_{mission}$ (Mb/s)')
-        # ax[1].set_yscale('log')
-        # ax[1].set_ylim(total_errors.min() / 1.0E6, total_errors.max() / 1.0E6)
-        #
-        # ax[0].legend()
-        # ax[1].legend()
-        # plt.show()
+                number_of_fades = np.sum((P_r[:, 1:] < LCT.P_r_thres[1]) & (P_r[:, :-1] > LCT.P_r_thres[1]), axis=1)
+                fractional_fade_time = np.count_nonzero((P_r < LCT.P_r_thres[1]), axis=1) / samples_micro
+                mean_fade_time = fractional_fade_time / number_of_fades * interval
 
 
-        # USING TIME DOMAIN
-        fig, ax = plt.subplots(2, 1)
-        ax[0].plot(time_hr, W2dBm(P_r.mean(axis=1)), label='Pr (average from bit level)')
-        ax[0].plot(time_hr, W2dBm(P_r_0), label='Pr0')
-        ax[0].set_ylabel('Comm \n Power (dBm)')
+                ax_fades[0].plot(np.rad2deg(elevation), fractional_fade_time, label=str(interval)+'s')
+                ax_fades[1].plot(np.rad2deg(elevation), mean_fade_time * 1000)
+                ax_fades[2].plot(np.rad2deg(elevation), number_of_fades/interval)
 
-        ax[1].plot(time_hr, BER_0, label='BER from Pr0')
-        ax[1].plot(time_hr, BER.mean(axis=1), label='BER mean from bit level')
-        ax[1].set_ylabel('BER')
-        ax[1].set_yscale('log')
+                # if interval == 80.0:
+                #     ax_fades[0].plot(np.rad2deg(elevation), np.ones(elevation.shape) * fractional_fade_time[0] * 1.05,
+                #                      label='5% diff', color='black')
+                #     ax_fades[0].plot(np.rad2deg(elevation), np.ones(elevation.shape) * fractional_fade_time[0] * 0.95,
+                #                      color='black')
+                #     ax_fades[1].plot(np.rad2deg(elevation), np.ones(elevation.shape) * mean_fade_time[0] * 1.05,
+                #                      label='5% diff', color='black')
+                #     ax_fades[1].plot(np.rad2deg(elevation), np.ones(elevation.shape) * mean_fade_time[0] * 0.95,
+                #                      color='black')
+                #     ax_fades[2].plot(np.rad2deg(elevation),
+                #                      np.ones(elevation.shape) * number_of_fades[0] / interval * 1.05, label='5% diff',
+                #                      color='black')
+                #     ax_fades[2].plot(np.rad2deg(elevation),
+                #                      np.ones(elevation.shape) * number_of_fades[0] / interval * 0.95, color='black')
 
-        ax[0].legend()
-        ax[1].legend()
-        ax[0].grid()
-        ax[1].grid()
-        plt.show()
+                # # In case of TOTAL VARIANCE
+                if test_scope == 'global':
+                    fractional_fade_time = fractional_fade_time.mean()
+                    mean_fade_time = mean_fade_time.mean()
+
+                mean_P_r_list.append(mean_P_r_dB)
+                var_P_r_list.append(var_P_r_dB)
+                fractional_fade_time_list.append(fractional_fade_time)
+                mean_fade_time_list.append(mean_fade_time)
+
+                # Plotting
+                if input_variable == 'frequency' or input_variable == 'aperture':
+                    label = str(variable)+' '+str(unit)
+                else:
+                    label = None
+
+                if model_variable == 'macro: step size':
+                    if np.round(delta_t, 2) == 10.0:
+                        ax_T[0].plot(x_P_r_total, P_r_pdf_total, label=label)
+
+                elif model_variable == 'micro: sample size':
+                    if np.round(interval, 2) == 10.1:
+                        ax_T[0].plot(x_P_r_total, P_r_pdf_total, label=label)
 
 
-def channel_level_verification():
-    from channel_level import channel_level
+        if model_variable == 'macro: step size':
 
-    LCT = terminal_properties()
-    LCT.threshold(BER_thres=BER_thres, modulation="OOK-NRZ", detection="APD")
+            ax_T[0].plot(np.ones(2) * W2dBm(LCT.P_r_thres[1]), [P_r_pdf_total.min(), P_r_pdf_total.max()], c='black',
+                         linewidth=3)
 
-    h_AC = 10.0E3
-    h_SC = 600.0E3
-    P_r_0 = np.array([dBm2W(-25)])
-    elevation = np.array([np.deg2rad(60.0)])
-    zenith = np.pi/2 - elevation
-    ranges = (h_SC - h_AC) / np.tan(elevation)
-    V_ac = 150.0
-    slew_rate = 1 / np.sqrt((R_earth + h_SC) ** 3 / mu_earth)
-    plot_index = 0
+            ax_T[1].set_ylabel('Frac. fade time', fontsize=10)
+            ax_T[1].plot(range_delta_t, fractional_fade_time_list)
 
-    turb = turbulence(ranges=ranges, link=link)
-    turb.windspeed_func(slew=slew_rate, Vg=V_ac, wind_model_type=wind_model_type)
-    turb.Cn_func(turbulence_model=turbulence_model)
-    r0 = turb.r0_func(zenith_angles=zenith)
-    turb.var_rytov_func(zenith_angles=zenith)
-    turb.var_scint_func(zenith_angles=zenith)
-    turb.Strehl_ratio_func(tip_tilt="YES")
-    turb.beam_spread()
-    turb.var_bw_func(zenith_angles=zenith)
-    turb.var_aoa_func(zenith_angles=zenith)
-    turb.print(index=plot_index, elevation=np.rad2deg(elevation), ranges=ranges)
+            ax_T[2].set_ylabel('Mean fade time (ms)', fontsize=10)
+            ax_T[2].plot(range_delta_t, np.array(mean_fade_time_list)*1E3)
 
-    interval_channel_level = 500.0
-    t = np.arange(0.0, interval_channel_level, step_size_channel_level)
-    samples_channel_level = int(len(t))
-    P_r, PPB, elevation_angles, pdf_h_tot, pdf_P_r, h_tot, turb.h_scint, h_RX, h_TX = channel_level(
-        plot_index=plot_index, LCT=LCT, turb=turb, P_r_0=P_r_0, ranges=ranges, elevation_angles=elevation,
-        zenith_angles=zenith, samples=samples_channel_level)
-    mean_0 = P_r.mean()
-    mean_0_dB = W2dB(mean_0)
-    var_0 = P_r.var()
-    var_0_dB = W2dB(var_0)
-    threshold_condition = pdf_P_r[1] < LCT.P_r_thres[1]
-    fractional_fade_time_0 = np.trapz((pdf_P_r[0])[threshold_condition], x=(pdf_P_r[1])[threshold_condition])
+            ax_T[3].set_ylabel('Sample variance \n of $P_r$ (dB)', fontsize=10)
+            ax_T[3].plot(range_delta_t, var_P_r_list)
+            ax_T[3].set_xlabel('Macroscale $\Delta$T (sec)', fontsize=15)
 
-    # TURBULENCE DISTRIBUTION FOR 1 MILLION SAMPLES
-    fig_T, ax_T = plt.subplots(4,1)
-    ax_T[0].set_title('Channel sample size determination \n'
-                      '($\epsilon$='+str(np.round(np.rad2deg(elevation[0]),2))+', $\sigma_{Rytov}^2$='+str(np.round(turb.var_rytov[0],3))+')')
-    ax_T[0].set_ylabel('PDF')
-    ax_T[0].set_xlabel('Pr (dBm)')
+            if input_variable == 'frequency' and variable == 1000.0 or \
+                    input_variable == 'aperture' and variable == 0.08 or input_variable == 'none':
+                ax_T[1].plot([range_delta_t[0], range_delta_t[-1]], fractional_fade_time_list[0] * 0.95 * np.ones(2),
+                             label='5% diff', color='black')
+                ax_T[1].plot([range_delta_t[0], range_delta_t[-1]], fractional_fade_time_list[0] * 1.05 * np.ones(2),
+                             color='black')
+                ax_T[2].plot([range_delta_t[0], range_delta_t[-1]], mean_fade_time_list[0] * 1E3 * 0.95 * np.ones(2),
+                             label='-5% diff ', color='black')
+                ax_T[2].plot([range_delta_t[0], range_delta_t[-1]], mean_fade_time_list[0] * 1E3 * 1.05 * np.ones(2),
+                             color='black')
+                ax_T[3].plot([range_delta_t[0], range_delta_t[-1]], (var_P_r_list[0] - 0.5) * np.ones(2),
+                             label='-0.5 dB diff', color='black')
+                ax_T[3].plot([range_delta_t[0], range_delta_t[-1]], (var_P_r_list[0] + 0.5) * np.ones(2),
+                             color='black')
 
-    interval_channel_level = np.arange(0.1,50.0,0.1)
-    fractional_fade_time_list = []
-    number_of_fades_list = []
-    mean_fade_time_list = []
-    var_list = []
-    mean_list = []
-    for interval in interval_channel_level:
-        print(interval, list(interval_channel_level).index(interval))
-        t = np.arange(0.0, interval, step_size_channel_level)
-        v = int(len(t)) - 1
-        P_r, PPB, elevation_angles, pdf_h_tot, pdf_P_r, h_tot, turb.h_scint, h_RX, h_TX = channel_level(
-            plot_index=plot_index, LCT=LCT, turb=turb, P_r_0=P_r_0, ranges=ranges, elevation_angles=elevation,
-            zenith_angles=zenith, samples=v)
-        x = pdf_P_r[1]
-        pdf_T = gamma((v+1)/2) / (np.sqrt(v*np.pi)*(v/2)) * (1+x**2/v)**(-(v+1)/2)
-        # ax_T.plot(W2dBm(x), pdf_T, label='v='+str(int(v/100))+'E3 samples')
-        mean = P_r.mean()
-        mean_dB = W2dB(mean)
-        var = P_r.var()
-        var_dB = W2dB(var)
+        elif model_variable == 'micro: sample size':
 
-        number_of_fades = np.count_nonzero((P_r < LCT.P_r_thres[1]))
-        threshold_condition = pdf_P_r[1] < LCT.P_r_thres[1]
-        fractional_fade_time = np.trapz((pdf_P_r[0])[threshold_condition], x=(pdf_P_r[1])[threshold_condition])
-        mean_fade_time = fractional_fade_time / number_of_fades
+            ax_T[1].set_ylabel('Frac fade \n time (-)', fontsize=10)
+            ax_T[1].plot(interval_channel_level, fractional_fade_time_list)
 
-        var_list.append(var_dB)
-        mean_list.append(mean_dB)
-        fractional_fade_time_list.append(fractional_fade_time)
-        number_of_fades_list.append(number_of_fades)
-        mean_fade_time_list.append(mean_fade_time)
+            ax_T[2].set_ylabel('Mean fade \n time (ms)', fontsize=10)
+            ax_T[2].plot(interval_channel_level, np.array(mean_fade_time_list)*1E3)
 
-        if list(interval_channel_level).index(interval) == 99 or list(interval_channel_level).index(interval) == 299 or list(interval_channel_level) == 499:
-            print('plot pdf')
-        # if abs(interval - 5)<0.05 or abs(interval - 15)<0.05 or abs(interval - 25)<0.05 or abs(interval - 50)<0.05:
-            ax_T[0].plot(W2dBm(x), pdf_P_r[0],
-                         label='v='+str(int(v/1E3))+'E3, $\mu$=' + str(
-                     np.round(W2dB(mean), 3)) + 'dB, $\sigma^2$=' + str(np.round(W2dB(var), 3)) + 'dB')
+            ax_T[3].set_ylabel('Variance (dB)', fontsize=10)
+            ax_T[3].plot(interval_channel_level, var_P_r_list)
+            ax_T[3].set_xlabel('Population size (sec)', fontsize=15)
 
-    ax_T[0].plot(W2dBm(pdf_P_r[1]), pdf_P_r[0],
-                 label='True, $\mu$=' + str( np.round(W2dB(mean_0), 3)) + 'dB, $\sigma^2$=' + str(np.round(W2dB(var_0), 3)) + 'dB')
-    ax_T[0].plot(np.ones(2) * W2dBm(LCT.P_r_thres[1]), [(pdf_P_r[0]).min(), (pdf_P_r[0]).max()],
-                 c='black', linewidth=3, label='Treshold BER=1E-6')
-    sample_list = interval_channel_level / step_size_channel_level
-    ax_T[1].set_ylabel('Fractional fade time \n for $BER_{thres}$=1E-6')
-    ax_T[1].plot(sample_list/1E3, fractional_fade_time_list, linewidth=0.5)
-    ax_T[1].plot([(sample_list[0]) / 1E3, (sample_list[-1]) / 1E3], fractional_fade_time_0 * np.ones(2), label='True fractional fade time')
-    ax_T[1].plot([(sample_list[0]) / 1E3, (sample_list[-1]) / 1E3], fractional_fade_time_0 * 0.90 * np.ones(2), label='-10% diff from true', color='black')
-    ax_T[1].plot([(sample_list[0]) / 1E3, (sample_list[-1]) / 1E3], fractional_fade_time_0 * 1.10 * np.ones(2), label='+10% diff from true', color='grey')
+            print('frequency =', variable)
+            if input_variable == 'frequency' and variable == 1000.0 or \
+                    input_variable == 'aperture' and variable == 0.08 or input_variable == 'none':
+                print('PLOTTING--------------------------------------')
+                ax_T[1].plot([interval_channel_level[0], interval_channel_level[-1]], fractional_fade_time_list[-1] * 0.95 * np.ones(2),
+                             label='5% diff', color='black')
+                ax_T[1].plot([interval_channel_level[0], interval_channel_level[-1]], fractional_fade_time_list[-1] * 1.05 * np.ones(2),
+                             color='black')
+                ax_T[2].plot([interval_channel_level[0], interval_channel_level[-1]], mean_fade_time_list[-1] * 1E3 * 0.95 * np.ones(2),
+                             label='-5% diff ', color='black')
+                ax_T[2].plot([interval_channel_level[0], interval_channel_level[-1]], mean_fade_time_list[-1] * 1E3 * 1.05 * np.ones(2),
+                             color='black')
+                ax_T[3].plot([interval_channel_level[0], interval_channel_level[-1]], (var_P_r_list[-1] - 0.5) * np.ones(2),
+                             label='-0.5 dB diff', color='black')
+                ax_T[3].plot([interval_channel_level[0], interval_channel_level[-1]], (var_P_r_list[-1] + 0.5) * np.ones(2),
+                             color='black')
 
-    ax_T[2].set_ylabel('Sample variance (dB)')
-    ax_T[2].plot(sample_list/1E3, var_list)
-    ax_T[2].plot([(sample_list[0])/1E3, (sample_list[-1])/1E3], var_0_dB * np.ones(2), label='True variance')
-    ax_T[2].plot([(sample_list[0]) / 1E3, (sample_list[-1]) / 1E3], (var_0_dB - 0.1) * np.ones(2), label='-0.1 dB diff from true', color='black')
-    ax_T[2].plot([(sample_list[0]) / 1E3, (sample_list[-1]) / 1E3], (var_0_dB + 0.1) * np.ones(2), label='+0.1 dB diff from true', color='grey')
 
-    ax_T[3].set_ylabel('Sample mean (dB)')
-    ax_T[3].set_xlabel('sample size of simulation (x1E3)')
-    ax_T[3].plot(sample_list/1E3, mean_list)
-    ax_T[3].plot([(sample_list[0]) / 1E3, (sample_list[-1]) / 1E3], mean_0_dB * np.ones(2), label='True mean')
-    ax_T[3].plot([(sample_list[0]) / 1E3, (sample_list[-1]) / 1E3], (mean_0_dB - 0.1) * np.ones(2), label='-0.1 dB diff from true', color='black')
-    ax_T[3].plot([(sample_list[0]) / 1E3, (sample_list[-1]) / 1E3], (mean_0_dB + 0.1) * np.ones(2), label='+0.1 dB diff from true', color='grey')
 
     ax_T[0].legend(loc='upper right')
     ax_T[0].grid()
@@ -1272,48 +1861,38 @@ def channel_level_verification():
     ax_T[2].grid()
     ax_T[3].legend(loc='upper right')
     ax_T[3].grid()
-    plt.show()
 
+    ax_T[0].set_ylabel('PDF')
+    ax_T[0].set_xlabel('Pr (dBm)', fontsize=15)
+    ax_T[0].plot(np.ones(2) * W2dBm(LCT.P_r_thres[1]), [0.0, 0.5],
+                 c='black', linewidth=3, label='Treshold BER=1E-6')
 
-
-    number_of_fades = np.count_nonzero((P_r < LCT.P_r_thres[1]))
-    threshold_condition = pdf_P_r[1] < LCT.P_r_thres[1]
-    fractional_fade_time = np.trapz((pdf_P_r[0][0])[threshold_condition], x=pdf_P_r[1][threshold_condition])
-    mean_fade_time = fractional_fade_time / number_of_fades
-
-
-
-    fig, ax = plt.subplots(2,1)
-    ax[0].plot(t[10:], W2dBm(P_r[plot_index, 10:]),
-               label='Dynamic power $P_{r}$, mean: ' + str(np.round(W2dBm(np.mean(P_r[plot_index])), 2)) + ' dBm')
-    ax[0].plot(t[10:], (np.ones(len(t)) * W2dBm(P_r_0[plot_index]))[10:],
-               label='Static power $P_{r0}$, mean: ' + str(np.round(W2dBm(np.mean(P_r_0[plot_index])), 2)) + ' dBm',
-               linewidth=2.0)
-    ax[0].plot(t[10:], (np.ones(len(t)) * W2dBm(LCT.P_r_thres[1]))[10:], label='BER: 1E-6')
-
-    ax[1].plot(W2dBm(pdf_P_r[1]), pdf_P_r[0])
-    ax[1].plot(W2dBm(np.ones(2) * LCT.P_r_thres[1]), [(pdf_P_r[0]).min(), (pdf_P_r[0]).max()])
-
-
-    ax[0].set_ylabel('P at RX [dBm]')
-    ax[0].set_xlabel('Time [s]')
-    ax[0].legend()
+    ax_fades[0].set_ylabel('frac fade \n time (-)', fontsize=10)
+    ax_fades[1].set_ylabel('mean fade \n time (ms)', fontsize=10)
+    ax_fades[2].set_ylabel('number of \n fades (#/s)', fontsize=10)
+    ax_fades[2].set_xlabel('elevation (deg)', fontsize=10)
+    ax_fades[0].legend(fontsize=10)
+    ax_fades[0].grid()
+    ax_fades[1].grid()
+    ax_fades[2].grid()
     plt.show()
 
 
 # test_constellation(constellation)
 # test_filter()
 # test_RS_coding('simple')
-# test_sensitivity(method='Gallion')
+# test_sensitivity(method='compare_backward_threshold_function_with_forward_BER_function')
 # test_windspeed()
+# Cn_profile()
+# test_scintillation()
 # test_beamwander()
 # test_jitter()
+# test_atmosphere()
 # test_PDF()
 # test_airy_disk()
-# test_noise_types()
-# test_mapping_dim1_dim2()
+noise_and_SNR_BER_verification()
 # simple_losses()
 # test_interleaving()
-
-multiscaling()
 # channel_level_verification()
+# coverage()
+# stability_verification()
