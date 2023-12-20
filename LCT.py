@@ -111,6 +111,8 @@ class terminal_properties:
 
         # Create attributes for the sensitivity if 'threshold == True'
         if threshold == True:
+            P_r = P_r * dB2W(margin_buffer*np.ones(P_r.shape))
+
             self.BER_thres = BER
             self.P_r_thres = P_r
             self.Q_thres   = Q

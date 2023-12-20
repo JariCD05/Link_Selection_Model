@@ -322,14 +322,14 @@ def channel_level(LCT,
         plt.show()
     def plot_all_losses_pdf():
         # Plot PDF losses
-        pdf_h_scint,x  = pdf_function(h_scint, len(ranges), min=0.0, max=2.0, steps=100)
-        pdf_h_bw,   x  = pdf_function(h_bw,    len(ranges), min=0.0, max=2.0, steps=100)
-        pdf_h_aoa,  x  = pdf_function(h_aoa,   len(ranges), min=0.0, max=2.0, steps=100)
-        pdf_h_pj_t, x  = pdf_function(h_pj_t,  1,           min=0.0, max=2.0, steps=100)
-        pdf_h_pj_r, x  = pdf_function(h_pj_r,  1,           min=0.0, max=2.0, steps=100)
+        pdf_h_scint,x  = pdf_function(h_scint, len(ranges), min=0.0, max=2.0, steps=1000)
+        pdf_h_bw,   x  = pdf_function(h_bw,    len(ranges), min=0.0, max=2.0, steps=1000)
+        pdf_h_aoa,  x  = pdf_function(h_aoa,   len(ranges), min=0.0, max=2.0, steps=1000)
+        pdf_h_pj_t, x  = pdf_function(h_pj_t,  1,           min=0.0, max=2.0, steps=1000)
+        pdf_h_pj_r, x  = pdf_function(h_pj_r,  1,           min=0.0, max=2.0, steps=1000)
 
-        pdf_h_TX,   x  = pdf_function(h_TX,    len(ranges), min=0.0, max=2.0, steps=100)
-        pdf_h_RX,   x  = pdf_function(h_RX,    len(ranges), min=0.0, max=2.0, steps=100)
+        pdf_h_TX,   x  = pdf_function(h_TX,    len(ranges), min=0.0, max=2.0, steps=1000)
+        pdf_h_RX,   x  = pdf_function(h_RX,    len(ranges), min=0.0, max=2.0, steps=1000)
 
         fig_losses_pdf, ax = plt.subplots(2, 1)
         ax[0].set_title('Micro-scale losses \n '

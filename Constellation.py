@@ -496,6 +496,7 @@ class constellation:
             print('Number of sats per plane : ' + str(number_sats_per_plane))
             print('------------------------------------------------')
 
+
         if constellation_data == 'SAVE':
             print('Saving states and dependent variables of all satellites to json file')
             # Converting arrays to lists

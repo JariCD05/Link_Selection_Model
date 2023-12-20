@@ -32,7 +32,7 @@ omega_earth = 2 * np.pi / 86400.0
 #----------------------------
 start_time = 0.0                                  # Start epoch of the simulation
 end_time = 3600 * 6 #3600.0   / 2                 # End epoch of the simulation
-step_size_link = 6.0                              # Step size at which the macro-scale model is simulated
+step_size_link = 5.0                              # Step size at which the macro-scale model is simulated
 step_size_SC = 7.0                                # Numerical propagation time step of all SPACECRAFT in the constellation
 step_size_AC = step_size_link                     # Numerical propagation time step of the AIRCRAFT
 integrator = "Runge Kutta 4"
@@ -45,7 +45,7 @@ frequency_filter_order = 2
 
 
 analysis    = 'total' # 'total' or 'time step specific'
-link_number = 1 # If 'all': model simulates all links
+link_number = 'all' # If 'all': model simulates all links
 
 ac_LCT = 'general' # 'general' or 'Zephyr'
 link   = "up" # 'up' or 'down'
@@ -171,7 +171,7 @@ sensitivity_acquisition_sc = 3.16227766016e-10  # Sensitivity of acquisition sys
 #----------------------------------------------------------------------------------------------------
 #--------------------------------------AIRCRAFT-PARAMETERS-------------------------------------------
 #----------------------------------------------------------------------------------------------------
-method_AC = "opensky" #"straight" or "opensky" # Choice of AIRCRAFT propagation, load from database (="opensky") or propagate a straight trajectory (="straight")
+method_AC = "straight" #"straight" or "opensky" # Choice of AIRCRAFT propagation, load from database (="opensky") or propagate a straight trajectory (="straight")
 #--------------------In case of 'straight' method-----------------
 h_AC   = 10.0E3                                # Cruise altitude of aircraft (in m)
 vel_AC = np.array([0.0, 220.0, 0.0])           # velocity vector of aircraft (in m/sec)
@@ -201,8 +201,8 @@ SC_filename_save  = r'C:\Users\wiege\Documents\TUDelft_Spaceflight\Thesis\ac_sc_
 constellation_type = "LEO_cons"                 # Type of constellation (1 sat in LEO, 1 sat in GEO, LEO constellation)
 h_SC = 1200.0E3 #(SDA) or 550.0E3 (Starlink)       # Initial altitude of the satellite(s)
 inc_SC = 85.0 #55.98 (Starlink) or 0.0 (GEO) or 80.0 (SDA)  # Initial inclination of the satellite(s)
-number_of_planes = 2                            # Number of planes within the constellation (if 1 sat: number_of_planes = 1)
-number_sats_per_plane = 14                      # Number of satellites per plane within the constellation (if 1 sat: number_sats_per_plane = 1)
+number_of_planes = 2                           # Number of planes within the constellation (if 1 sat: number_of_planes = 1)
+number_sats_per_plane = 14                     # Number of satellites per plane within the constellation (if 1 sat: number_sats_per_plane = 1)
 #---------------------In case of 'TLE' method------------------
 TLE_filename_load = r'C:\Users\wiege\Documents\TUDelft_Spaceflight\Thesis\ac_sc_data\constellation_TLE_data\oneweb_tle.json'
 
@@ -234,9 +234,9 @@ n_index = 1.002                                 # Refractive index of atmosphere
 #----------------------------------------------------------------------------------------------------
 
 
-
 # LCT model choices
 #----------------------------
+margin_buffer = 3.0 # dB
 desired_frac_fade_time = 0.01
 BER_thres = [1.0E-9, 1.0E-6, 1.0E-3]            # Minimum required Bit Error Rate, defined for an acceptable link
 coding = 'no' # 'yes' or 'no'
@@ -358,3 +358,26 @@ R         = eff_quantum * q / (h * v)             # Responsivity of the detector
 orbital_period = 2 * np.pi * np.sqrt((R_earth+h_SC)**3 / mu_earth)
 v_zenith  = 2 * np.pi * (R_earth+h_SC) / orbital_period
 slew_rate_zenith = np.rad2deg(v_zenith / (h_SC - h_AC))
+
+# h = 800E3
+# FOV = np.deg2rad(3.4)
+# T = 2 * np.pi * np.sqrt((R_earth+h)**3 / mu_earth)
+# V = np.sqrt(mu_earth/(R_earth+h))
+# T_hrs = T/3600
+# day_hrs = 24
+# print(V/1000)
+# print(T_hrs, day_hrs/T_hrs)
+# number_of_satellites = 34/(day_hrs/T_hrs)
+# print(number_of_satellites)
+#
+# cross_track = 2 * h*np.cos(np.deg2rad(20)) * np.tan(FOV/2)
+#
+# res = 300.0
+# pixels = cross_track/res
+#
+# print('pixels', cross_track/1000, 2048/pixels)
+#
+# c = np.sqrt(R_earth**2 + (R_earth+h)**2 - 2*R_earth*(R_earth+h)*np.cos(np.deg2rad(25)))/1000
+# print(c)
+#
+# print(1E-3 * 800E3)

@@ -219,7 +219,8 @@ class link_geometry:
     #-------------------------------------------------------
 
 
-    def plot(self, type="trajectories", routing_output = 0.0, fig=False,ax=False, aircraft_filename=False, time=0):
+    def plot(self, type="trajectories", routing_output = 0.0, fig=False,ax=False, aircraft_filename=False, time=0,
+             availability=0):
 
         if type == "trajectories":
             # Define a 3D figure using pyplot
@@ -313,33 +314,39 @@ class link_geometry:
             time_hrs = self.time / 60
             samples = number_sats_per_plane * number_of_planes * len(self.geometrical_output['elevation'][0])
             samples_selected = len(flatten(routing_output['elevation']))
-            fig_elev, axs = plt.subplots(4, 1, figsize=(6, 6), dpi=125)
+            fig_elev, axs = plt.subplots(3, 1, figsize=(6, 6), dpi=125)
             for i in range(len(self.geometric_data_sats['satellite name'])):
-                axs[0].plot(time_hrs, np.rad2deg(self.geometrical_output['elevation'][i]))
+                axs[0].plot(time_hrs, (self.geometrical_output['ranges'][i])/1000)
+                axs[1].plot(time_hrs, np.rad2deg(self.geometrical_output['elevation'][i]))
+                axs[2].plot(time_hrs, np.rad2deg(self.geometrical_output['slew rates'][i]))
 
-            for i in range(len(routing_output['link number'])):
-                axs[1].plot(routing_output['time'][i]/60, np.rad2deg(routing_output['elevation'][i]))
-                axs[2].plot(routing_output['time'][i] / 60, np.rad2deg(routing_output['azimuth'][i]))
-                axs[3].plot(routing_output['time'][i]/60, np.rad2deg(routing_output['slew rates'][i]))
+            # for i in range(len(routing_output['link number'])):
+                # axs[1].plot(routing_output['time'][i]/60, np.rad2deg(routing_output['elevation'][i]))
+                # axs[2].plot(routing_output['time'][i] / 60, np.rad2deg(routing_output['azimuth'][i]))
+                # axs[2].plot(routing_output['time'][i]/60, np.rad2deg(routing_output['slew rates'][i]))
 
-            axs[0].set_title(f'Aircraft-Satellite looking angles \n'
-                             f'All links: '+str(samples)+' steps', fontsize=10)
-            axs[1].set_title(f'Selected links: ' + str(samples_selected)+' steps', fontsize=10)
+            # axs[0].set_title(f'Aircraft-Satellite looking angles \n'
+            #                  f'All links: '+str(samples)+' steps', fontsize=10)
+            # axs[1].set_title(f'Selected links: ' + str(samples_selected)+' steps', fontsize=10)
 
-            axs[0].plot(time_hrs, np.ones(len(self.time)) * np.rad2deg(elevation_min),
-                          label='Minimum elevation=' + str(np.round(np.rad2deg(elevation_min), 2)) + 'deg')
+            axs[1].plot(time_hrs, np.ones(len(self.time)) * np.rad2deg(elevation_min),
+                          label='Minimum elevation constraint=' + str(np.round(np.rad2deg(elevation_min), 2)) + 'deg')
+            # axs[1].plot(time_hrs, np.ones(len(self.time)) * np.rad2deg(elevation_min),
+            #             label='Minimum elevation constraint=' + str(np.round(np.rad2deg(elevation_min), 2)) + 'deg')
+            # axs[2].plot(time_hrs, np.ones(len(self.time)) * np.rad2deg(elevation_min),
+            #             label='Minimum elevation constraint=' + str(np.round(np.rad2deg(elevation_min), 2)) + 'deg')
 
-            axs[0].set_ylabel('Elevation (degrees) \n all links')
-            axs[1].set_ylabel('Elevation (degrees) \n per link')
-            axs[2].set_ylabel('Azimuth   (degrees) \n per link')
-            axs[3].set_ylabel('Slew rate (deg/s)   \n per link')
+            axs[0].set_ylabel('Range (km)')
+            axs[1].set_ylabel('Elevation (deg)')
+            # axs[2].set_ylabel('Azimuth   (degrees) \n per link')
+            axs[2].set_ylabel('Slew rate (deg/s)')
 
-            axs[2].set_xlabel('Time (min)')
+            axs[2].set_xlabel('Time (hrs)')
             # axs[0].legend(fontsize=15)
             axs[0].grid()
             axs[1].grid()
             axs[2].grid()
-            axs[3].grid()
+            # axs[3].grid()
             plt.show()
 
         elif type == "longitude-latitude":
@@ -377,8 +384,9 @@ class link_geometry:
                 fig = plt.figure(figsize=(6, 6), dpi=125)
                 ax = fig.add_subplot(111, projection='3d')
 
-            ax.set_title('Number of satellites: '+str(len(self.geometric_data_sats['satellite name']))+'\n'
-                         'Number of links: '+str(routing_output['link number'][-1])+', average link time (minutes): '+str(np.round(np.mean(comm_time)/60,2)))
+            ax.set_title(str(len(self.geometric_data_sats['satellite name']))+' satellites, ' + str(routing_output['link number'][-1]) +' links \n'
+                         'Average link time (min): '+str(np.round(np.mean(comm_time)/60,2)) + '\n'
+                         'Availability (%): ' + str(np.round(availability*100,1)), fontsize=8)
 
 
             # Plot all other satellites in constellation
@@ -396,10 +404,10 @@ class link_geometry:
                         self.geometric_data_sats['states'][i][:, 2],
                         self.geometric_data_sats['states'][i][:, 3],
                         linestyle='-', linewidth=0.1, color='sienna')
-                ax.scatter(self.geometric_data_sats['states'][i][0, 1],
-                           self.geometric_data_sats['states'][i][0, 2],
-                           self.geometric_data_sats['states'][i][0, 3],
-                           linestyle='-', s=10, color='sienna')
+                # ax.scatter(self.geometric_data_sats['states'][i][0, 1],
+                #            self.geometric_data_sats['states'][i][0, 2],
+                #            self.geometric_data_sats['states'][i][0, 3],
+                #            linestyle='-', s=10, color='sienna')
 
 
 
@@ -446,9 +454,9 @@ class link_geometry:
 
             # Add the legend and labels, then show the plot
             ax.legend()
-            ax.set_xlabel('x [m]', fontsize=15)
-            ax.set_ylabel('y [m]', fontsize=15)
-            ax.set_zlabel('z [m]', fontsize=15)
+            ax.set_xlabel('x [m]', fontsize=7)
+            ax.set_ylabel('y [m]', fontsize=7)
+            ax.set_zlabel('z [m]', fontsize=7)
             ax.set_xlim(-6.0E6, 6.0E6)
             ax.set_ylim(-6.0E6, 6.0E6)
             ax.set_zlim(-6.0E6, 6.0E6)
