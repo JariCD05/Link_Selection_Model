@@ -91,44 +91,6 @@ if ac_LCT == 'general':
     R_L_ac = 50.0                                   # Load resistor of aircraft LCT (in case of PIN detection)              REF: Commonly used
     sensitivity_acquisition_ac = 3.16227766016e-10  # Sensitivity of acquisition system of aircraft LCT                     REF: Remco (-95 dB -> 3.16e-10 W)
 
-elif ac_LCT == 'Zephyr':
-    # Aircraft LCT (Zephyr)
-    #----------------------------
-    wavelength_ac = 1553.0E-9                       # wavelength of laser (in m), REF: given by Airbus
-    data_rate_ac = 2.5E9                            # Data rate of the link (1 - 10 Gbit/s), REF: given by Airbus
-    P_ac = 1.2                                      # Optical power at aircraft LCT (in W)                                  REF: Remco, ranges are typically between 5-10 W
-    D_ac = 0.04                                     # Aperture diameter of aircraft LCT (in m)                              REF: Zephyr link budget
-    clipping_ratio_ac = 1.6                         # Clipping ratio of aircraft telescope                                  REF: Zephyr link budget
-    obscuration_ratio_ac = 0.0                      # Obscuration ratio of aircraft telescope                               REF: Zephyr, HAPS-TN-ADSN-0008
-    M2_defocus_ac = 1.1                             # M2 booster, defocusing of the beam at TX                              REF: Zephyr link budget
-    M2_defocus_acquisition_ac = 7.56                # M2 booster, defocusing of the beam at TX, during acquistion           REF: Zephyr link budget
-    # angle_div_ac_acquisition = 300E-6             # Diffraction limited divergence angle during acquisition               REF: R.Saathof AE4880 slides I, P.19
-
-    focal_length_ac = 0.187                         # Focal length of the aircraft LCT lens (in m)                          REF: Zephyr, HAPS-TN-ADSN-0008
-    angle_pe_ac = 6.8E-6                            # Pointing error of aircraft LCT (in rad)                               REF: Technical note Zephyr
-    std_pj_ac = 4.0E-6                              # pointing jitter variance of aircraft LCT (in rad)                     REF: Technical note Zephyr
-    std_pj_spot_ac = 25.0E-6                        # Pointing jitter variance for spot of aircraft LCT (in rad)            REF: Zephyr, HAPS-TN-ADSN-0008, P.17
-    eff_quantum_ac = 1.0                            # Quantum efficiency of photon detector aircraft LCT (no unit)          REF: Commonly used
-    T_s_ac = 300                                    # Circuit temperature of aircraft LCT (in Kelvin)                       REF: Commonly used
-    FOV_ac = 3.5E-6                                 # Field of View of aircraft LCT (in steradian)
-    FOV_ac_acquisition = 6.5E-3 #(Zephyr)           # Field of View of aircraft LCT (in steradian)                          REF: Rudolf
-
-    eff_transmission_ac = 0.8 #1.0 dB (Zephyr)      # One-mode fiber nominal coupling efficiency of the receiving LCT       REF: Zephyr link budget
-    WFE_static_ac = 100.0E-9                        # Static Wave front error loss in the fiber (without turbulence)        REF: Zephyr link budget
-    WFE_static_acquisition_ac = 150.0E-9            # Static Wave front error in case of acquisition                        REF: Zephyr link budget
-    h_splitting_ac = 0.9                            # Tracking efficiency of aircraft LCT                                   REF: Remco (10% of incoming light is assumed for tracking control)
-
-    detection_ac = "Preamp"                         # Detection method of aircraft LCT ('PIN', 'Preamp', 'APD')             REF: Majumdar 2008
-    mod_ac = "OOK-NRZ"                              # Modulation method  of aircraft LCT ('BDPSK', 'M-PPM', 'OOK-NRZ')      REF: Majumdar 2008
-    M_ac = 350.0                                    # Amplification gain of of aircraft LCT (For ADP & Preamp)              REF: Avalanche Photodiodes: A User's Guide, p.6
-    F_ac = 3.0                                      # Noise factor of the aircraft LCT (For ADP & Preamp)                   REF: Avalanche Photodiodes: A User's Guide, p.6
-    BW_ac = 0.5 * data_rate_ac                      # Optical bandwidth at aircraft LCT (in Hz) # 0.8 * data_rate           REF: Commonly used
-    Be_ac = 0.5 * BW_ac                             # Electrical bandwidth at aircraft LCT (in Hz) # 0.5 * BW_sc            REF: Commonly used
-    delta_wavelength_ac = 5.0E-9                    # Optical filter at aircraft LCT (in m)                                 REF: Commonly used
-    R_L_ac = 50.0                                   # Load resistor of aircraft LCT (in case of PIN detection)              REF: Commonly used
-    sensitivity_acquisition_ac = 3.16227766016e-10  # Sensitivity of acquisition system of aircraft LCT                     REF: Remco (-95 dB -> 3.16e-10 W)
-    #Single-fiber, low-noise pre-amplifier
-    # Sensitivity: -47 for 2.5Gb/s (TESAT), -43 for 1.25Gb/s
 
 # Spacecraft LCT
 #----------------------------
@@ -171,7 +133,7 @@ sensitivity_acquisition_sc = 3.16227766016e-10  # Sensitivity of acquisition sys
 #----------------------------------------------------------------------------------------------------
 #--------------------------------------AIRCRAFT-PARAMETERS-------------------------------------------
 #----------------------------------------------------------------------------------------------------
-method_AC = "straight" #"straight" or "opensky" # Choice of AIRCRAFT propagation, load from database (="opensky") or propagate a straight trajectory (="straight")
+method_AC = "opensky" #"straight" or "opensky" # Choice of AIRCRAFT propagation, load from database (="opensky") or propagate a straight trajectory (="straight")
 #--------------------In case of 'straight' method-----------------
 h_AC   = 10.0E3                                # Cruise altitude of aircraft (in m)
 vel_AC = np.array([0.0, 220.0, 0.0])           # velocity vector of aircraft (in m/sec)
@@ -358,26 +320,3 @@ R         = eff_quantum * q / (h * v)             # Responsivity of the detector
 orbital_period = 2 * np.pi * np.sqrt((R_earth+h_SC)**3 / mu_earth)
 v_zenith  = 2 * np.pi * (R_earth+h_SC) / orbital_period
 slew_rate_zenith = np.rad2deg(v_zenith / (h_SC - h_AC))
-
-# h = 800E3
-# FOV = np.deg2rad(3.4)
-# T = 2 * np.pi * np.sqrt((R_earth+h)**3 / mu_earth)
-# V = np.sqrt(mu_earth/(R_earth+h))
-# T_hrs = T/3600
-# day_hrs = 24
-# print(V/1000)
-# print(T_hrs, day_hrs/T_hrs)
-# number_of_satellites = 34/(day_hrs/T_hrs)
-# print(number_of_satellites)
-#
-# cross_track = 2 * h*np.cos(np.deg2rad(20)) * np.tan(FOV/2)
-#
-# res = 300.0
-# pixels = cross_track/res
-#
-# print('pixels', cross_track/1000, 2048/pixels)
-#
-# c = np.sqrt(R_earth**2 + (R_earth+h)**2 - 2*R_earth*(R_earth+h)*np.cos(np.deg2rad(25)))/1000
-# print(c)
-#
-# print(1E-3 * 800E3)

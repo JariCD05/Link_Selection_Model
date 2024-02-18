@@ -45,17 +45,21 @@ class terminal_properties:
         # Shot noise is defined as the fluctuations of incoming photons, thus signal-dependent.
         # For a low number of incoming photons (<20 BPP) , the shot noise distribution is POISON.
         # For a high number of incoming photons (>20 BPP), the shot noise distributino is approximated as GAUSSIAN.
-        noise_sh = 4 * self.Sn * R ** 2 * P_r * Be / eff_quantum                                                        # REF: BASICS OF INCOHERENT AND COHERENT OPTICAL COMMUNICATIONS, P.GALLION, EQ.3.55
+        # REF: BASICS OF INCOHERENT AND COHERENT OPTICAL COMMUNICATIONS, P.GALLION, EQ.3.55
+        noise_sh = 4 * self.Sn * R ** 2 * P_r * Be / eff_quantum                                                        
 
         # Thermal/circuit noise is a system characteristic and thus signal-independent
-        noise_th = (4 * k * T_s * Be / R_L)                                                                             # REF: BASICS OF INCOHERENT AND COHERENT OPTICAL COMMUNICATIONS, P.GALLION, EQ.3.100
+        # REF: BASICS OF INCOHERENT AND COHERENT OPTICAL COMMUNICATIONS, P.GALLION, EQ.3.100
+        noise_th = (4 * k * T_s * Be / R_L)                                                                             
 
         # Background noise is caused by sun and atmosphere
         # Solar irradiance are defined in input.py, atmospheric irradiance is neglected.
-        noise_bg = background_noise(Sn=self.Sn,R=R,I=I_sun,D=D_r,delta_wavelength=delta_wavelength, FOV=FOV_r, Be=Be)   # REF: DEEP SPACE OPTICAL COMMUNICATIONS, H.HEMMATI
+        # REF: DEEP SPACE OPTICAL COMMUNICATIONS, H.HEMMATI
+        noise_bg = background_noise(Sn=self.Sn,R=R,I=I_sun,D=D_r,delta_wavelength=delta_wavelength, FOV=FOV_r, Be=Be)   
 
         # Noise-against-noise beating is defined by the squared response of the optical detector.
-        noise_beat = 2 * self.m * R**2 * self.Sn**2 * (BW - Be/2) * Be                                                  # REF: BASICS OF INCOHERENT AND COHERENT OPTICAL COMMUNICATIONS, P.GALLION, EQ.3.98
+        # REF: BASICS OF INCOHERENT AND COHERENT OPTICAL COMMUNICATIONS, P.GALLION, EQ.3.98
+        noise_beat = 2 * self.m * R**2 * self.Sn**2 * (BW - Be/2) * Be                                                  
 
         if micro_scale == 'yes':
             print('NOISE MODEL')
@@ -100,11 +104,14 @@ class terminal_properties:
 
         # Secondly, compute Pr threshold. This depends on the detection type and noise (SNR --> Pr)
         if detection == "PIN":
-            P_r = Q * 2 * np.sqrt(4 * k * T_s * Be / R_L) / R                                                           # REF: BASICS OF INCOHERENT AND COHERENT DIGITAL OPTICAL COMMUNICATIONS, P.GALLION, EQ.3.123
+            # REF: BASICS OF INCOHERENT AND COHERENT DIGITAL OPTICAL COMMUNICATIONS, P.GALLION, EQ.3.123
+            P_r = Q * 2 * np.sqrt(4 * k * T_s * Be / R_L) / R                                                           
         elif detection == "APD" or detection == "Preamp":
+            # REF: BASICS OF INCOHERENT AND COHERENT DIGITAL OPTICAL COMMUNICATIONS, P.GALLION, EQ.3.130
             P_r = 2 * Q * self.Sn * 2 * Be / M * \
-                  (Q + np.sqrt(self.m/2 * (2*BW/(2*Be) - 1/2) + 2 * k * T_s / (R_L * 4 * Be * R**2 * self.Sn**2)))      # REF: BASICS OF INCOHERENT AND COHERENT DIGITAL OPTICAL COMMUNICATIONS, P.GALLION, EQ.3.130
+                  (Q + np.sqrt(self.m/2 * (2*BW/(2*Be) - 1/2) + 2 * k * T_s / (R_L * 4 * Be * R**2 * self.Sn**2)))      
         elif detection == "quantum limit":
+            # REF: BASICS OF INCOHERENT AND COHERENT DIGITAL OPTICAL COMMUNICATIONS, P.GALLION
             P_r = Q**2 * h * v * 2 * Be / eff_quantum
 
         PPB = PPB_func(P_r, data_rate)
@@ -146,8 +153,10 @@ class terminal_properties:
             Q = M * P_r * R / (np.sqrt(noise_sh) + 2*np.sqrt(noise_bg) + 2*np.sqrt(noise_beat) + 2*np.sqrt(noise_th))
 
         elif detection == "quantum limit":
-            SNR = P_r * eff_quantum / (2 * h * v * Be)                                                                  # REF: Gallion Eq. 3-112
-            Q = P_r * R / np.sqrt(2*q*P_r * R*Be)                                                                       # REF: Gallion Eq. 3-113
+            # REF: Gallion Eq. 3-112
+            SNR = P_r * eff_quantum / (2 * h * v * Be)  
+            # REF: Gallion Eq. 3-113                                                                
+            Q = P_r * R / np.sqrt(2*q*P_r * R*Be)                                                                       
         return SNR, Q
 
     def BER_func(self,

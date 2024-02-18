@@ -97,55 +97,7 @@ class constellation:
             from astropy import coordinates as coord, units as u
             from astropy.time import Time
 
-            # f = open('oneweb_tle.json', "r")
-            # data = json.loads(f.read())
-            # for i in data:
-            #     satellite = Satrec.twoline2rv(i['tle_1'], i['tle_2'])
-            #
-            #     year = int('20'+str(satellite.epochyr))
-            #     decimal_days = satellite.epochdays
-            #     date = datetime(year, 1, 1) + timedelta(days=decimal_days)
-            #
-            #     jd = satellite.jdsatepoch
-            #     j2000d = jd - 2451545
-            #     self.time_jd = AC_time + jd
-            #     fr = np.zeros(len(self.time_jd))
-            #     e, p, v = satellite.sgp4_array(self.time_jd, fr)
-
-                # # Conversion from TEME to ITRF
-                # for i in range(len(p)):
-                #     p_new, v_new = sgp4lib.TEME_to_ITRF(time_jd[i], np.asarray(p[i]), v[i] * 86400)
-                #     v = v / 86400
-                #     # Conversion from ITRF to J2000
-                #     now = Time(date)
-                #     itrs = coord.ITRS(p_new[0] * u.km, p_new[1] * u.km, p_new[2] * u.km, v_new[0] * u.km / u.s, v_new[1] * u.km / u.s,
-                #                       v_new[2] * u.km / u.s, obstime=now)
-                #     gcrs = itrs.transform_to(coord.GCRS(obstime=now))
-                #     p_new, v_new = gcrs.cartesian.xyz.value, gcrs.velocity.d_xyz.value
-                #     print(i)
-                # # Create 1 state vector
-                # print('1 sat converted to J2000')
-
-            #     p_v = np.hstack((p * 1E3, v * 1E3))
-            #     states_array = np.hstack((self.time_jd.reshape(-1, 1), p_v))
-            #     heights_array = np.sqrt(p[:,0]**2 + p[:,1]**2 + p[:,2]**2)*1E3 - R_earth
-            #
-            #     self.states_array_sats[i['satellite_name']] = states_array
-            #     self.dep_var_array_sats[i['satellite_name']] = heights_array
-            # f.close()
-
-            # fig = plt.figure(figsize=(6, 6), dpi=125)
-            # ax = fig.add_subplot(111, projection='3d')
-            # for i in data:
-            #     if i['satellite_name'] == "ONEWEB-0641":
-            #         ax.scatter(self.states_array_sats[i['satellite_name']][:, 1],
-            #                 self.states_array_sats[i['satellite_name']][:, 2],
-            #                 self.states_array_sats[i['satellite_name']][:, 3],
-            #                 linestyle='-', linewidth=0.5, color='orange')
-            # plt.show()
-
-            # return self.states_array_sats, self.dep_var_array_sats, self.time_jd
-
+            
             # Add vehicle object to system of bodies
             self.bodies.create_empty_body("sat")
 
@@ -401,66 +353,7 @@ class constellation:
                     states = dynamics_simulator.state_history
                     dependent_variables = dynamics_simulator.dependent_variable_history
 
-                    # ------------------------------------------------------------------------
-                    # ----------------------------STEP-SIZE-ANALYSIS--------------------------
-                    # ------------------------------------------------------------------------
-                    if step_size_analysis == True:
-                        integrators = ["Runge Kutta 4", "Runge Kutta 7"]
-                        # integrators = ["Runge Kutta 4"]
 
-                        # step_sizes = np.arange(0.1, 10.0, 0.1)
-                        fig, ax = plt.subplots(1, 1)
-                        ax.set_title('Step size analysis \n'
-                                     'Starlink: h=' + str(h_SC / 1000) + 'km, inc=' + str(inc_SC) + '$\degree$ \n', fontsize=15)
-                        for int in integrators:
-                            if int == "Runge Kutta 4":
-                                step_sizes = np.arange(1, 15, 0.1)
-                            elif int == "Runge Kutta 7":
-                                step_sizes = np.arange(1, 80, 1)
-                            # List of max errors
-                            error_max = []
-                            for step_size in step_sizes:
-                                # Define type of propagator (Default is Runge Kutta 4)
-                                # And create numerical integrator settings
-                                if int == "Runge Kutta 4":
-                                    print(int)
-                                    coefficient_set = propagation_setup.integrator.rkf_45
-                                elif int == "Runge Kutta 7":
-                                    print(int)
-                                    coefficient_set = propagation_setup.integrator.rkf_78
-
-                                self.integrator_settings = propagation_setup.integrator.runge_kutta_variable_step_size(
-                                    self.simulation_start_epoch, step_size, coefficient_set,
-                                    step_size, step_size,
-                                    np.inf, np.inf)
-
-                                # Create simulation object and propagate the dynamics
-                                dynamics_simulator = numerical_simulation.SingleArcSimulator(
-                                    self.bodies, self.integrator_settings, self.propagator_settings)
-                                state_history = dynamics_simulator.state_history
-                                time = state_history.keys()
-
-                                keplerian_solution_difference = get_difference_wrt_kepler_orbit(
-                                    state_history, self.earth_gravitational_parameter)
-
-                                # Compute errors
-                                diff = np.vstack(list(keplerian_solution_difference.values()))
-                                error = np.sqrt(diff[:, 0] ** 2 + diff[:, 1] ** 2 + diff[:, 2] ** 2)
-                                error_max.append(max(error))
-
-                            ax.plot(step_sizes, error_max, label=int)
-                        ax.set_xlim([min(step_sizes), max(step_sizes)])
-                        ax.set_ylabel('Max error [m] \n w.r.t. an unperturbed orbit', fontsize=12)
-                        ax.set_xlabel('Step size [s]', fontsize=12)
-                        ax.set_yscale('log')
-                        ax.legend(fontsize=12)
-                        ticks = step_sizes[::10]
-                        # ax.set_xticks(ticks)
-                        # ax.set_yticks(ticks)
-                        ax.grid(which='major')
-                        plt.show()
-
-                        exit()
                 # ------------------------------------------------------------------------
                 # -------------------------------INTERPOLATE------------------------------
                 # ------------------------------------------------------------------------
@@ -519,34 +412,6 @@ class constellation:
             self.geometric_data_sats['states'][i] = np.array(self.geometric_data_sats['states'][i])
             self.geometric_data_sats['dependent variables'][i] = np.array(self.geometric_data_sats['dependent variables'][i])
 
-            # states = np.array(self.geometric_data_sats['states'][i])
-            # dependent_variables = np.array(sf=Telf.geometric_data_sats['dependent variables'][i])
-            # time_0 = states[:, 0]
-            #
-            # print(states)
-            # print(states.shape)
-            #
-            # states_array = interpolator(time_0,states,time, interpolation_type='lagrange')
-            #
-            # print(states_array)
-            # print(states_array.shape)
-
-            # Interpolate to the selected step size for the link simulation (step_size_link)
-            # interpolator_settings = interpolators.lagrange_interpolation(8)
-            # state_interpolator = interpolators.create_one_dimensional_vector_interpolator(
-            #     states, interpolator_settings)
-            # dep_var_interpolator = interpolators.create_one_dimensional_vector_interpolator(
-            #     dependent_variables, interpolator_settings)
-            # states = dict()
-            # dependent_variables = dict()
-            # for epoch in time:
-            #     states[epoch] = state_interpolator.interpolate(epoch)
-            #     dependent_variables[epoch] = dep_var_interpolator.interpolate(epoch)
-            # states_array = result2array(states)
-            # dep_var_array = result2array(dependent_variables)
-            #
-            # self.geometric_data_sats['states'][i] = states_array
-            # self.geometric_data_sats['dependent variables'][i] = dep_var_array
 
         self.time = self.geometric_data_sats['states'][0][:,0]
 

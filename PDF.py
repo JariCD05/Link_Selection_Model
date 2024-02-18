@@ -49,28 +49,6 @@ class distributions:
         pdf = beta * x ** (beta - 1)
         return x, pdf
 
-    # Gamma Gamma distribution
-    def gg_pdf(self, alpha, beta, steps):
-        # x_alpha = np.linspace(gamma.ppf(0.01, alpha), gamma.ppf(0.99, alpha), steps)
-        # x_beta  = np.linspace(gamma.ppf(0.01, alpha), gamma.ppf(0.99, alpha), steps)
-        # x = x_alpha * x_beta
-        x = np.linspace(0.0, 5.0, steps)
-
-        k = (alpha + beta) / 2
-        k1 = alpha * beta
-        K = 2 * (k1**k) / (gamma(alpha) * gamma(beta))
-        K1 = x**(k-1)
-        Z = 2 * np.sqrt(k1 * x)
-        bessel = kv(alpha - beta, Z)
-        pdf = K * K1 * bessel
-        return x, pdf
-
-    def gg_rvs(self, pdf, steps):
-        pv = pdf[1:] / np.sum(pdf[1:])
-        rng = DiscreteAliasUrn(pv, random_state=np.random.default_rng())
-        rvs = rng.rvs(size=steps)
-        return rvs
-
     def plot_pdf_verification(self, ax,
                               sigma, mean, x, pdf,
                               sigma_num, mean_num, x_num, pdf_num,
@@ -85,20 +63,6 @@ class distributions:
 
                     var_num = sigma_num**2
 
-                    # Create histogram parameters
-                    # dist_data, x_data = distribution_function(data[i], 1, min=data[i].min(), max=data[i].max(),steps=100)
-                    # pdf_data = dist_data.pdf(x_data)
-                    # std_data = dist_data.std()
-                    # # mean_data = dist_data.mean()
-                    #
-                    # pdf_data, cdf_data, x_data, std_data, mean_data = \
-                    #     distribution_function(data[i], length=1, min=data.min(), max=data.max(), steps=100)
-
-                    # PDF, fitted to histogram
-                    # ax[i].hist(data[i], density=True, bins=1000, range=(x.min(), x.max()))
-                    # ax[i].plot(x_data, pdf_data, label='pdf fitted to numerical data, '
-                    #                               '$\sigma_{I}^2$=' + str(np.round(std_data**2, 3))+
-                    #                               ', $\mu$=' + str(np.round(mean_data,3)), color='red')
                     if i == 2:
                         ax[i].plot(x_num, pdf_num[i], label='numerical, '
                                                          '$\sigma_{I}^2$=' + str(np.round(var_num[i], 2)), color='red', linewidth=2)
@@ -112,22 +76,6 @@ class distributions:
 
                 else:
                     ax[0].set_title('Numerical and theoretical PDF: ' + str(effect), fontsize=15)
-
-                    # Create histogram parameters
-                    # dist_data, x_data = distribution_function(data[i], 1, min=data[i].min(), max=data[i].max(),steps=100)
-                    # pdf_data = dist_data.pdf(x_data)
-                    # std_data = dist_data.std()
-                    # mean_data = dist_data.mean()
-
-                    # pdf_data, cdf_data, x_data, std_data, mean_data = \
-                    #     distribution_function(data[i], length=1, min=data.min(), max=data.max(), steps=100)
-                    # std_data = np.sqrt(2 / (4 - np.pi) * std_data ** 2)
-
-                    # PDF, fitted to histogram
-                    # ax[i].hist(data[i], density=True, bins=1000, range=(x.min(), x.max()))
-                    # ax[i].plot(x_data, pdf_data, label='pdf fitted to numerical data, '
-                    #                               '$\sigma$='+ str(np.round(std_data*1.0E6,3))+'urad, '
-                    #                               '$\mu$=' + str(np.round(mean_data*1.0E6,3))+'urad', color='red')
 
                     if i == 2:
                         ax[i].plot(x_num*1.0E6, pdf_num[i], label='numerical, '
@@ -152,24 +100,10 @@ class distributions:
         elif effect == "TX jitter" or effect == "RX jitter":
             ax.set_title('Numerical and theoretical PDF: Platform jitter (TX & RX)')
 
-            # Create histogram parameters
-            # dist_data, x_data = distribution_function(data, 1, min=data.min(), max=data.max(), steps=100)
-            # pdf_data  = dist_data.pdf(x_data)
-            # std_data  = dist_data.std()
-            # mean_data = dist_data.mean()
-
-            # pdf_data, cdf_data, x_data, std_data, mean_data = \
-            #     distribution_function(data, length=1, min=data.min(), max=data.max(), steps=100)
-            # std_data  = np.sqrt(2 / (4 - np.pi) * std_data ** 2)
-
-            # ax.hist(data, density=True, bins=1000, range=(x.min(), x.max()))
             ax.plot(x_num*1.0E6, pdf_num, label='numerical, '
                                            '$\sigma$=' + str(np.round(sigma_num * 1.0E6, 1)) + 'urad, '
                                            '$\mu$=' + str(np.round(mean_num * 1.0E6, 1)) + 'urad', color='red', linewidth=2)
 
-            # ax.plot(x_data, pdf_data, label='pdf numerical, '
-            #                                '$\sigma$='+str(np.round(std_data*1.0E6,3))+'urad, '
-            #                                '$\mu$='+str(np.round(mean_data*1.0E6,3))+'urad', color='red')
 
             # Theoretical PDF
             ax.plot(x*1.0E6, pdf, label='theory, '
@@ -185,10 +119,6 @@ class distributions:
             rv  = rv_histogram(hist, density=False)
             pdf_data = rv.pdf(x)
 
-            # shape, loc, scale = beta.fit(data)
-            # pdf_data = beta.pdf(x=x, shape=shape, loc=loc, scale=scale)
-            # mean_hist = beta.std(pdf_data)
-            # sig_hist = beta.mean(pdf_data)
             ax.hist(data, density=True, bins=1000, range=(x.min(), x.max()))
             ax.plot(x, pdf_data, label='pdf fitted to histogram, $\sigma$=' + str(np.round(sigma * 1.0E6, 3)) + 'urad, $\mu$=' + str(np.round(mean * 1.0E6, 3)), color='red')
             # Theoretical PDF

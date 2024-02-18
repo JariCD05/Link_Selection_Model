@@ -35,13 +35,6 @@ class aircraft:
             t1 = parser.parse(str((flight['timestamp'].to_numpy())[-1]))
             interval = (t1 - t0).total_seconds()
 
-            # t0_string = flight['timestamp'].to_numpy()[0][:-6]
-            # dt = datetime.strptime(t0_string, '%Y-%m-%d %H:%M:%S')
-            # t0 = dt.year * 3.154e7 + dt.month * 2628336.2137829 + dt.day * 86400.0 + dt.hour * 3600 + dt.minute * 60 + dt.second
-            # t1_string = flight['timestamp'].to_numpy()[-1][:-6]
-            # dt = datetime.strptime(t1_string, '%Y-%m-%d %H:%M:%S')
-            # t1 = dt.year * 3.154e7 + dt.month * 2628336.2137829 + dt.day * 86400.0 + dt.hour * 3600 + dt.minute * 60 + dt.second
-
             time_0 = np.zeros(len(flight['timestamp'].to_numpy()))
 
             for i in range(len(flight['timestamp'].to_numpy())):
@@ -52,8 +45,6 @@ class aircraft:
 
             time_0 -= time_0[0]
 
-            # lat = flight['latitude'].to_numpy()
-            # lon = flight['longitude'].to_numpy()
             lat = np.deg2rad(flight['latitude'].to_numpy())
             lon = np.deg2rad(flight['longitude'].to_numpy())
             heights = flight['altitude'].to_numpy() * 0.304 #Convert ft to m
@@ -69,9 +60,6 @@ class aircraft:
                                               (np.sin(lat))               * R  )))  # .tolist()
 
 
-            # pos_ECEF = np.transpose(np.array(((np.cos(lat) * np.cos(lon)) * (N + heights),
-            #                                   (np.cos(lat) * np.sin(lon)) * (N + heights),
-            #                                   (np.sin(lat)) * ((1 - e2) * N + heights))        ))#.tolist()
 
             pos = conversion_ECEF_to_ECI(pos_ECEF, time_0)
             pos = np.array(pos)

@@ -58,21 +58,12 @@ def cross_section(elevation_cross_section, elevation, time_links):
     return indices, time_cross_section
 
 def h_p_airy(angle, D_r, focal_length):
-    # REF: Handbook of Image and Video Processing (Second Edition), 2005, EQ.1.6
-    # x = k_number * D_r / focal_length * r
-    # return (2 * j1(x) / x)**2
-
     # REF: Wikipedia Airy Disk
     # Fraunhofer diffraction pattern
     I_norm = (2 * j1(k_number * D_r/2 * np.sin(angle)) /
                     (k_number * D_r/2 * np.sin(angle)))**2
 
-    r = angle * focal_length
-    omega_0 = 0.90 * wavelength * focal_length / D_r
-    I_norm_gauss_approx = np.exp(-2*r / omega_0)
-
     P_norm = (j0(k_number * D_r/2 * np.sin(angle)) )**2 + (j1(k_number * D_r/2 * np.sin(angle)) )**2
-    # P_norm = 1 - P_norm
     return P_norm
 
 def h_p_gaussian(angles, angle_div):
@@ -159,34 +150,12 @@ def filtering(effect: str,                  # Effect is eiter turbulence (scinti
               f_sampling=10E3,              # 10 kHz is taken as the standard sampling frequency for all temporal fluctuations
               plot='no',                  # Option to plot the frequency domain of the sampled data and input data
               ):
-    # # Digital filter settings
-    # if filter_type == 'lowpass':
-    #     # This filter is initiated when the option 'lowpass' is used.
-    #     # This is the case for the turbulence filter.
-    #     b,  a  = butter(N=order, Wn=f_cutoff_low, btype=filter_type, analog=False, fs=f_sampling)
-    #
-    # elif filter_type == 'multi':
-    #     # This filter is initiated when the option 'multi' is used. Here, both 'lowpass' and 'bandpass' filters are used.
-    #     # This is the case for the mechanical jitter filter.
-    #     b,  a  = butter(N=order, Wn=f_cutoff_low, btype='lowpass', analog=False, fs=f_sampling)
-    #     b1, a1 = butter(N=order, Wn=f_cutoff_band, btype='bandpass', analog=False,fs=f_sampling)
-    #
-    #     if f_cutoff_band1:
-    #         # An extra bandpass filter is initiated when this options is chosen.
-    #         b2, a2 = butter(N=order, Wn=f_cutoff_band1, btype='bandpass', analog=False, fs=f_sampling)
-
-
-
 
     # Applying a lowpass filter in order to obtain the frequency response of the turbulence (~1000 Hz) and jitter (~ 1000 Hz)
     # For beam wander the displacement values (m) are filtered.
     # For angle of arrival and mechanical pointing jitter for TX and RX, the angle values (rad) are filtered.
-    # if effect == 'scintillation' or effect == 'beam wander' or effect == 'angle of arrival':
 
     eps = 1.0E-9
-    # z, p, k = scipy.signal.tf2zpk(b, a)
-    # r = np.max(np.abs(p))
-    # approx_impulse_len = int(np.ceil(np.log(eps) / np.log(r)))
 
     if effect == 'scintillation' or effect == 'beam wander' or effect == 'angle of arrival':
         data_filt = np.empty(np.shape(data))
@@ -291,7 +260,6 @@ def conversion_ECEF_to_ECI(pos_ECEF, time):
     return pos_ECI.tolist()
 
 def Strehl_ratio_func(D_t, r0, tip_tilt="YES"):
-    # REF: R. SAATHOF, SLIDES LECTURE 3, 2021
     # REF: R. PARENTI, 2006, EQ.1-3
     if tip_tilt == "NO":
         var_WFE = 1.03 * (D_t / r0) ** (5 / 3)
@@ -363,7 +331,6 @@ def distribution_function(data, length, min, max, steps):
             mean[i] = dist.mean()
 
     return pdf, cdf, x, std, mean
-    # return dist, x
 
 def pdf_function(data, length, min, max, steps):
     x = np.linspace(min, max, steps)

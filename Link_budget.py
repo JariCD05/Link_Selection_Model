@@ -24,25 +24,18 @@ class link_budget:
         # ----------------------------------------------------------------------------
         self.ranges = np.array(ranges)
 
-        # Laser profile
+        # Laser profile (Gaussian Beam)
         # ----------------------------------------------------------------------------
-        # REF: AE4880 LASER SATELLITE COMMUNICATIONS II, R.SAATHOF, 2021, SLIDE 19
-        # self.I_t_0 = self.P_t / (np.pi/4 * self.D_t**2) #W/m^2
         self.P_t = P_t
-        # REF: Wikipedia: Gaussian Beam
         self.I_t_0 = 2 * self.P_t / (np.pi * w0**2)
         self.w_r = np.array(w_ST)
 
         # Gains
         #----------------------------------------------------------------------------
-        # REF: PERFORMANCE LIMITATION OF LASER SAT COMMUNICATION..., S.ARNON, 2003, EQ.14
-        # self.G_t = (np.pi*self.D_t / self.wavelength)**2
         # REF: AE4880 LASER SATELLITE COMMUNICATIONS I, R.SAATHOF, 2021, SLIDE 34
         self.G_t = 8 / angle_div**2
         self.G_r = (np.pi*D_r / wavelength)**2
-        # REF: OPTICAL ON-OFF KEYING FOR LOW EARTH ORBIT DOWNLINK APPLICATIONS, D.GIGGENBACH, TABLE 11.5
-        # self.G_c = 1.0 #dB2W(4.0)
-
+ 
         # Losses
         # ----------------------------------------------------------------------------
         self.h_ext = h_ext
@@ -95,14 +88,6 @@ class link_budget:
         self.P_r_0_acq = self.P_t * self.h_l_acq * self.h_WFE
         return self.P_r_0, self.P_r_0_acq
 
-    # def P_r_func(self, P_r):
-    #     self.P_r = P_r
-    #     self.P_r_acq = self.P_r_0_acq * self.T_scint
-    #     self.I_r_0 = 2 * self.P_r / (np.pi * self.w_r ** 2)
-
-    # def P_r_0_acquisition_func(self):
-    #     self.P_r_0_acq = self.P_t * self.h_l_acq * self.h_WFE
-    #     return self.P_r_0_acq
 
     def dynamic_contributions(self, PPB, T_dyn_tot, T_scint, T_TX, T_RX, h_penalty, P_r, BER):
         # Firstly, the static link budget is computed with 'P_r_0_func' and 'I_r_0_func'.
@@ -133,9 +118,6 @@ class link_budget:
         self.P_r = self.P_r * G_coding
         self.BER_coded = BER_coded
 
-    # def penalty(self, h_penalty):
-    #     self.h_penalty = h_penalty
-    #     self.P_r = self.P_r * self.h_penalty
 
     def sensitivity(self, P_r_thres, PPB_thres):
         self.P_r_thres_BER9 = P_r_thres[0]
@@ -199,7 +181,6 @@ class link_budget:
             P_norm_airy = h_p_airy(angle, D_r, focal_length)
 
             ax3.set_title('Airy disk, focal length=' + str(focal_length) + 'm, Dr=' + str(np.round(D_r, 3)) + 'm')
-            # ax3.plot(angle * 1.0E6, I_norm_airy, label='Airy disk, I(r)/$I_0$')
             ax3.plot(angle * 1.0E6, P_norm_airy)
             ax3.set_xlabel('Radial pos from $I_0$ ($\mu$rad)', fontsize=12)
             ax3.set_ylabel('Normalized power ($P(r)$/$P_0$)', fontsize=12)
@@ -427,7 +408,6 @@ class link_budget:
                 print('Static power at RX                     (dBm): ', W2dBm(self.P_r_0[index]))
                 print('Dynamic power at RX                    (dBm): ', W2dBm(self.P_r[index]))
                 print('BER at RX                            (log10): ', np.log10(self.BER[index]))
-                # print('Received dynamic signal (PPB) : ', self.PPB[index])
                 print('Tracking signal at RX                  (dBm): ', W2dBm(self.P_r_tracking[index]))
                 print('Beam radius at RX                      (m)  : ', self.w_r[index])
                 print('________________________')

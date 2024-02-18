@@ -191,22 +191,6 @@ def channel_level(LCT,
         # axs[1].set_ylim(turb.windspeed[plot_index,0], turb.windspeed[plot_index,-1])
         axs[1].grid()
 
-        # fig_scint, axs_scint = plt.subplots(3, 1, dpi=125)
-        # axs_scint[0].plot(np.rad2deg(elevation_angles), turb.var_rytov, label='$\sigma_{rytov}^2$')
-        # axs_scint[0].set_title(f'Scintillation variance (Intensity and Power)')
-        #
-        # axs_scint[0].plot(np.rad2deg(elevation_angles), turb.var_scint_gg, linestyle="--", label='$\sigma_{I}^2$')
-        # axs_scint[0].set_ylabel('$\sigma_{I}^2$')
-        # axs_scint[0].legend()
-        #
-        # axs_scint[1].plot(np.rad2deg(elevation_angles), turb.Af, linestyle="--", label='Dr = ' + str(D_r))
-        # axs_scint[1].set_ylabel('Aperture averaging factor \n [$A_f = \sigma_P / \sigma_I$]')
-        # axs_scint[1].set_xlabel('Elevation [deg]')
-        #
-        # axs_scint[2].plot(turb.var_rytov, turb.var_scint, linestyle="--", label='Dr = ' + str(D_r))
-        # axs_scint[2].set_ylabel('$\sigma_{P}^2$')
-        # axs_scint[2].set_xlabel('$\sigma_{I}^2$')
-        # axs_scint[2].legend()
         plt.show()
 
     def plot_TX_losses():
@@ -288,6 +272,7 @@ def channel_level(LCT,
         ax[0].legend(fontsize=11)
         ax[1].legend(fontsize=11)
         plt.show()
+    
     def plot_all_losses_time_series():
 
         # Plot time series losses
@@ -320,6 +305,7 @@ def channel_level(LCT,
         ax.set_xlabel('Time [s]')
 
         plt.show()
+    
     def plot_all_losses_pdf():
         # Plot PDF losses
         pdf_h_scint,x  = pdf_function(h_scint, len(ranges), min=0.0, max=2.0, steps=1000)
@@ -353,191 +339,8 @@ def channel_level(LCT,
         ax[0].grid()
         ax[1].legend(fontsize=10)
         ax[1].grid()
-
-        # fig_losses_pdf1, ax1 = plt.subplots(1, 1)
-        # ax1.set_title('Micro-scale losses \n '
-        #                 'distributions of TX jitter, RX jitter, scintillation and combined at $\epsilon$=' + str(
-        #     np.round(np.rad2deg(elevation_angles[plot_index]),1)) + '$\degree$', fontsize=15)
-        # ax1.plot(x_h_tot, pdf_h_tot[plot_index], label='Combined loss, $\mu$: ' + str(
-        #     np.round(np.mean(W2dB(h_tot[plot_index])), 2)) + 'dB)')
-        # ax1.plot(x, pdf_h_scint[plot_index], label='Scintillation, $\mu$: ' + str(
-        #     np.round(np.mean(W2dB(h_scint[plot_index])), 2)) + 'dB)')
-        #
-        # ax1.plot(x, pdf_h_TX[plot_index], label='Combined TX jitter, $\mu$: ' + str(
-        #     np.round(np.mean(W2dB(h_TX[plot_index])), 2)) + 'dB)')
-        # ax1.plot(x, pdf_h_RX[plot_index], label='Combined RX jitter, $\mu$: ' + str(
-        #     np.round(np.mean(W2dB(h_RX[plot_index])), 2)) + 'dB)')
-        #
-        # ax1.set_xlabel('Power loss fraction (P/P0)', fontsize=15)
-        # ax1.set_ylabel('Probability density', fontsize=15)
-        #
-        # ax1.legend(fontsize=10)
-        # ax1.grid()
-
-        print('mean proof')
-        mean_TX    = np.mean(h_TX[plot_index])
-        mean_RX    = np.mean(h_RX[plot_index])
-        mean_scint = np.mean(h_scint[plot_index])
-        mean_tot   = np.mean(h_tot[plot_index])
-        print(mean_TX, mean_RX, mean_scint,  mean_tot)
-        print(mean_TX * mean_RX * mean_scint, mean_tot)
-        print()
-        print('variance proof')
-        var_TX    = np.var(h_TX[plot_index])
-        var_RX    = np.var(h_RX[plot_index])
-        var_scint = np.var(h_scint[plot_index])
-        var_tot   = np.var(h_tot[plot_index])
-        print(var_TX, var_RX, var_scint, var_tot)
-        print((mean_TX**2 + var_TX) * (mean_RX**2 + var_RX) * (mean_scint**2 + var_scint) - mean_TX**2 * mean_RX**2 * mean_scint**2, var_tot)
+        
         plt.show()
-
-    def plot_pointing_TX():
-        fig_point, ax = plt.subplots(3, 1)
-        ax[0].plot(t, LCT.angle_pe_t_X*1.0E6, label='X-component (gaussian)')
-        ax[0].plot(t, LCT.angle_pe_t_Y*1.0E6, label='Y-component (gaussian)')
-        ax[0].plot(t, LCT.angle_pe_t_R*1.0E6, label='R-component (rayleigh)')
-        ax[0].set_title(f'Mechanical TX jitter angle')
-        ax[0].set_ylabel('Mechanical TX \n jitter angle [$\mu$rad]')
-
-        ax[1].plot(t, turb.angle_bw_X[plot_index] * 1.0E6, label='X-component (gaussian)')
-        ax[1].plot(t, turb.angle_bw_Y[plot_index] * 1.0E6, label='Y-component (gaussian)')
-        ax[1].plot(t, turb.angle_bw_R[plot_index] * 1.0E6, label='R-component (rayleigh)')
-        ax[1].set_ylabel('Beam wander \n jitter angle [$\mu$rad]')
-
-        ax[2].plot(t, angle_TX[plot_index] * 1.0E6)
-        ax[2].set_ylabel('Combined TX \n jitter angle [$\mu$rad]')
-        ax[2].set_xlabel('Time [s]')
-
-        ax[0].legend()
-        ax[0].grid()
-        ax[1].legend()
-        ax[1].grid()
-        ax[2].legend()
-        ax[2].grid()
-        plt.show()
-
-    def plot_airy_disk():
-        angle = np.linspace(1.0E-6, 100.0E-6, 1000)
-        I_norm_gaussian_approx, I_norm_airy, P_norm_airy, = h_p_airy(angle, D_r, focal_length)
-        r = focal_length * np.sin(angle)
-        fig, ax = plt.subplots(1, 1)
-        ax.set_title('Airy disk, focal length=' + str(focal_length) + 'm, Dr=' + str(np.round(D_r, 3)) + 'm')
-        ax.plot(angle * 1.0E6, I_norm_airy, label='Airy disk, I(r)/$I_0$')
-        # ax.plot(angle * 1.0E6, I_norm_gaussian_approx, label='Gaussian approx. I(r)/$I_0$')
-        ax.plot(angle * 1.0E6, P_norm_airy, label='Airy disk, , P(r)/$P_0$')
-        ax.set_xlabel('Angular displacement ($\mu$rad)', fontsize=12)
-        ax.set_ylabel('Normalized intensity at =0.0 $\mu$m', fontsize=12)
-        ax.legend(fontsize=15)
-        ax.grid()
-        plt.show()
-
-    def plot_temporal_behaviour(effect0='$h_{pj,TX}$ (platform)', effect1='$h_{bw}$', effect2='$h_{pj,TX}$ (combined)',
-                                effect3='$h_{pj,RX}$ (combined)', effect4='$h_{scint}$', effect_tot='$h_{total}$'):
-
-        fig_psd, ax   = plt.subplots(1, 2)
-        # Plot PSD over frequency domain
-        f0, psd0 = welch(h_pj_t,              sampling_frequency, nperseg=1024)
-        f1, psd1 = welch(h_bw[plot_index],    sampling_frequency, nperseg=1024)
-        f2, psd2 = welch(h_TX[plot_index],    sampling_frequency, nperseg=1024)
-        f3, psd3 = welch(h_RX[plot_index],    sampling_frequency, nperseg=1024)
-        f4, psd4 = welch(h_scint[plot_index], sampling_frequency, nperseg=1024)
-        f5, psd5 = welch(h_tot[plot_index],   sampling_frequency, nperseg=1024)
-
-        ax[0].semilogy(f0, W2dB(psd0), label=effect0)
-        ax[0].semilogy(f1, W2dB(psd1), label=effect1)
-        ax[0].semilogy(f2, W2dB(psd2), label=effect2)
-
-        ax[1].semilogy(f2, W2dB(psd2), label=effect2)
-        ax[1].semilogy(f3, W2dB(psd3), label=effect3)
-        ax[1].semilogy(f4, W2dB(psd4), label=effect4)
-        ax[1].semilogy(f5, W2dB(psd5), label=effect_tot)
-
-        ax[0].set_ylabel('PSD [dBW/Hz]')
-        ax[0].set_yscale('linear')
-        ax[0].set_ylim(-100.0, 0.0)
-        ax[0].set_xscale('log')
-        ax[0].set_xlim(1.0E0, 1.2E3)
-        ax[0].set_xlabel('frequency [Hz]')
-
-        ax[1].set_yscale('linear')
-        ax[1].set_ylim(-100.0, 0.0)
-        ax[1].set_xscale('log')
-        ax[1].set_xlim(1.0E0, 1.2E3)
-        ax[1].set_xlabel('frequency [Hz]')
-
-        ax[0].grid()
-        ax[0].legend(fontsize = 13, loc='lower left')
-        ax[1].grid()
-        ax[1].legend(fontsize = 13, loc='lower left')
-
-
-        fig_psd1, ax1 = plt.subplots(4, 1)
-        # for i in plot_indices:
-        #     f3, psd3 = welch(h_scint[i], sampling_frequency, nperseg=1024)
-        #     ax1.semilogy(f3, W2dB(psd3), label='Scint, $\epsilon$='   +str(np.round(np.rad2deg(elevation_angles[i]), 0)) + '$\degree$, turb. freq.='+str(np.round(turb.freq[i],0))+'Hz')
-
-        for i in plot_indices:
-            f4, psd4 = welch(P_r[i],   sampling_frequency, nperseg=1024)
-            ax1[0].semilogy(f4, W2dB(psd4), label='$\epsilon$='+str(np.round(np.rad2deg(elevation_angles[i]), 0)) + '$\degree$, turb. freq.='+str(np.round(turb.freq[i],0))+'Hz')
-
-            f4, psd4 = welch(h_tot[i], sampling_frequency, nperseg=1024)
-            ax1[1].semilogy(f4, W2dB(psd4))
-
-            f4, psd4 = welch(h_scint[i], sampling_frequency, nperseg=1024)
-            ax1[2].semilogy(f4, W2dB(psd4))
-
-        f4, psd4 = welch(h_pj_t, sampling_frequency, nperseg=1024)
-        ax1[3].semilogy(f4, W2dB(psd4))
-
-        ax1[0].legend(fontsize=10)
-
-        ax1[0].set_ylabel('$P_{RX}$ PSD [dBW/Hz]')
-        ax1[0].set_yscale('linear')
-        ax1[0].set_ylim(-200.0, -100.0)
-        ax1[0].set_xscale('log')
-        ax1[0].set_xlim(1.0E0, 1.2E3)
-        ax1[0].set_xlabel('frequency [Hz]')
-        ax1[0].grid()
-
-        ax1[1].set_ylabel('$h_{tot}$ PSD [dBW/Hz]')
-        ax1[1].set_yscale('linear')
-        ax1[1].set_ylim(-100.0, 0.0)
-        ax1[1].set_xscale('log')
-        ax1[1].set_xlim(1.0E0, 1.2E3)
-        ax1[1].set_xlabel('frequency [Hz]')
-        ax1[1].grid()
-
-        ax1[2].set_ylabel('$h_{scint}$ PSD [dBW/Hz]')
-        ax1[2].set_yscale('linear')
-        ax1[2].set_ylim(-100.0, 0.0)
-        ax1[2].set_xscale('log')
-        ax1[2].set_xlim(1.0E0, 1.2E3)
-        ax1[2].set_xlabel('frequency [Hz]')
-        ax1[2].grid()
-
-        ax1[3].set_ylabel('$h_{pj,t}$ PSD [dBW/Hz]')
-        ax1[3].set_yscale('linear')
-        ax1[3].set_ylim(-100.0, 0.0)
-        ax1[3].set_xscale('log')
-        ax1[3].set_xlim(1.0E0, 1.2E3)
-        ax1[3].set_xlabel('frequency [Hz]')
-        ax1[3].grid()
-
-        plt.show()
-
-        fig, ax = plt.subplots(1,1)
-        for i in plot_indices:
-            f4, psd4 = welch(h_scint[i], sampling_frequency, nperseg=1024)
-            ax.semilogy(f4, W2dB(psd4), label='$\epsilon$='+str(np.round(np.rad2deg(elevation_angles[i]), 0)) + '$\degree$, turb. freq.='+str(np.round(turb.freq[i],0))+'Hz')
-            ax.set_ylabel('$h_{scint}$ PSD [dBW/Hz]')
-            ax.set_yscale('linear')
-            ax.set_ylim(-100.0, 0.0)
-            ax.set_xscale('log')
-            ax.set_xlim(1.0E0, 1.2E3)
-            ax.set_xlabel('frequency [Hz]')
-            ax.grid()
-        plt.show()
-
 
 
     # plot_turbulence_data()
@@ -546,7 +349,6 @@ def channel_level(LCT,
     # plot_RX_losses()
     # plot_all_losses_time_series()
     # plot_all_losses_pdf()
-    # plot_temporal_behaviour()
 
 
     return P_r, P_r_no_pointing_errors, PPB, elevation_angles, losses, angles

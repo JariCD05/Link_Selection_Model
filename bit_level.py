@@ -29,10 +29,7 @@ def bit_level(LCT,
     pdf_h_tot, cdf_h_tot, x_h_tot, std_h_tot, mean_h_tot = distribution_function(h_tot, len(P_r_0), min=0.0, max=2.0, steps=1000)
     pdf_P_r, cdf_P_r, x_P_r, std_P_r, mean_P_r = distribution_function(W2dBm(P_r),len(P_r_0),min=-80.0, max=0.0,steps=1000)
 
-    # Here, the average BER is computed by using the equation for the uncoditional BER.                                 REF: Andrews and Phillips, Ch.11.4.3
-    # BER_avg = BER_avg_func(x_P_r, pdf_P_r, LCT)
     BER_avg = BER.mean(axis=1)
-
 
     #------------------------------------------------------------------------
     #------------------------------INTERLEAVING------------------------------
@@ -213,8 +210,6 @@ def bit_level(LCT,
         # ax_ber.grid()
 
         plt.show()
-
-
     def plot_coding_errors():
 
         if coding == 'yes':

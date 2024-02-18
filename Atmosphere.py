@@ -26,7 +26,6 @@ class turbulence:
         self.h_sc = h_SC
 
         # Create a height profile for computation of r0, Cn and wind speed
-        # self.heights = np.linspace(self.h_cruise, self.h_sc, 1000)
         self.height_profiles = np.linspace(self.h_cruise, self.h_sc, 10000, axis=1)
         self.height_profiles_norm = self.height_profiles - self.h_cruise[:, None]
         self.height_profiles_frac =  (self.height_profiles - self.h_cruise[:, None]) / (self.h_sc[:, None] - self.h_cruise[:, None])
@@ -60,7 +59,8 @@ class turbulence:
     def Cn_func(self, A='no'):
         # This method computes the Cn^2 parameter, used to indicate the strength of the turbulence
         shift = 0.0
-        self.A = 1.7e-14                                                                                                #REF: Andrews, ch.12 page 481
+        #REF: Andrews, ch.12 page 481
+        self.A = 1.7e-14                                                                                                
 
         if A=='no':
             self.Cn2 = 5.94E-53 * (self.windspeed_rms[:,None] / 27) ** 2 * (self.height_profiles-shift) ** 10 * np.exp(-(self.height_profiles-shift) / 1000.0) + \
@@ -121,16 +121,11 @@ class turbulence:
 
         self.V_trans = self.windspeed_rms_total
         self.freq = self.V_trans / self.speckle_size
-        # for i in range(len(self.freq)):
-        #     print(self.freq[i], self.freq_greenwood[i])
 
 
     def r0_func(self):
         # This method computes the Fried parameter (coherence width)
-        # self.r0 = (0.423 * k_number ** 2 / abs(np.cos(self.zenith_angles)) *
-        #            np.trapz(self.Cn2 * ((self.h_limit*np.ones(len(self.h_sc))[:, None] - self.height_profiles_masked) / (
-        #            self.h_limit*np.ones(len(self.h_sc))[:, None] )) ** (5 / 3),
-        #                     x=self.height_profiles_masked)) ** (-3 / 5)                                                 # REF: Parenti (Modeling the PDF for the irradiance...), Eq. 5
+        # REF: Parenti (Modeling the PDF for the irradiance...), Eq. 5
 
         self.r0 = (0.423 * k_number ** 2 / abs(np.cos(self.zenith_angles)) *
                    np.trapz(
@@ -151,11 +146,13 @@ class turbulence:
         if len(self.r0) != len(self.ranges):
             raise ValueError('Incorrect argument shape of r0')
 
-        w_r = beam_spread(self.angle_div, self.ranges)  # beam radius at receiver (without turbulence) (in m)
+        # beam radius at receiver (without turbulence) (in m)
+        w_r = beam_spread(self.angle_div, self.ranges)
 
+        # REF: LASER BEAM PROPAGATION THROUGH RANDOM MEDIA, L.ANDREWS, 2005, EQ.12.48
         if link == 'up':
             self.w_ST = w_r * np.sqrt(1 + 1.33 * self.var_rytov * self.Lambda ** (5 / 6) *
-                                      (1 - 0.66 * (self.Lambda0 ** 2 / (1 + self.Lambda0 ** 2)) ** (1 / 6)))            # REF: LASER BEAM PROPAGATION THROUGH RANDOM MEDIA, L.ANDREWS, 2005, EQ.12.48
+                                      (1 - 0.66 * (self.Lambda0 ** 2 / (1 + self.Lambda0 ** 2)) ** (1 / 6)))           
         if link == 'down':
             self.w_ST = np.ones(self.zenith_angles.shape) * w_r
 
@@ -226,11 +223,12 @@ class turbulence:
     def var_aoa_func(self):
         # This method computes the Angle-of-arrival variance as an angular displacement at the receiver
         # Angle-of-arrival is typically 0.1-10 urad.
+        # REF: LASER BEAM PROPAGATION THROUGH RANDOM MEDIA, L.ANDREWS, CH.12
         if link == 'up':
             self.var_aoa = 2.91 * (self.mu_1u + 0.62 * self.mu_2u * self.Lambda**(11/6)) / \
-                           np.cos(self.zenith_angles) * (2 * D_r)**(1/3)                                                #REF: LASER BEAM PROPAGATION THROUGH RANDOM MEDIA, L.ANDREWS, CH.12
+                           np.cos(self.zenith_angles) * (2 * D_r)**(1/3)                                                
         elif link == 'down':
-            self.var_aoa = 2.91 * self.mu_0 / np.cos(self.zenith_angles) * (2 * D_r)**(1/3)                             #REF: LASER BEAM PROPAGATION THROUGH RANDOM MEDIA, L.ANDREWS, CH.12
+            self.var_aoa = 2.91 * self.mu_0 / np.cos(self.zenith_angles) * (2 * D_r)**(1/3)                             
 
         self.std_aoa  = np.sqrt(self.var_aoa)
         self.mean_aoa = np.zeros(np.shape(self.std_aoa))
@@ -245,9 +243,10 @@ class turbulence:
             if dist_scintillation == "lognormal":
                 # Create lognormal parameters
                 self.mean_scint_X = -0.5 * np.log(self.std_scint_I + 1)
-                self.std_scint_X  = np.sqrt(np.log(self.var_scint_I + 1)) # Giggenbach
-                self.std_scint_X = np.sqrt(1 / 4 * np.log(self.var_scint_I + 1))  # Andrews, Random Media, Ch.5, eq.95
-                # self.std_scint_X = self.std_scint_I
+                # Giggenbach
+                self.std_scint_X  = np.sqrt(np.log(self.var_scint_I + 1))
+                # Andrews, Random Media, Ch.5, eq.95
+                self.std_scint_X = np.sqrt(1 / 4 * np.log(self.var_scint_I + 1))  
 
                 self.x_scint, self.pdf_scint = dist.lognorm_pdf(mean=self.mean_scint_X[:, None], sigma=self.std_scint_X[:, None], steps=steps)
                 h_scint = dist.lognorm_rvs(data, mean=self.mean_scint_X[:, None], sigma=self.std_scint_X[:, None])
@@ -351,12 +350,7 @@ class attenuation:
         self.h_limit = 100.0E3 #m
         self.H_scale = H_scale
 
-        # Absorption & Scattering coefficients
-        # self.b_mol_0 = 5.0E-3
-        self.b_sca_aer = 1.0
-        self.b_abs_aer = 1.0
-        self.b_sca_mol = 1.0
-        self.b_abs_mol = 1.0
+        # Absorption & Scattering coefficient
         self.b_v = att_coeff
 
     def h_ext_func(self, range_link, zenith_angles, method="ISA profile"):

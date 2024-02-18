@@ -79,8 +79,6 @@ total_time = len(time)*step_size_link
 comm_time = len(flatten(routing_output['time']))*step_size_link
 acq_time = routing_network.total_acquisition_time
 
-availability_vector = mask.astype(int)
-
 
 
 # Options are to analyse 1 link or analyse 'all' links
@@ -161,91 +159,6 @@ turb.WFE(tip_tilt="YES")
 turb.beam_spread()
 turb.var_bw_func()
 turb.var_aoa_func()
-# Print turbulence parameters
-
-
-def plot_mission_geometrical_output_coverage():
-    print('LINK NUMBERS = ', link_number)
-    if link_number == 'all':
-        pdf_elev, cdf_elev, x_elev, std_elev, mean_elev = distribution_function(data=elevation, length=1, min=elevation.min(), max=elevation.max(), steps=1000)
-
-        fig, ax = plt.subplots(1, 1)
-        # fig.suptitle('Coverage analysis \n Total mission time (hrs): '+str(np.round((time[-1] - time[0])/3600,2))+', '
-        #                                      'total acquisition time (min)='+str(np.round(routing_network.total_acquisition_time/60,2))+'\n '
-        #                                      'Fractional link time (%):'+str(np.round(routing_network.frac_comm_time*100,2)), fontsize=15)
-        # ax[0].plot(np.rad2deg(x_elev), cdf_elev)
-        # ax[0].plot(np.ones(2) * elevation_cross_section[0], [0, 1], color='black', label='cross section for $\epsilon$='+str(elevation_cross_section[0])+'deg')
-        # ax[0].plot(np.ones(2) * elevation_cross_section[1], [0, 1], color='black', label='cross section for $\epsilon$='+str(elevation_cross_section[1])+'deg')
-
-        for e in range(len(routing_output['elevation'])):
-            if np.any(np.isnan(routing_output['elevation'][e])) == False:
-                pdf_elev, cdf_elev, x_elev, std_elev, mean_elev = distribution_function(data=routing_output['elevation'][e],
-                                                                                        length=1,
-                                                                                        min=routing_output['elevation'][e].min(),
-                                                                                        max=routing_output['elevation'][e].max(),
-                                                                                        steps=1000)
-                ax.plot(np.rad2deg(x_elev), cdf_elev, label='link '+str(routing_output['link number'][e]))
-
-        # ax[0].set_ylabel('Prob. density \n all links combined', fontsize=13)
-        ax.set_ylabel('Prob. density \n for each link', fontsize=13)
-        ax.set_xlabel('Elevation (rad)', fontsize=13)
-
-        ax.grid()
-        # ax[1].grid()
-        ax.legend(fontsize=10)
-        # ax[1].legend(fontsize=10)
-
-    else:
-        fig, ax = plt.subplots(1, 1)
-        # fig.suptitle(
-        #     'Coverage analysis \n Total mission time (hrs): ' + str(np.round((time[-1] - time[0]) / 3600, 2)) + ', '
-        #     'total acquisition time (min)=' + str(np.round(routing_network.total_acquisition_time / 60, 2)) + '\n '
-        #     'Fractional link time (%):' + str(np.round(routing_network.frac_comm_time * 100, 2)), fontsize=20)
-        for e in range(len(routing_output['elevation'])):
-            if np.any(np.isnan(routing_output['elevation'][e])) == False:
-                pdf_elev, cdf_elev, x_elev, std_elev, mean_elev = distribution_function(data=routing_output['elevation'][e],
-                                                                                        length=1,
-                                                                                        min=routing_output['elevation'][e].min(),
-                                                                                        max=routing_output['elevation'][e].max(),
-                                                                                        steps=1000)
-                ax.plot(np.rad2deg(x_elev), cdf_elev, label='link ' + str(routing_output['link number'][e]))
-
-        ax.set_ylabel('Ratio of occurence \n (normalized)', fontsize=12)
-        ax.set_xlabel('Elevation (rad)', fontsize=12)
-        ax.grid()
-        ax.legend(fontsize=15)
-
-
-    # plt.show()
-
-def plot_mission_geometrical_output_slew_rates():
-    if link_number == 'all':
-        pdf_slew, cdf_slew, x_slew, std_slew, mean_slew = distribution_function(data=routing_total_output['slew rates'],
-                                                                                length=1,
-                                                                                min=routing_total_output['slew rates'].min(),
-                                                                                max=routing_total_output['slew rates'].max(),
-                                                                                steps=1000)
-
-        fig, ax = plt.subplots(1, 1)
-        # fig.suptitle('Slew rate analysis', fontsize=20)
-
-        for i in range(len(routing_output['link number'])):
-            if np.any(np.isnan(routing_output['slew rates'][i])) == False:
-                pdf_slew, cdf_slew, x_slew, std_slew, mean_slew = distribution_function(
-                    data=routing_output['slew rates'][i],
-                    length=1,
-                    min=routing_output['slew rates'][i].min(),
-                    max=routing_output['slew rates'][i].max(),
-                    steps=1000)
-                ax.plot(np.rad2deg(x_slew), cdf_slew)#, label='link ' + str(routing_output['link number'][i]))
-
-        ax.set_ylabel('Ratio of occurence \n (normalized)', fontsize=12)
-        ax.set_xlabel('Slew rate (deg/sec)', fontsize=12)
-        ax.grid()
-        # ax.legend(fontsize=20)
-
-    plt.show()
-
 
 print('')
 print('----------------------------------------------------------------------------------MACRO-LEVEL-----------------------------------------------------------------------------------------')
@@ -327,13 +240,10 @@ else:
 number_of_fades = np.sum((P_r[:, 1:] < LCT.P_r_thres[1]) & (P_r[:, :-1] > LCT.P_r_thres[1]), axis=1)
 fractional_fade_time = np.count_nonzero((P_r < LCT.P_r_thres[1]), axis=1) / samples_channel_level
 mean_fade_time = fractional_fade_time / number_of_fades * interval_channel_level
-# fractional_BER_fade = np.count_nonzero((BER > BER_thres[1]), axis=1) / samples_channel_level
-#
-# if coding == 'yes':
-#     fractional_BER_coded_fade = np.count_nonzero((BER_coded > BER_thres[1]), axis=1) / samples_channel_level
 
 # Power penalty in order to include a required fade fraction.
-h_penalty   = penalty(P_r=P_r, desired_frac_fade_time=desired_frac_fade_time)                                           # REF: Giggenbach (2008), Fading-loss assessment
+# REF: Giggenbach (2008), Fading-loss assessment
+h_penalty   = penalty(P_r=P_r, desired_frac_fade_time=desired_frac_fade_time)                                           
 h_penalty_perfect_pointing   = penalty(P_r=P_r_perfect_pointing, desired_frac_fade_time=desired_frac_fade_time)
 P_r_penalty_perfect_pointing = P_r_perfect_pointing.mean(axis=1) * h_penalty_perfect_pointing
 
@@ -386,28 +296,41 @@ link.tracking()
 link.link_margin()
 
 
-# ---------------------------LATENCY-&-THROUGHPUT-------------------------
+# ------------------------------------------------------------------------
+# --------------------------PERFORMANCE-METRICS---------------------------
+# ------------------------------------------------------------------------
 
-# Latency is computes as a macro-scale time-series
-# The only assumed contributions are geometrical latency and interleaving latency.
-# Latency due to coding/detection/modulation/data processing can be optionally added.
-latency_propagation = ranges / speed_of_light
-latency_data_rate = 1 / data_rate
-latency = latency_propagation + latency_data_rate
+# Availability
+# No availability is assumed below link margin threshold
+availability_vector = mask.astype(int)
+find_lm = np.where(link.LM_comm_BER6 < 1.0)[0]
+time_link_fail = time_links[find_lm]
+find_time = np.where(np.in1d(time, time_link_fail))[0]
+availability_vector[find_time] = 0.0
 
-# No throughput is assumed below threshold
-condition_throughput = link.P_r > LCT.P_r_thres[1]
+# Reliability
+# No reliability is assumed below link margin threshold
+reliability_BER = BER.mean(axis=1)
+reliability_BER[find_lm] = 0.0
 
-if coding == 'yes':
-    throughput_coded = np.ma.array(throughput_coded, mask=link.P_r < LCT.P_r_thres[1])
-    total_throughput_coded = sum(throughput_coded[condition_throughput]  * step_size_link)
-    latency = latency_propagation + latency_data_rate
-
-# Maximum throughput with the Shannon-Hartley theorem
+# Actual throughput
+# No throughput is assumed below link margin threshold
+throughput[find_lm] = 0.0
+# Potential throughput with the Shannon-Hartley theorem
 noise_sh, noise_th, noise_bg, noise_beat = LCT.noise(P_r=link.P_r, I_sun=I_sun, index=indices[index_elevation])
 SNR_penalty, Q_penalty = LCT.SNR_func(link.P_r, detection=detection,
                                   noise_sh=noise_sh, noise_th=noise_th, noise_bg=noise_bg, noise_beat=noise_beat)
 C = BW * np.log2(1 + SNR_penalty)
+
+# Latency is computed as a macro-scale time-series
+# The only assumed contributions are geometrical latency and interleaving latency.
+# Latency due to coding/detection/modulation/data processing can be optionally added.
+latency_propagation = ranges / speed_of_light
+latency_transmission = 1 / data_rate
+latency_qeue = 5.0e-3
+latency_processing = 3.0e-3
+latency = latency_propagation + latency_transmission + latency_qeue + latency_processing
+
 
 # ------------------------------------------------------------------------
 # ---------------------------------OUTPUT---------------------------------
@@ -489,28 +412,24 @@ else:
 #------------------------------------------------------------------------
 # The following output variables are plotted:
 #   (1) Performance metrics
-#   (2) Link budget: Cross-section of the macro-scale simulation
-#   (3) Pr and BER: Distribution (global or local)
-#   (4) Pr, BER and throughput: versus elevation
+#   (2) Pr and BER: Distribution (global or local)
+#   (3) Pointing error losses
 #   (5) Fade statistics: versus elevation
 #   (6) Temporal behaviour: PSD and auto-correlation
+#   (7) Link budget: Cross-section of the macro-scale simulation
+#   (8) Geometric plots
 
 
-# Plotting performance metrics:
+
+def plot_performance_metrics():
+    # Plotting performance metrics:
     # 1) Availability
     # 2) Reliability
     # 3) Capacity
-def performance_metrics():
-    # Print availability
-    find_lm = np.where(link.LM_comm_BER6 < 1.0)[0]
-    time_link_fail = time_links[find_lm]
-    find_time = np.where(np.in1d(time, time_link_fail))[0]
 
+    # Print availability
     fig,ax=plt.subplots(1,1)
     ax.plot(time/3600,availability_vector, label='Tracking')
-
-    availability_vector[find_time] = 0.0
-
     ax.plot(time/3600,availability_vector, label='Communication')
     ax.set_ylabel('Availability (On/Off)')
     ax.set_xlabel('Time (hrs)')
@@ -519,20 +438,13 @@ def performance_metrics():
     ax1.plot(time/3600,np.cumsum(availability_vector)/len(time)*100, color='red')
     ax1.set_ylabel('Accumulated availability (%)', color='red')
     ax1.tick_params(axis='y', labelcolor='red')
-
     ax.fill_between(time/3600, y1=1.1,y2=-0.1, where=availability_vector == 0, facecolor='grey', alpha=.25)
 
     ax.legend()
     ax1.grid()
     plt.show()
 
-
     # Print reliability
-    reliability_BER = BER.mean(axis=1)
-    reliability_BER[find_lm] = 0.0
-
-    reliability_frac_fade_time = fractional_fade_time
-
     fig0, ax = plt.subplots(1,1)
     ax.plot(time_links/3600,BER.mean(axis=1), label='BER')
     ax.set_yscale('log')
@@ -543,10 +455,8 @@ def performance_metrics():
 
     ax1 = ax.twinx()
     ax1.plot(time_links/3600,np.cumsum(reliability_BER*data_rate*step_size_link)/(data_rate*mission_duration), color='red')
-    # ax1.set_yscale('log')
     ax1.set_ylabel('Accumulated error bits (normalized)', color='red')
     ax1.tick_params(axis='y', labelcolor='red')
-
     ax.fill_between(time/3600, y1=1.1,y2=-0.1, where=availability_vector == 0, facecolor='grey', alpha=.25)
 
     ax.set_xlabel('time (hrs)')
@@ -554,11 +464,8 @@ def performance_metrics():
     ax.legend()
     plt.show()
 
-
     # Print capacity
     fig1,ax1 = plt.subplots(1,1)
-    above_lm = np.where(link.LM_comm_BER6 > 1.0)[0]
-    throughput[find_lm] = 0.0
 
     ax1.plot(time_links/3600, throughput/1E9, label='Actual throughput')
     ax1.plot(time_links/3600, C/1E9, label='Potential throughput')
@@ -568,8 +475,6 @@ def performance_metrics():
     ax2.plot(time_links/3600, np.cumsum(throughput)/1E12)
     ax2.plot(time_links/3600, np.cumsum(C)/1E12)
     ax2.set_ylabel('Accumulated throughput (Tb)')
-    # ax2.tick_params(axis='y', labelcolor='red')
-
     ax1.set_xlabel('time (hrs)')
 
     ax1.fill_between(time/3600, y1=C.max()/1E9, y2=-5, where=availability_vector == 0, facecolor='grey', alpha=.25)
@@ -578,50 +483,34 @@ def performance_metrics():
     ax1.legend()
     plt.show()
 
-# Pr and BER output (distribution domain)
-# Output can be:
-    # 1) Distribution over total mission interval, where all microscopic evaluations are averaged
-    # 2) Distribution for specific time steps, without any averaging
-def plot_mission_performance_output_Pr_BER():
+def plot_distribution_Pr_BER():
+    # Pr and BER output (distribution domain)
+    # Output can be:
+        # 1) Distribution over total mission interval, where all microscopic evaluations are averaged
+        # 2) Distribution for specific time steps, without any averaging
     fig_T, ax_output = plt.subplots(1, 2)
 
     if analysis == 'total':
         P_r_pdf_total1, P_r_cdf_total1, x_P_r_total1, std_P_r_total1, mean_P_r_total1 = \
     distribution_function(data=W2dBm(P_r.mean(axis=1)), length=1, min=-60.0, max=0.0, steps=1000)
 
-        # ax_output[0].plot(x_P_r_total1, P_r_cdf_total1, label='averaging')
         ax_output[0].plot(x_P_r_total, P_r_cdf_total)
-        # ax_output[0].plot(np.ones(2) * W2dBm(P_r_total.mean()), [0, 1], linewidth=3,
-        #                      color='grey', label='mean')
         ax_output[0].plot(np.ones(2) * W2dBm(LCT.P_r_thres[1]), [0, 1], c='black',
                              linewidth=3, label='thres BER=1.0E-6')
 
         ax_output[1].plot(x_BER_total, BER_cdf_total)
-        # ax_output[1].plot(np.ones(2) * np.log10(BER_avg_total), [0, 1],
-        #                      linewidth=3,
-        #                      color='grey', label='Uncoded mean')
         ax_output[1].plot(np.ones(2) * np.log10(BER_thres[1]), [0, 1], c='black',
                              linewidth=3, label='thres BER=1.0E-6')
 
         if coding == 'yes':
             ax_output[1].plot(x_BER_total, BER_coded_cdf_total,
                                  label='Coded')
-            # ax_output[1].plot(np.ones(2) * np.log10(BER_coded_total.mean()), [0, 1], linewidth=3,
-            #                      color='green', label='Coded mean')
 
     elif analysis == 'time step specific':
-        # fig_T, ax_output_t = plt.subplots(1, 2)
-        # ax_output_t[0].set_title('Micro time domain $P_{RX}$')
-        # ax_output_t[1].set_title('Micro time domain BER')
         for i in indices:
             ax_output[0].plot(x_P_r, cdf_P_r[i], label='$\epsilon$=' + str(np.round(np.rad2deg(elevation[i]), 2)) + '$\degree$, outage fraction='+str(fractional_BER_fade[i]))
             ax_output[1].plot(x_BER, cdf_BER[i], label='$\epsilon$=' + str(np.round(np.rad2deg(elevation[i]), 2)) + '$\degree$, outage fraction='+str(fractional_fade_time[i]))
 
-            # ax_output_t[0].plot(t_micro*1.0E3, W2dBm(P_r[i]), label=str(np.round(W2dBm(np.mean(P_r[i])), 0)) + ' dBm avg', linewidth=0.8)
-            # ax_output_t[1].plot(t_micro*1.0E3, BER[i], label='$\epsilon$=' + str(np.round(np.rad2deg(elevation[i]), 1))+'$\degree$')
-
-        # ax_output_t[0].plot(t_micro*1.0E3, np.ones(t_micro.shape) * W2dBm(LCT.P_r_thres[1]), label='thres', linewidth=2)
-        # ax_output_t[1].plot(t_micro*1.0E3, np.ones(t_micro.shape) * BER_thres[1], label='thres', c='black', linewidth=2)
         ax_output[0].plot(np.ones(2) * W2dBm(LCT.P_r_thres[1]), [0, 1], c='black', linewidth=3, label='thres')
         ax_output[1].plot(np.ones(2) * np.log10(BER_thres[1]), [0, 1], c='black', linewidth=3, label='thres')
 
@@ -630,23 +519,7 @@ def plot_mission_performance_output_Pr_BER():
                 ax_output[1].plot(x_BER_coded, pdf_BER_coded[i],
                                 label='Coded, $\epsilon$=' + str(np.round(np.rad2deg(elevation[i]), 2)) + '\n % '
                                       'BER over threshold: ' + str(np.round(fractional_BER_coded_fade[i] * 100, 2)))
-                # ax_output_t[1].plot(t_micro * 1.0E3, BER_coded[i],
-                #                  label='$\epsilon$=' + str(np.round(np.rad2deg(elevation[i]), 2)) + '$\degree$, coded')
-
-        # ax_output_t[0].set_ylabel('$P_{RX}$ (dBm)')
-        # ax_output_t[1].set_ylabel('BER')
-        # ax_output_t[0].set_xlabel('Time (ms)')
-        # ax_output_t[1].set_xlabel('Time (ms)')
-        # ax_output_t[0].grid()
-        # ax_output_t[1].grid()
-        # ax_output_t[0].legend(fontsize=10, loc='lower right')
-        # ax_output_t[1].legend(fontsize=10, loc='lower right')
-        # ax_output_t[1].yaxis.set_label_position("right")
-        # ax_output_t[1].yaxis.tick_right()
-        # ax_output_t[1].set_yscale('log')
-        # ax_output_t[1].set_ylim(0.5, 1.0E-30)
-
-
+               
     ax_output[0].set_ylabel('CDF of $P_{RX}$',fontsize=10)
     ax_output[0].set_xlabel('$P_{RX}$ (dBm)',fontsize=10)
     ax_output[0].set_yscale('log')
@@ -693,88 +566,14 @@ def plot_mission_performance_pointing():
     ax.legend(fontsize=10)
     plt.show()
 
-# Pr, throughput and latency output (time domain)
-# The variables are averaged for each microscopic evaluation and plotted over the total mission interval
-# Plot options are: (1) Distribution over elevation angles, (2) Time-series. Output consists of:
-    # 1) Pr mean
-    # 2) Pr with outage probability of 0.05 (desired_frac_fade_time in input.py)
-    # 3) Throughput for static data rate
-    # 4) Throughput for variable data rate, where link margin is equal to 0 (Only with time-series option)
-    # 5) Latency (in case of coding, interleaving is added) (Only with time-series option)
-def plot_mission_performance_output_throughput():
-
-    fig, ax = plt.subplots(1,2)
-    # fig1,ax1= plt.subplots(1,2)
-    if link_number == 'all':
-        # Pr_total = flatten(performance_output['Pr mean'])
-        # Pr_penalty_total = flatten(performance_output['Pr penalty'])
-        # ax1[0].plot(time, W2dBm(Pr_total))
-
-        ax[0].plot(time_links_hrs, np.ones(time_links_hrs.shape) * W2dBm(LCT.P_r_thres[1]), label='thres', color='darkgreen')
-        # ax[0].plot(np.rad2deg(elevation_per_link[0]), W2dBm(performance_output['Pr 0'][0]), label='$P_{RX,0}$', color='orange')
-        ax[0].plot(time_per_link[0]/3600, W2dBm(performance_output['Pr mean'][0]), label='$P_{RX}$ avg', color='royalblue')
-        ax[0].plot(time_per_link[0]/3600, W2dBm(performance_output['Pr penalty'][0]), label='$P_{RX}$ avg + penalty ', color='red')
-        ax[1].plot(time_links_hrs, np.ones(time_links_hrs.shape) * BER_thres[1], label='thres (3dB)', color='darkgreen')
-        # ax[0].fill_between(time_per_link[0]/3600, y1=-10, y2=-80, where=performance_output['Pr penalty'][0] < LCT.P_r_thres[1], facecolor='grey', alpha=.25)
-        ax[0].fill_between(time / 3600, y1=-10, y2=-80, where=availability_vector == 0, facecolor='grey', alpha=.25)
-        ax[1].fill_between(time / 3600, y1=1.5, y2=0.0, where=availability_vector == 0, facecolor='grey', alpha=.25)
-        if coding == 'yes':
-            ax[0].plot(np.rad2deg(elevation_per_link[0]), W2dBm(performance_output['Pr coded'][0]), label='$P_{RX,coded}',color='pink')
-            ax[1].plot(np.rad2deg(elevation_per_link[0]), performance_output['BER coded'][0], color='pink')
-            # ax[1,0].plot(np.rad2deg(elevation_per_link[0]), performance_output['throughput coded'][0], color='pink')
-
-        for i in range(len(routing_output['link number'])):
-            ax[0].plot(time_per_link[i]/3600, W2dBm(performance_output['Pr mean'][i]),      color='royalblue')
-            ax[0].plot(time_per_link[i]/3600, W2dBm(performance_output['Pr penalty'][i]),   color='red')
-            ax[1].plot(time_per_link[i]/3600, performance_output['BER mean'][i],            color='red')
-            # ax[0].fill_between(time_per_link[i]/3600, y1=-10, y2=-80, where=performance_output['Pr penalty'][i] < LCT.P_r_thres[1], facecolor='grey', alpha=.25)
-            # ax[1].fill_between(time_per_link[i]/3600, y1=1.0, y2=0.0, where=performance_output['BER mean'][i] < BER_thres[1], facecolor='grey', alpha=.25)
-            if coding == 'yes':
-                ax[0].plot(np.rad2deg(elevation_per_link[0]), W2dBm(performance_output['Pr coded'][i]), color='pink')
-                ax[1].plot(np.rad2deg(elevation_per_link[0]), performance_output['BER coded'][i], color='pink')
-
-
-        ax[0].set_ylabel('$P_{RX}$ (dBm)')
-
-    else:
-        ax[0].plot(np.rad2deg(elevation), np.ones(elevation.shape) * W2dBm(LCT.P_r_thres[1]), label='thres',
-                      color='darkgreen')
-        ax[0].plot(np.rad2deg(elevation), W2dBm(performance_output['Pr 0']), label='$P_{RX,0}$',
-                      color='royalblue')
-        ax[0].plot(np.rad2deg(elevation), W2dBm(performance_output['Pr mean']),
-                      label='$P_{RX,1}$ mean', color='royalblue')
-        ax[0].plot(np.rad2deg(elevation), W2dBm(performance_output['Pr penalty']),
-                      label='$P_{RX,1}$ outage frac=' + str(desired_frac_fade_time), color='red')
-        ax[1].plot(np.rad2deg(elevation), np.ones(elevation.shape) * BER_thres[1], label='thres', color='darkgreen')
-        ax[1].plot(np.rad2deg(elevation), performance_output['BER mean'], color='red')
-        if coding == 'yes':
-            ax[0].plot(np.rad2deg(elevation), W2dBm(performance_output['Pr coded']), label='$P_{RX,coded}',color='pink')
-            ax[1].plot(np.rad2deg(elevation), performance_output['BER coded'], color='pink')
-
-    ax[0].set_ylabel('$P_{RX,avg} (dBm)$')
-    ax[1].set_ylabel('BER ($log_{10}(BER_{avg})$)')
-    ax[1].set_yscale('log')
-    ax[1].set_ylim(0.5, 1.0E-9)
-    ax[1].yaxis.tick_right()
-    ax[1].yaxis.set_label_position("right")
-    ax[0].set_xlabel('Elevation (deg)')
-    ax[1].set_xlabel('Elevation (deg)')
-
-    ax[0].legend(fontsize=10, loc='lower right')
-    ax[0].legend(fontsize=10, loc='lower right')
-    ax[0].grid()
-    ax[1].grid()
-
-    plt.show()
-
-# Fade statistics output (distribution domain)
-# The variables are computed for each microscopic evaluation and plotted over the total mission interval
-# Elevation angles are also plotted to see the relation between elevation and fading.
-# Output consists of:
-    # 1) Outage fraction or fractional fade time
-    # 2) Mean fade time
-    # 3) Number of fades
-def plot_mission_performance_output_fades():
+def plot_fades():
+    # Fade statistics output (distribution domain)
+    # The variables are computed for each microscopic evaluation and plotted over the total mission interval
+    # Elevation angles are also plotted to see the relation between elevation and fading.
+    # Output consists of:
+        # 1) Outage fraction or fractional fade time
+        # 2) Mean fade time
+        # 3) Number of fades
     fig, ax = plt.subplots(1,2)
     ax2 = ax[0].twinx()
 
@@ -810,18 +609,7 @@ def plot_mission_performance_output_fades():
     ax.set_xlabel('Power scintillation index (-)')
     ax.grid()
 
-    # fig1, ax1 = plt.subplots(1, 1)
-    # ax1.plot(turb.var_scint_I[:-10], W2dB(h_scint.mean(axis=1)[:-10]), label='$h_{scint}$')
-    # ax1.plot(turb.var_scint_I[:-10], W2dB(h_tot.mean(axis=1)[:-10])  , label='$h_{tot}$')
-    # ax1.plot(turb.var_scint_I[:-10], W2dB(h_TX.mean(axis=1)[:-10])   , label='$h_{TX}$')
-    # ax1.plot(turb.var_scint_I[:-10], W2dB(h_RX.mean(axis=1)[:-10])   , label='$h_{RX}$')
-    # ax1.set_ylabel('Power penalty (dB)')
-    # ax1.set_xlabel('Power scintillation index (-)')
-    # ax1.grid()
-    # ax1.legend()
-
     plt.show()
-
 
 def plot_temporal_behaviour(data_TX_jitter, data_bw, data_TX, data_RX, data_scint, data_h_total, f_sampling,
              effect0='$h_{pj,TX}$ (platform)', effect1='$h_{bw}$', effect2='$h_{pj,TX}$ (combined)',
@@ -898,86 +686,11 @@ def plot_temporal_behaviour(data_TX_jitter, data_bw, data_TX, data_RX, data_scin
 
     plt.show()
 
-
-def plot_mission_geometrical_output_slew_rates():
-    if link_number == 'all':
-        pdf_slew, cdf_slew, x_slew, std_slew, mean_slew = distribution_function(data=routing_total_output['slew rates'],
-                                                                                length=1,
-                                                                                min=routing_total_output['slew rates'].min(),
-                                                                                max=routing_total_output['slew rates'].max(),
-                                                                                steps=1000)
-        fig, ax = plt.subplots(2, 2)
-        # ax[0].set_title('Slew rate analysis', fontsize=15)
-        ax[0,0].plot(np.rad2deg(x_slew), cdf_slew)
-
-        for i in range(len(routing_output['link number'])):
-            if np.any(np.isnan(routing_output['slew rates'][i])) == False:
-                pdf_slew, cdf_slew, x_slew, std_slew, mean_slew = distribution_function(data=routing_output['slew rates'][i],
-                                                                                        length=1,
-                                                                                        min=routing_output['slew rates'][i].min(),
-                                                                                        max=routing_output['slew rates'][i].max(),
-                                                                                        steps=1000)
-                pdf_elev, cdf_elev, x_elev, std_elev, mean_elev = distribution_function(
-                    data=routing_output['elevation rates'][i],
-                    length=1,
-                    min=routing_output['elevation rates'][i].min(),
-                    max=routing_output['elevation rates'][i].max(),
-                    steps=1000)
-                pdf_azi, cdf_azi, x_azi, std_azi, mean_azi = distribution_function(
-                    data=routing_output['azimuth rates'][i],
-                    length=1,
-                    min=routing_output['azimuth rates'][i].min(),
-                    max=routing_output['azimuth rates'][i].max(),
-                    steps=1000)
-                ax[1,0].plot(np.rad2deg(x_slew), cdf_slew, label='link '+str(routing_output['link number'][i]))
-                ax[0,1].plot(np.rad2deg(x_elev), cdf_elev)
-                ax[1,1].plot(np.rad2deg(x_azi), cdf_azi)
-
-        ax[0,0].set_ylabel('CDF slew rates (all links)', fontsize=10)
-        ax[1,0].set_ylabel('CDF slew rates ($\degree$/s)', fontsize=10)
-        ax[0,1].set_ylabel('CDF elev rates', fontsize=10)
-        ax[1,1].set_ylabel('CDF azi rates', fontsize=10)
-        ax[1, 0].set_xlabel('rates ($\degree$/s)', fontsize=10)
-        ax[1, 1].set_xlabel('rates ($\degree$/s)', fontsize=10)
-        ax[0,0].grid()
-        ax[1,0].grid()
-        ax[0,1].grid()
-        ax[1,1].grid()
-        ax[0,0].legend(fontsize=10)
-        ax[1,0].legend(fontsize=10)
-
-    else:
-        fig, ax = plt.subplots(1, 1)
-        fig.suptitle('Slew rate analysis', fontsize=20)
-
-        for i in range(len(routing_output['link number'])):
-            if np.any(np.isnan(routing_output['slew rates'][i])) == False:
-                pdf_slew, cdf_slew, x_slew, std_slew, mean_slew = distribution_function(
-                    data=routing_output['slew rates'][i],
-                    length=1,
-                    min=routing_output['slew rates'][i].min(),
-                    max=routing_output['slew rates'][i].max(),
-                    steps=1000)
-                ax.plot(np.rad2deg(x_slew), cdf_slew, label='link ' + str(routing_output['link number'][i]))
-
-        ax.set_ylabel('Prob. density \n for each link', fontsize=20)
-        ax.set_xlabel('Slew rate (deg/sec)', fontsize=20)
-        ax.grid()
-        ax.legend(fontsize=20)
-
-    plt.show()
-
 def plot_mission_geometrical_output_coverage():
     if link_number == 'all':
         pdf_elev, cdf_elev, x_elev, std_elev, mean_elev = distribution_function(data=elevation, length=1, min=elevation.min(), max=elevation.max(), steps=1000)
 
-        fig, ax = plt.subplots(2, 1)
-        fig.suptitle('Coverage analysis \n Total mission time (hrs): '+str(np.round((time[-1] - time[0])/3600,2))+', '
-                                             'total acquisition time (min)='+str(np.round(routing_network.total_acquisition_time/60,2))+'\n '
-                                             'Fractional link time (%):'+str(np.round(routing_network.frac_comm_time*100,2)), fontsize=15)
-        ax[0].plot(np.rad2deg(x_elev), cdf_elev)
-        ax[0].plot(np.ones(2) * elevation_cross_section[0], [0, 1], color='black', label='cross section for $\epsilon$='+str(elevation_cross_section[0])+'deg')
-        ax[0].plot(np.ones(2) * elevation_cross_section[1], [0, 1], color='black', label='cross section for $\epsilon$='+str(elevation_cross_section[1])+'deg')
+        fig, ax = plt.subplots(1, 1)
 
         for e in range(len(routing_output['elevation'])):
             if np.any(np.isnan(routing_output['elevation'][e])) == False:
@@ -986,23 +699,16 @@ def plot_mission_geometrical_output_coverage():
                                                                                         min=routing_output['elevation'][e].min(),
                                                                                         max=routing_output['elevation'][e].max(),
                                                                                         steps=1000)
-                ax[1].plot(np.rad2deg(x_elev), cdf_elev, label='link '+str(routing_output['link number'][e]))
+                ax.plot(np.rad2deg(x_elev), cdf_elev, label='link '+str(routing_output['link number'][e]))
 
-        ax[0].set_ylabel('Prob. density \n all links combined', fontsize=15)
-        ax[1].set_ylabel('Prob. density \n for each link', fontsize=15)
-        ax[1].set_xlabel('Elevation (rad)', fontsize=15)
+        ax.set_ylabel('Prob. density \n for each link', fontsize=13)
+        ax.set_xlabel('Elevation (rad)', fontsize=13)
 
-        ax[0].grid()
-        ax[1].grid()
-        ax[0].legend(fontsize=10)
-        ax[1].legend(fontsize=10)
+        ax.grid()
+        ax.legend(fontsize=10)
 
     else:
         fig, ax = plt.subplots(1, 1)
-        fig.suptitle(
-            'Coverage analysis \n Total mission time (hrs): ' + str(np.round((time[-1] - time[0]) / 3600, 2)) + ', '
-            'total acquisition time (min)=' + str(np.round(routing_network.total_acquisition_time / 60, 2)) + '\n '
-            'Fractional link time (%):' + str(np.round(routing_network.frac_comm_time * 100, 2)), fontsize=20)
         for e in range(len(routing_output['elevation'])):
             if np.any(np.isnan(routing_output['elevation'][e])) == False:
                 pdf_elev, cdf_elev, x_elev, std_elev, mean_elev = distribution_function(data=routing_output['elevation'][e],
@@ -1012,32 +718,60 @@ def plot_mission_geometrical_output_coverage():
                                                                                         steps=1000)
                 ax.plot(np.rad2deg(x_elev), cdf_elev, label='link ' + str(routing_output['link number'][e]))
 
-        ax.set_ylabel('Prob. density \n for each link', fontsize=20)
-        ax.set_xlabel('Elevation (rad)', fontsize=20)
+        ax.set_ylabel('Ratio of occurence \n (normalized)', fontsize=12)
+        ax.set_xlabel('Elevation (rad)', fontsize=12)
         ax.grid()
-        ax.legend(fontsize=20)
-
-
+        ax.legend(fontsize=15)
     plt.show()
 
-# plot_mission_performance_output_Pr_BER()
-# plot_mission_performance_pointing()
-plot_mission_performance_output_fades()
-plot_mission_performance_output_throughput()
+def plot_mission_geometrical_output_slew_rates():
+    if link_number == 'all':
+        pdf_slew, cdf_slew, x_slew, std_slew, mean_slew = distribution_function(data=routing_total_output['slew rates'],
+                                                                                length=1,
+                                                                                min=routing_total_output['slew rates'].min(),
+                                                                                max=routing_total_output['slew rates'].max(),
+                                                                                steps=1000)
 
-# link.print(index=index_elevation, elevation=elevation, static=False)
-# link.plot(P_r=P_r, displacements=None, indices=indices, elevation=elevation, type='table')
-#
+        fig, ax = plt.subplots(1, 1)
+
+        for i in range(len(routing_output['link number'])):
+            if np.any(np.isnan(routing_output['slew rates'][i])) == False:
+                pdf_slew, cdf_slew, x_slew, std_slew, mean_slew = distribution_function(
+                    data=routing_output['slew rates'][i],
+                    length=1,
+                    min=routing_output['slew rates'][i].min(),
+                    max=routing_output['slew rates'][i].max(),
+                    steps=1000)
+                ax.plot(np.rad2deg(x_slew), cdf_slew)
+
+        ax.set_ylabel('Ratio of occurence \n (normalized)', fontsize=12)
+        ax.set_xlabel('Slew rate (deg/sec)', fontsize=12)
+        ax.grid()
+    plt.show()
+
+
+
+#---------------------------------
+# Plot mission output
+#---------------------------------
+plot_performance_metrics()
+# plot_distribution_Pr_BER()
+# plot_mission_performance_pointing()
+# plot_fades()
 # plot_temporal_behaviour(data_TX_jitter=h_pj_t, data_bw=h_bw[indices[index_elevation]], data_TX=h_TX[indices[index_elevation]], data_RX=h_RX[indices[index_elevation]],
 #          data_scint=h_scint[indices[index_elevation]], data_h_total=h_tot[indices[index_elevation]], f_sampling=1/step_size_channel_level)
-
-
-
+#---------------------------------
+# Plot/print link budget
+#---------------------------------
+# link.print(index=index_elevation, elevation=elevation, static=False)
+# link.plot(P_r=P_r, displacements=None, indices=indices, elevation=elevation, type='table')
+#---------------------------------
 # Plot geometric output
+#---------------------------------
 # link_geometry.plot(type='trajectories', time=time)
-# link_geometry.plot(type='AC flight profile', routing_output=routing_output)
-# link_geometry.plot(type = 'satellite sequence', routing_output=routing_output)
+link_geometry.plot(type='AC flight profile', routing_output=routing_output)
+link_geometry.plot(type = 'satellite sequence', routing_output=routing_output)
 # link_geometry.plot(type='longitude-latitude')
-link_geometry.plot(type='angles', routing_output=routing_output)
-# plot_mission_geometrical_output_coverage()
+# link_geometry.plot(type='angles', routing_output=routing_output)
+plot_mission_geometrical_output_coverage()
 # plot_mission_geometrical_output_slew_rates()
