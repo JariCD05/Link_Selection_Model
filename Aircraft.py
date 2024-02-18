@@ -6,6 +6,7 @@ from dateutil import parser
 #the lastest of the last
 #print("xoxoTies")
 #print("kakaaaaaaaaaaa")
+#lukt het mij denk je ook?
 import numpy as np
 import pandas
 from matplotlib import pyplot as plt

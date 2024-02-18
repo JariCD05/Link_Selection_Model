@@ -15,6 +15,10 @@ from bit_level import bit_level
 from channel_level import channel_level
 
 
+# Process to activate tudatpy 
+# 1. within command line "conda activate tudat-space"
+# 2. change python version on bottom right to 3.10.13{'tudat-space':conda}
+
 print('')
 print('------------------END-TO-END-LASER-SATCOM-MODEL-------------------------')
 #------------------------------------------------------------------------
