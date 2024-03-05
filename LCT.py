@@ -165,7 +165,7 @@ class terminal_properties:
                  modulation = "OOK-NRZ",
                  micro_scale = 'no'):
         if modulation == "OOK-NRZ":
-            # REF: FREE-SPACE LASER COMMUNICATIONS, PRINCIPLES AND ADVANCES, A.MAJUMDAR, 2008, CH.3 EQ.8
+            
             BER = 1/2 * erfc( Q / np.sqrt(2) )
 
         elif modulation == "2-PPM" or modulation == "2PolSK":

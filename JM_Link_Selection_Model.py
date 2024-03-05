@@ -1,10 +1,21 @@
-#This is original Routing network file.
-from input import *
-from helper_functions import *
+# Import standard required tools
 import random
-
 from itertools import chain
 import numpy as np
+from matplotlib import pyplot as plt
+
+# Import input parameters and helper functions
+from input import *
+from helper_functions import *
+
+# Import classes from other files
+from Link_geometry import link_geometry
+from Atmosphere import attenuation, turbulence
+from LCT import terminal_properties
+from Link_budget import link_budget
+from bit_level import bit_level
+from channel_level import channel_level
+
 
 class routing_network():
     def __init__(self, time):
@@ -70,27 +81,36 @@ class routing_network():
             # Condition of the while loop is:
             # (1) There is no link currently active (active_link == 'no)
             # (2) The current time step has not yet exceeded the maximum simulation time (index < len(time))
+
+
             while active_link == 'no' and index < len(time):
                 for i in range(len(geometrical_output['pos SC'])):
                     elev_last = elevation_angles[i][index - 1]
                     elev      = elevation_angles[i][index]
 
                     # FIND SATELLITES WITH AN ELEVATION ABOVE THRESHOLD (DIRECT LOS), AN ELEVATION THAT IS STILL INCREASING (START OF WINDOW) AND T < T_FINAL
-                    # Find satellites for an active link, using 3 conditions:
+                    # Find satellites for an active link, using 2 conditions:
                     # (1) The current satellite elevation is higher that the defined minimum (elev > elevation_min)
                     # (2) The current satellite elevation is increasing (elev > elev_last)
                     if elev > elevation_min and elev > elev_last:
                         start_elev.append(elev)
                         sats_in_LOS.append(i)
+                        
+                        
 
                 # If there are satellites that satisfy the above conditions, a new link will be chosen
                 # If no satellite satisfies the above conditions, the last step will be repeated for the next time step
                 if len(sats_in_LOS) > 0:
                     active_link = 'yes'
 
-                    print("Satellites within Line of Sight:")
-                    for s in sats_in_LOS:
-                        print("Satellite ", s)
+                   #current_mission_time_index = index  # Assuming index holds the current mission time index
+                   #current_mission_time = time[current_mission_time_index]
+                   #print("Mission Time (UTC):", current_mission_time)
+            
+
+                    #print("Satellites within Line of Sight:")
+                    #for s in sats_in_LOS:
+                    #    print("Satellite ", s)
 
                     # Choose the satellite that reaches the maximum elevation in the coming overpass
                     # One overpass here is defined to fall within 200 indices (200*5 = 1000 seconds, or 16.67 min)
@@ -188,4 +208,7 @@ class routing_network():
         
 
         return self.routing_output, self.routing_total_output, mask
+
+
+
 

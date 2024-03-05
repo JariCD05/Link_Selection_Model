@@ -31,7 +31,7 @@ omega_earth = 2 * np.pi / 86400.0
 # Set-up of Macro-scale model
 #----------------------------
 start_time = 0.0                                  # Start epoch of the simulation
-end_time = 3600 * 6 #3600.0   / 2                 # End epoch of the simulation
+end_time = 3600* 6  #3600.0   / 2                 # End epoch of the simulation #THIS IS ADJUSTED VALUE should be 6*3600
 step_size_link = 5.0                              # Step size at which the macro-scale model is simulated
 step_size_SC = 7.0                                # Numerical propagation time step of all SPACECRAFT in the constellation
 step_size_AC = step_size_link                     # Numerical propagation time step of the AIRCRAFT
@@ -143,8 +143,8 @@ speed_AC = np.sqrt(vel_AC[0]**2 +
 lat_init_AC = 78.5094                           # initial latitude (in degrees)
 lon_init_AC = 60.54131                          # initial longitude (in degrees)
 #--------------------In case of 'opensky' method-----------------
-aircraft_filename_load = r"C:\Users\wiege\Documents\TUDelft_Spaceflight\Thesis\ac_sc_data\traffic_trajectories\OSL_ENEV.csv"
-aircraft_filename_save = r'C:\Users\wiege\Documents\TUDelft_Spaceflight\Thesis\ac_sc_data\traffic_trajectories\SDA_30min_7sec_dt.json'
+aircraft_filename_load = r"/Users/jaristensen/Desktop/Visual_Studio/Thesis/Link_Selection_Model/ac_trajectories/OSL_ENEV.csv"
+aircraft_filename_save = r'/Users/jaristensen/Desktop/Visual_Studio/Thesis/Link_Selection_Model/sc_trajectories/SDA.json'
 
 
 
@@ -157,14 +157,14 @@ constellation_data = 'NONE' #'NONE' or 'SAVE' or 'LOAD'
 method_SC = "tudat"  # "TLE"
 # Option to LOAD an existing json file with positional SC data (SC_filename_load)
 # Or to propagate a new constellation and SAVE to a new json file (SC_filename_save)
-SC_filename_load  = r'C:\Users\wiege\Documents\TUDelft_Spaceflight\Thesis\ac_sc_data\constellation_states\SDA_30min_7sec_dt.json'
-SC_filename_save  = r'C:\Users\wiege\Documents\TUDelft_Spaceflight\Thesis\ac_sc_data\constellation_states\SDA_30min_7sec_dt.json'
+SC_filename_load  = r'/Users/jaristensen/Desktop/Visual_Studio/Thesis/Link_Selection_Model/sc_trajectories/SDA.json'
+SC_filename_save  = r'/Users/jaristensen/Desktop/Visual_Studio/Thesis/Link_Selection_Model/sc_trajectories/SDA.json'
 #--------------------In case of 'tudat' method-----------------
 constellation_type = "LEO_cons"                 # Type of constellation (1 sat in LEO, 1 sat in GEO, LEO constellation)
 h_SC = 1200.0E3 #(SDA) or 550.0E3 (Starlink)       # Initial altitude of the satellite(s)
 inc_SC = 85.0 #55.98 (Starlink) or 0.0 (GEO) or 80.0 (SDA)  # Initial inclination of the satellite(s)
 number_of_planes = 2                           # Number of planes within the constellation (if 1 sat: number_of_planes = 1)
-number_sats_per_plane = 14                     # Number of satellites per plane within the constellation (if 1 sat: number_sats_per_plane = 1)
+number_sats_per_plane = 4                   # Number of satellites per plane within the constellation (if 1 sat: number_sats_per_plane = 1)
 #---------------------In case of 'TLE' method------------------
 TLE_filename_load = r'C:\Users\wiege\Documents\TUDelft_Spaceflight\Thesis\ac_sc_data\constellation_TLE_data\oneweb_tle.json'
 

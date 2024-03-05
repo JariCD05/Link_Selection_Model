@@ -1,3 +1,6 @@
+# Import standard required tools
+import random
+from itertools import chain
 import numpy as np
 from matplotlib import pyplot as plt
 
@@ -7,17 +10,17 @@ from helper_functions import *
 
 # Import classes from other files
 from Link_geometry import link_geometry
-from Routing_network import routing_network
+from JM_Visibility_matrix import routing_network
 from Atmosphere import attenuation, turbulence
 from LCT import terminal_properties
 from Link_budget import link_budget
 from bit_level import bit_level
 from channel_level import channel_level
 
+#------------------------------------------------------------------------------
+#--------------- Isolated test of only routing network ------------------------
 
-# Process to activate tudatpy 
-# 1. within command line "conda activate tudat-space"
-# 2. change python version on bottom right to 3.10.13{'tudat-space':conda}
+
 
 print('')
 print('------------------END-TO-END-LASER-SATCOM-MODEL-------------------------')
@@ -34,8 +37,6 @@ samples_channel_level = len(t_micro)
 print('Macro-scale: Interval=', (end_time - start_time)/60, 'min, step size=', step_size_link, 'sec,  macro-scale steps=', samples_mission_level)
 print('Micro-scale: Interval=', interval_channel_level    , '  sec, step size=', step_size_channel_level*1000, 'msec, micro-scale steps=', samples_channel_level)
 
-print('----------------------------------------------------------------------------------MACRO-LEVEL-----------------------------------------------------------------------------------------')
-print('')
 print('-----------------------------------MISSION-LEVEL-----------------------------------------')
 #------------------------------------------------------------------------
 #------------------------------------LCT---------------------------------
@@ -79,9 +80,10 @@ samples_mission_level = number_sats_per_plane * number_of_planes * len(link_geom
 routing_network = routing_network(time=time)
 routing_output, routing_total_output, mask = routing_network.routing(link_geometry.geometrical_output, time, step_size_link)
 
-total_time = len(time)*step_size_link
-comm_time = len(flatten(routing_output['time']))*step_size_link
-acq_time = routing_network.total_acquisition_time
+#--------------------------------------------------------------------------
+#----------------------------check if we can adjust links propagated----------------------------------------------
+
+LOS_matrix = routing_network.los_matrix
 
 
 
@@ -89,36 +91,52 @@ acq_time = routing_network.total_acquisition_time
 #   (1) link_number == 'all'   : Creates 1 vector for each geometric variable for each selected link & creates a flat vector
 #   (2) link_number == 1 number: Creates 1 vector for each geometric variable
 if link_number == 'all':
-    time_links  = flatten(routing_output['time'     ])
-    time_links_hrs = time_links / 3600.0
-    ranges     = flatten(routing_output['ranges'    ])
-    elevation  = flatten(routing_output['elevation' ])
-    zenith     = flatten(routing_output['zenith'    ])
-    slew_rates = flatten(routing_output['slew rates'])
-    heights_SC = flatten(routing_output['heights SC'])
-    heights_AC = flatten(routing_output['heights AC'])
-    speeds_AC  = flatten(routing_output['speeds AC'])
+    # Initialize lists to store data for all visible satellites
+    time_links_all, ranges_all, elevation_all, zenith_all, slew_rates_all = [], [], [], [], []
+    heights_SC_all, heights_AC_all, speeds_AC_all = [], [], []
 
-    time_per_link       = routing_output['time'      ]
-    time_per_link_hrs   = time_links / 3600.0
-    ranges_per_link     = routing_output['ranges'    ]
-    elevation_per_link  = routing_output['elevation' ]
-    zenith_per_link     = routing_output['zenith'    ]
-    slew_rates_per_link = routing_output['slew rates']
-    heights_SC_per_link = routing_output['heights SC']
-    heights_AC_per_link = routing_output['heights AC']
-    speeds_AC_per_link  = routing_output['speeds AC' ]
+    # Loop through each time index and check the LOS matrix to filter data for visible satellites
+    for idx in range(len(LOS_matrix)):
+            time_links_per_index  = flatten(routing_output['time'][idx])
+            time_links_hrs_per_index = time_links_per_index / 3600.0
+            ranges_per_index     = flatten(routing_output['ranges'][idx])
+            elevation_per_index  = flatten(routing_output['elevation'][idx])
+            zenith_per_index     = flatten(routing_output['zenith'][idx])
+            slew_rates_per_index = flatten(routing_output['slew rates'][idx])
+            heights_SC_per_index = flatten(routing_output['heights SC'][idx])
+            heights_AC_per_index = flatten(routing_output['heights AC'][idx])
+            speeds_AC_per_index  = flatten(routing_output['speeds AC'][idx])
 
+            # Append data for visible satellites
+            time_links_all.append(time_links_per_index)
+            ranges_all.append(ranges_per_index)
+            elevation_all.append(elevation_per_index)
+            zenith_all.append(zenith_per_index)
+            slew_rates_all.append(slew_rates_per_index)
+            heights_SC_all.append(heights_SC_per_index)
+            heights_AC_all.append(heights_AC_per_index)
+            speeds_AC_all.append(speeds_AC_per_index)
+
+    # Flatten the lists to create flat vectors
+    time_links     = flatten(time_links_all)
+    time_links_hrs = flatten(time_links_all) / 3600.0
+    ranges         = flatten(ranges_all)
+    elevation      = flatten(elevation_all)
+    zenith         = flatten(zenith_all)
+    slew_rates     = flatten(slew_rates_all)
+    heights_SC     = flatten(heights_SC_all)
+    heights_AC     = flatten(heights_AC_all)
+    speeds_AC      = flatten(speeds_AC_all)
 else:
-    time_links     = routing_output['time'      ][link_number]
+    time_links     = flatten(routing_output['time'][link_number])
     time_links_hrs = time_links / 3600.0
-    ranges         = routing_output['ranges'    ][link_number]
-    elevation      = routing_output['elevation' ][link_number]
-    zenith         = routing_output['zenith'    ][link_number]
-    slew_rates     = routing_output['slew rates'][link_number]
-    heights_SC     = routing_output['heights SC'][link_number]
-    heights_AC     = routing_output['heights AC'][link_number]
-    speeds_AC      = routing_output['speeds AC' ][link_number]
+    ranges         = flatten(routing_output['ranges'][link_number])
+    elevation      = flatten(routing_output['elevation'][link_number])
+    zenith         = flatten(routing_output['zenith'][link_number])
+    slew_rates     = flatten(routing_output['slew rates'][link_number])
+    heights_SC     = flatten(routing_output['heights SC'][link_number])
+    heights_AC     = flatten(routing_output['heights AC'][link_number])
+    speeds_AC      = flatten(routing_output['speeds AC'][link_number])
 
 
 # Define cross-section of macro-scale simulation based on the elevation angles.
@@ -180,7 +198,7 @@ link.sensitivity(LCT.P_r_thres, PPB_thres)
 
 # Pr0 (for COMMUNICATION and ACQUISITION phase) is computed with the link budget
 P_r_0, P_r_0_acq = link.P_r_0_func()
-link.print(index=indices[index_elevation], elevation=elevation, static=True)
+# link.print(index=indices[index_elevation], elevation=elevation, static=True)
 
 # ------------------------------------------------------------------------
 # -------------------------MACRO-SCALE-SOLVER-----------------------------
@@ -203,6 +221,7 @@ P_r, P_r_perfect_pointing, PPB, elevation_angles, losses, angles = \
                   elevation_angles=elevation,
                   samples=samples_channel_level,
                   turb_cutoff_frequency=turbulence_freq_lowpass)
+
 h_tot = losses[0]
 h_scint = losses[1]
 h_RX    = losses[2]
@@ -759,9 +778,9 @@ def plot_mission_geometrical_output_slew_rates():
 # Plot mission output
 #---------------------------------
 plot_performance_metrics()
-#plot_distribution_Pr_BER()
-plot_mission_performance_pointing()
-#plot_fades()
+# plot_distribution_Pr_BER()
+# plot_mission_performance_pointing()
+# plot_fades()
 # plot_temporal_behaviour(data_TX_jitter=h_pj_t, data_bw=h_bw[indices[index_elevation]], data_TX=h_TX[indices[index_elevation]], data_RX=h_RX[indices[index_elevation]],
 #          data_scint=h_scint[indices[index_elevation]], data_h_total=h_tot[indices[index_elevation]], f_sampling=1/step_size_channel_level)
 #---------------------------------
@@ -777,6 +796,5 @@ link_geometry.plot(type='AC flight profile', routing_output=routing_output)
 link_geometry.plot(type = 'satellite sequence', routing_output=routing_output)
 # link_geometry.plot(type='longitude-latitude')
 # link_geometry.plot(type='angles', routing_output=routing_output)
-#plot_mission_geometrical_output_coverage()
+plot_mission_geometrical_output_coverage()
 # plot_mission_geometrical_output_slew_rates()
-

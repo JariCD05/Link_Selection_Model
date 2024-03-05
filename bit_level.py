@@ -18,7 +18,7 @@ def bit_level(LCT,
     # These equations are approximations, based on the assumption of a gaussian distribution for each noise type.
 
     noise_sh, noise_th, noise_bg, noise_beat = LCT.noise(P_r=P_r, I_sun=I_sun, micro_scale='yes')
-
+ 
     # The received SNR and BER are computed with analytical equations.
     SNR, Q = LCT.SNR_func(P_r=P_r, detection=detection,
                           noise_sh=noise_sh, noise_th=noise_th, noise_bg=noise_bg, noise_beat=noise_beat)
@@ -272,7 +272,7 @@ def bit_level(LCT,
         plt.show()
 
 
-    # waterfall_plot()
+    waterfall_plot()
     # plot_bit_level_time_series()
     plot_coding_errors()
 
@@ -283,3 +283,6 @@ def bit_level(LCT,
         return SNR, BER, throughput, BER_coded_interleaved, throughput_coded, P_r_coded, G_coding
     else:
         return SNR, BER, throughput
+    
+
+
