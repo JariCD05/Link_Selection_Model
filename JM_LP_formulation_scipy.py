@@ -15,7 +15,7 @@ from LCT import terminal_properties
 from Link_budget import link_budget
 from bit_level import bit_level
 from channel_level import channel_level
-from JM_Visibility_matrix import routing_network
+from JM_Mission_Level import routing_network
 from JM_matrices_test import Matrices 
 from scipy.optimize import linprog
 

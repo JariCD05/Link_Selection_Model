@@ -10,7 +10,7 @@ from tudatpy.kernel import constants as cons_tudat
 
 
 class link_geometry:
-    # def __init__(self):
+    #def __init__(self):
 
     # ------------------------------------------------------------------------
     # -----------------------------FUNCTIONS----------------------------------
