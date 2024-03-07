@@ -26,17 +26,19 @@ class mission_level:
         self.total_acquisition_time = 0 # seconds
         self.acquisition = np.zeros(len(time))
 
- 
+    #this needs to be done without the link selection performed
     def initialize_macro_timescale(self):
         t_macro = np.arange(0.0, (end_time - start_time), step_size_link)
         samples_mission_level = len(t_macro)
         print('Macro-scale: Interval=', (end_time - start_time)/60, 'min, step size=', step_size_link, 'sec,  macro-scale steps=', samples_mission_level)
 
+    #this needs to be done without the link selection performed
     def initialize_micro_timescale(self):
         t_micro = np.arange(0.0, interval_channel_level, step_size_channel_level)
         samples_channel_level = len(t_micro)
         print('Micro-scale: Interval=', interval_channel_level    , '  sec, step size=', step_size_channel_level*1000, 'msec, micro-scale steps=', samples_channel_level)
 
+    #this needs to be done without the link selection performed
     def compute_sensity_and_threshold(self):
         LCT = terminal_properties()
         LCT.BER_to_P_r(BER = BER_thres,
@@ -45,17 +47,25 @@ class mission_level:
                threshold = True)
         PPB_thres = PPB_func(LCT.P_r_thres, data_rate)
 
+    #this needs to be done without the link selection performed, because here only the link geometry is defined
+    #the naming used to be link_geometry = link_geometry() without the uppercase but this didn't seem to work
     def initiate_link_geometry(self,t_macro, time):
         Link_geometry = link_geometry()
         Link_geometry.propagate(time=t_macro, step_size_AC=step_size_AC, step_size_SC=step_size_SC,
                         aircraft_filename=aircraft_filename_load, step_size_analysis=False, verification_cons=False)
         Link_geometry.geometrical_outputs()
         # Initiate time vector at mission level. This is the same as the propagated AIRCRAFT time vector
-        time = link_geometry.time
+        time = Link_geometry.time
         mission_duration = time[-1] - time[0]
         # Update the samples/steps at mission level
-        samples_mission_level = number_sats_per_plane * number_of_planes * len(link_geometry.geometrical_output['elevation'])
+        samples_mission_level = number_sats_per_plane * number_of_planes * len(Link_geometry.geometrical_output['elevation'])
 
+    # In the old scenerario the next step would be to initialize the routing model here
+    # I will check if all following def are dependent on if a link is selected or that is more general environmental related
+
+
+    # The ranges used for h_ext_func are the distance between AC and SC, which in the end is an output from link_geometry in which all geomterical outputs are given for a potential link 
+    # No dependencies on if a link is selected or nog
     def attenuation(self, ranges, zenith):
         att = attenuation(att_coeff=att_coeff, H_scale=scale_height)
         att.h_ext_func(range_link=ranges, zenith_angles=zenith, method=method_att)
@@ -65,8 +75,8 @@ class mission_level:
         #att.print()
 
 
-# Tijmen: All these inputs for the turbulence model are in the end output from some model, can't those be defined in one def and that we just have to call 1 input here?
-
+    # Tijmen: All these inputs for the turbulence model are in the end output from some link_geometry(), can't those be defined in one def and that we just have to call 1 input here?
+    # No depencies on link selected, as all are outputs from link_geometry()
     def turbulence(self, ranges, heights_AC, heights_SC, zenith, slew_rates, speeds_AC, indices, elevation):
         turb = turbulence(ranges=ranges,
                   h_AC=heights_AC,
@@ -93,7 +103,7 @@ class mission_level:
 # Tijmen, what is the thing here with also having to providng index_elevation as an input
 
 
-    def link_budget(self, ranges, turb, h_ext, PPB_thres, elevation, indices, index_elevation):
+    def link_budget(self, ranges, h_ext, PPB_thres, elevation, indices, index_elevation):
         LCT = terminal_properties()
         turb = turbulence()
         link = link_budget(angle_div=angle_div, w0=w0, ranges=ranges, h_WFE=turb.h_WFE, w_ST=turb.w_ST, h_beamspread=turb.h_beamspread, h_ext=h_ext)
@@ -110,6 +120,7 @@ class mission_level:
         BER_0 = LCT.BER_func(Q=Q_0, modulation=modulation)  
 
     def micro_scale_channel_level(self, t_micro, indices, LCT, turb, P_r_0, ranges, elevation, samples_channel_level):
+        turb=turbulence()
         link = link_budget()
         P_r, P_r_perfect_pointing, PPB, elevation_angles, losses, angles = \
             channel_level(t=t_micro,
@@ -276,7 +287,7 @@ class mission_level:
         find_time = np.where(np.in1d(time, time_link_fail))[0]
         availability_vector[find_time] = 0.0
 
-    def throughput(self, throughput, find_link_margin, LCT, indices, index_elevation, SNR_penalty):
+    def throughput(self, throughput, find_link_margin, indices, index_elevation, SNR_penalty):
         LCT = terminal_properties()
         link = link_budget()
         throughput[find_link_margin] = 0.0
@@ -284,8 +295,10 @@ class mission_level:
         noise_sh, noise_th, noise_bg, noise_beat = LCT.noise(P_r=link.P_r, I_sun=I_sun, index=indices[index_elevation])
         SNR_penalty, Q_penalty = LCT.SNR_func(link.P_r, detection=detection,
                                   noise_sh=noise_sh, noise_th=noise_th, noise_bg=noise_bg, noise_beat=noise_beat)
-        C = BW * np.log2(1 + SNR_penalty)
+        potential_throughput = BW * np.log2(1 + SNR_penalty)
 
+
+    # Thijmen, this was the start you made, I created the run_simulation
     def results(self, geometrical_output, time, step_size=1.0):
         index = 0
         elevation_angles = geometrical_output['elevation']
@@ -300,7 +313,7 @@ class mission_level:
             self.calculate_link_time_performance(num_satellites=num_satellites)
             self.calculate_latency(geometrical_output, num_satellites)
 
-    def run_simulation(self, ranges, zenith, elevation, index_elevation, start_time, end_time, step_size_link, heights_AC, heights_SC, slew_rates, speeds_AC, indices, PPB_thres, geometrical_output, num_satellites, time_links, throughput):
+    def run_simulation(self, index, ranges, zenith, elevation, index_elevation, start_time, end_time, SNR_penalty, step_size_link, find_link_margin, h_ext, PPB, elevation_angles, P_r, P_r_0, P_r_perfect_pointing,t_micro, heights_AC, heights_SC, slew_rates, speeds_AC, indices, PPB_thres, geometrical_output, num_satellites, time_links, throughput, samples_channel_level, h_tot, h_scint, h_TX, h_RX, h_penalty, BER, G_coding, BER_coded, P_r_coded):
         # Initialize macro and micro timescales
         self.initialize_macro_timescale()
         self.initialize_micro_timescale()
@@ -318,16 +331,16 @@ class mission_level:
         self.turbulence(ranges, heights_AC, heights_SC, zenith, slew_rates, speeds_AC, indices, elevation)
         
         # Compute link budget, considering the atmospheric effects and terminal properties
-        self.link_budget(ranges, turb, h_ext, PPB_thres, elevation, indices, index_elevation)
+        self.link_budget(ranges, h_ext, PPB_thres, elevation, indices, index_elevation)
         
         # Initiate the macro scale noise model
         self.macro_scale_noise(P_r_0, indices, index_elevation)
         
         # Initiate micro scale channel model
-        self.micro_scale_channel_level(t_micro, indices, LCT, turb, P_r_0, ranges, elevation, samples_channel_level)
+        self.micro_scale_channel_level(t_micro, indices, P_r_0, ranges, elevation, samples_channel_level)
         
         # Simulate bit level performance
-        self.simulate_bit_level(LCT, t_micro, indices, samples_channel_level, P_r_0, P_r, elevation, h_tot)
+        self.simulate_bit_level(t_micro, indices, samples_channel_level, P_r_0, P_r, elevation, h_tot)
         
         # Compute fading statistics
         self.fading_statistics(P_r, samples_channel_level)
@@ -354,8 +367,7 @@ class mission_level:
         self.availability(time_links)
         
         # Calculate the final throughput considering SNR penalty
-        self.throughput(throughput, find_link_margin, LCT, indices, index_elevation, SNR_penalty)
-
+        self.throughput(throughput, find_link_margin, indices, index_elevation, SNR_penalty)
 
 
 
