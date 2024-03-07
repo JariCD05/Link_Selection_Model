@@ -74,7 +74,7 @@ def create_aligned_visibility_matrices(num_rows, num_columns, visibility_duratio
     return matrices
 
 # Generate aligned visibility matrices using individual durations
-latency, throughput, availability, bit_error_rate = create_aligned_visibility_matrices(
+latency_performance, throughput_performance, availability_performance, bit_error_rate_performance = create_aligned_visibility_matrices(
     num_satellites, mission_time // time_step, visibility_durations, time_step)
 #print(latency, throughput, availability, bit_error_rate)  # Return the matrices for inspection or further use
 
@@ -145,7 +145,7 @@ def find_and_track_active_satellites(weights, T_acq, mission_time, Num_opt_head,
 
     return active_satellites
 
-active_satellites = find_and_track_active_satellites(weights, T_acq, mission_time, Num_opt_head, latency, throughput, availability, bit_error_rate)
+active_satellites = find_and_track_active_satellites(weights, T_acq, mission_time, Num_opt_head, latency_performance, throughput_performance, availability_performance, bit_error_rate_performance)
 print(active_satellites)
 
 def plot_active_satellites(time_steps, active_satellites, num_rows):

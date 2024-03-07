@@ -57,6 +57,8 @@ from channel_level import channel_level
 
 # after that point, thus when at timestamp i a satellite x has been made active, the JM_mission_level_setup loop must go to the next index and create the performance values at the timestamp i + 1 
 # Once the performance values are calculated for timestamp i+1 and it arrives again at JM_optimization_function a penalty will be applied to all performance values of non-active links based on T_acq 
+# Repeat untill mission time has run out
+# store all active links over mission time
 
 
 def check_link_applicable(geometrical_output):
