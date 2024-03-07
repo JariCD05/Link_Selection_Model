@@ -80,6 +80,7 @@ BER_performance[LOS_matrix>0] -= random_values[LOS_matrix>0]
 def time_normalization(data, potential_linktime):
     max_time = np.max(potential_linktime, axis=1)
     normalized_result = data / max_time[:, np.newaxis]
+    
     return normalized_result
 
 normalized_linktime_result = time_normalization(potential_linktime, potential_linktime)
