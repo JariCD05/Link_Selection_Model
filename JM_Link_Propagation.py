@@ -299,6 +299,7 @@ class mission_level:
 
 
     # Thijmen, this was the start you made, I created the run_simulation
+    # Let's continue with one of the two and remove the other one
     def results(self, geometrical_output, time, step_size=1.0):
         index = 0
         elevation_angles = geometrical_output['elevation']
