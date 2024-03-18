@@ -159,6 +159,7 @@ def bit_level(LCT,
         # ax.legend()
 
         plt.show()
+
     def plot_bit_level_time_series():
         fig_T, ax_output_t = plt.subplots(1, 2)
         ax_output_t[0].set_title('Micro time domain $P_{RX}$')
@@ -210,6 +211,7 @@ def bit_level(LCT,
         # ax_ber.grid()
 
         plt.show()
+        
     def plot_coding_errors():
 
         if coding == 'yes':

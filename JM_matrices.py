@@ -132,4 +132,22 @@ plot_normalized_data(normalized_propagation_latency, 'Normalized Latency')
 
 ###---------------------------------------------------------------------------------------------
 
-
+def calculate_link_time_performance(self, num_satellites):
+    # Calculate the potential link time of a link
+    visibility_index = 0 
+    # Calculate future visibility for each satellite
+    for sat_index in range(num_satellites):                                                         # check for all satellites within the available satellites
+        for visibility_index in range(len(time)): 
+            link_time = 0                                                                           #starting potential time is zere
+            if self.los_matrix[sat_index, visibility_index] == 0:                                   # if sattelite is not within line of sight, potential time is zero
+                self.Potential_link_time[sat_index,visibility_index] = 0
+            else:
+                # Find future instances of visibility
+                future_index = visibility_index                                                     # if not, look at all future time instances and if these are still a 1, add this time to the link time
+                while future_index <len(time):
+                    if self.los_matrix[sat_index, future_index] == 1:
+                        link_time +=1
+                    else:
+                        break
+                    future_index+=1
+                self.Potential_link_time[sat_index, visibility_index] = link_time

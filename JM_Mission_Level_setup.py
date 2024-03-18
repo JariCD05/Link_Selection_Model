@@ -13,6 +13,7 @@ from LCT import terminal_properties
 from Link_budget import link_budget
 from bit_level import bit_level
 from channel_level import channel_level
+from JM_Link_Propagation_test import link_propagation_test
 
 
 # In the old model, the geometrical data was put into the Routing_network(), which creates the routing output. So in that scenario the choice which link was selected before its performance was calculated.
@@ -61,44 +62,6 @@ from channel_level import channel_level
 # store all active links over mission time
 
 
-def check_link_applicable(geometrical_output):
-
-    index = 0
-    elevation_angles = geometrical_output['elevation']
-      
-    while index < len(time) - acquisition_time:
-                # The handover time is initiated with t=0, then the handover procedure starts
-                t_handover = 0
-                start_elev = []
-                sats_in_LOS  = []
-                active_link = 'no'
-
-                # Loop through all satellites in constellation
-                # Condition of the while loop is:
-                # (1) There is no link currently active (active_link == 'no)
-                # (2) The current time step has not yet exceeded the maximum simulation time (index < len(time))
-                while active_link == 'no' and index < len(time):
-                    for i in range(len(geometrical_output['pos SC'])):
-                        elev_last = elevation_angles[i][index - 1]
-                        elev      = elevation_angles[i][index]
-
-                        # FIND SATELLITES WITH AN ELEVATION ABOVE THRESHOLD (DIRECT LOS), AN ELEVATION THAT IS STILL INCREASING (START OF WINDOW) AND T < T_FINAL
-                        # Find satellites for an active link, using 3 conditions:
-                        # (1) The current satellite elevation is higher that the defined minimum (elev > elevation_min)
-                        # (2) The current satellite elevation is increasing (elev > elev_last)
-                        if elev > elevation_min and elev > elev_last:
-                            start_elev.append(elev)
-                            sats_in_LOS.append(i)
-
-def time_normalization(data, potential_linktime):
-    max_time = np.max(potential_linktime, axis=1)
-    normalized_result = data / max_time[:, np.newaxis]
-    
-    return normalized_result
-
-normalized_availability_performance = time_normalization()
-normalized_throughput_performance = time_normalization()
-normalized_bit_error_rate_performance = time_normalization()
 
 
 
@@ -112,4 +75,32 @@ def distance_normalization(propagation_latency):
 
     return normalized_latency_result
 
-normalized_latency_performance = distance_normalization()
+
+
+
+def time_normalization(data, potential_linktime):
+    max_time = np.max(potential_linktime, axis=1)
+    normalized_result = data / max_time[:, np.newaxis]
+    
+    return normalized_result
+
+t_macro = np.arange(0.0, (end_time - start_time), step_size_link)
+samples_mission_level = len(t_macro)
+t_micro = np.arange(0.0, interval_channel_level, step_size_channel_level)
+samples_channel_level = len(t_micro)
+print('Macro-scale: Interval=', (end_time - start_time)/60, 'min, step size=', step_size_link, 'sec,  macro-scale steps=', samples_mission_level)
+print('Micro-scale: Interval=', interval_channel_level    , '  sec, step size=', step_size_channel_level*1000, 'msec, micro-scale steps=', samples_channel_level)
+
+link_propagation_test = link_propagation_test()
+link_geometry = link_geometry()
+link_geometry.propagate(time=t_macro, step_size_AC=step_size_AC, step_size_SC=step_size_SC,
+                        aircraft_filename=aircraft_filename_load, step_size_analysis=False, verification_cons=False)
+geometrical_output = link_geometry.geometrical_outputs()
+# Initiate time vector at mission level. This is the same as the propagated AIRCRAFT time vector
+time = link_geometry.time
+mission_duration = time[-1] - time[0]
+# Update the samples/steps at mission level
+samples_mission_level = number_sats_per_plane * number_of_planes * len(link_geometry.geometrical_output['elevation'])
+
+
+normalized_latency_propagation = distance_normalization(propagation_latency = link_propagation_test.calculate_latency(geometrical_output=geometrical_output, num_satellites= num_satellites))

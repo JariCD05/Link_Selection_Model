@@ -15,12 +15,44 @@ from LCT import terminal_properties
 from Link_budget import link_budget
 from bit_level import bit_level
 from channel_level import channel_level
-from JM_applicable_links import link_availability
 
 
-"""""
-class link_propagation:
+
+
+class LinkPropagation:
+    def __init__(self, time):
+        self.time = time
+        self.links = np.zeros(len(time))  # Assuming this might represent the active link or similar
+        self.number_of_links = 0
+        self.total_handover_time = 0  # seconds
+        self.total_acquisition_time = 0  # seconds
+        self.acquisition = np.zeros(len(time))  # Assuming acquisition status over time
+
+        # New attributes for tracking link applicability
+        self.elevation_min = np.deg2rad(0)  # Minimum elevation for link applicability
+        self.applicable_links = {}  # Store applicable links over time
+        self.los_matrix = np.zeros((num_satellites, len(time)))  # Line of Sight matrix
+        self.Potential_link_time = np.zeros((num_satellites, len(time)))  # Potential link time
+        self.propagation_latency = np.zeros((num_satellites, len(time)))  # Latency per link
+
+    def check_link_applicable(self, geometrical_output):
     
+        for sat_id, data in geometrical_output.items():
+            elevations = data['elevation']  # Assuming this is how elevation data is structured
+            self.applicable_links[sat_id] = elevations > self.elevation_min
+    
+    def propagate_applicable_links(self):
+        """
+        Loop through applicable links and perform propagation calculations for each.
+        """
+        # Iterate over all time steps and satellites to update the Line of Sight (LOS) matrix
+        for sat_id, is_applicable_array in self.applicable_links.items():
+            for time_index, is_applicable in enumerate(is_applicable_array):
+                self.los_matrix[int(sat_id), time_index] = is_applicable
+
+        self.calculate_link_time_performance(num_satellites)
+        self.calculate_latency(geometrical_output, num_satellites)
+
     #this needs to be done without the link selection performed
     def initialize_macro_timescale(self):
         t_macro = np.arange(0.0, (end_time - start_time), step_size_link)
@@ -55,57 +87,9 @@ class link_propagation:
         # Update the samples/steps at mission level
         samples_mission_level = number_sats_per_plane * number_of_planes * len(Link_geometry.geometrical_output['elevation'])
 
-
-        Link_availability = link_availability()
-        availability_output, availability_total_output = Link_availability.availability(link_geometry.geometrical_output, time, step_size_link)
-
-        # Options are to analyse 1 link or analyse 'all' links
-        #   (1) link_number == 'all'   : Creates 1 vector for each geometric variable for each selected link & creates a flat vector
-        #   (2) link_number == 1 number: Creates 1 vector for each geometric variable
-
-        if link_number == 'all':
-            time_links  = flatten(availability_output['time'     ])
-            time_links_hrs = time_links / 3600.0
-            ranges     = flatten(availability_output['ranges'    ])
-            elevation  = flatten(availability_output['elevation' ])
-            zenith     = flatten(availability_output['zenith'    ])
-            slew_rates = flatten(availability_output['slew rates'])
-            heights_SC = flatten(availability_output['heights SC'])
-            heights_AC = flatten(availability_output['heights AC'])
-            speeds_AC  = flatten(availability_output['speeds AC'])
-
-            time_per_link       = availability_output['time'      ]
-            time_per_link_hrs   = time_links / 3600.0
-            ranges_per_link     = availability_output['ranges'    ]
-            elevation_per_link  = availability_output['elevation' ]
-            zenith_per_link     = availability_output['zenith'    ]
-            slew_rates_per_link = availability_output['slew rates']
-            heights_SC_per_link = availability_output['heights SC']
-            heights_AC_per_link = availability_output['heights AC']
-            speeds_AC_per_link  = availability_output['speeds AC' ]
-
-        else:
-            time_links     = availability_output['time'      ][link_number]
-            time_links_hrs = time_links / 3600.0
-            ranges         = availability_output['ranges'    ][link_number]
-            elevation      = availability_output['elevation' ][link_number]
-            zenith         = availability_output['zenith'    ][link_number]
-            slew_rates     = availability_output['slew rates'][link_number]
-            heights_SC     = availability_output['heights SC'][link_number]
-            heights_AC     = availability_output['heights AC'][link_number]
-            speeds_AC      = availability_output['speeds AC' ][link_number]
-
-
-        # Define cross-section of macro-scale simulation based on the elevation angles.
-        # These cross-sections are used for micro-scale plots.
-        elevation_cross_section = [2.0, 20.0, 40.0]
-        index_elevation = 1
-        indices, time_cross_section = cross_section(elevation_cross_section, elevation, time_links)
-
-
-
-    # In the old scenerario the previous def would have importated the link selection model class and 
+    # In the old scenerario the next step would be to initialize the routing model here
     # I will check if all following def are dependent on if a link is selected or that is more general environmental related
+
 
     # The ranges used for h_ext_func are the distance between AC and SC, which in the end is an output from link_geometry in which all geomterical outputs are given for a potential link 
     # No dependencies on if a link is selected or nog
@@ -271,6 +255,20 @@ class link_propagation:
     # ------------------------------------------------------------------------
     # -----------------------------PERFORMANCE PARAMETER FUNCTIONS----------------------------------
     # ------------------------------------------------------------------------
+    def calculate_visibility_matrix(self, index, geometrical_output, elevation_angles):
+        start_elev = []
+        sats_in_LOS  = []
+        for i in range(len(geometrical_output['pos SC'])):
+            elev_last = elevation_angles[i][index - 1]
+            elev      = elevation_angles[i][index]
+
+                # FIND SATELLITES WITH AN ELEVATION ABOVE THRESHOLD (DIRECT LOS), 
+                # Find satellites for an active link, using the condition:
+                # (1) The current satellite elevation is higher that the defined minimum (elev > elevation_min)
+            if elev > elevation_min :
+                start_elev.append(elev)
+                sats_in_LOS.append(i)
+                self.los_matrix[i, index] = 1
 
     def calculate_link_time_performance(self, num_satellites):
         # Calculate the potential link time of a link
@@ -400,4 +398,8 @@ class link_propagation:
         self.throughput(throughput, find_link_margin, indices, index_elevation, SNR_penalty)
 
 
+
+
+
+   
 
