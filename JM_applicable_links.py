@@ -53,123 +53,139 @@ class applicable_links():
 
         self.applicable_total_output = {}
 
-        index = 0
+        # Assuming 'time' is a list with the same length as the number of time instances for each satellite
+        # and 'elevation_min' is already defined
         elevation_angles = geometrical_output['elevation']
-        self.sats_visibility = [[] for _ in time] 
-        self.sats_applicable = [[] for _ in time] 
+        # Initialize the lists with the shape of 'elevation_angles', filled with 0s
+        self.sats_visibility = [[0 for _ in range(len(time))] for _ in range(len(elevation_angles))]
+        self.sats_applicable = [[0 for _ in range(len(time))] for _ in range(len(elevation_angles))]
+
+        # Iterate through each time instance
         for index in range(len(time)):
-            start_elev = []
-            sats_in_LOS = []
-        
-            # Loop through all satellites in constellation
-            for i in range(len(geometrical_output['pos SC'])):
-                # Avoid index out of range for the last element
-                elev = elevation_angles[i][index]
-        
-                if elev > elevation_min:
-                    start_elev.append(elev)
-                    sats_in_LOS.append(i)
-                    self.sats_visibility[index].append(i)
+            # Then iterate through each satellite
+            for s in range(len(elevation_angles)):
+                elev = elevation_angles[s][index]
 
+                # Directly set the value in 'sats_applicable'; no need for 'sats_visibility' in this context
+                # since it seems to be unused based on your provided code
                 if elev > elevation_min:
-                    self.sats_applicable[index].append(1)
+                    self.sats_applicable[s][index] = 1
                 else:
-                    self.sats_applicable[index].append(0)
+                    self.sats_applicable[s][index] = 0
 
-            for s in sats_in_LOS:
-                self.number_of_links += 1
-                link_start_index = index
-                while index < len(time) - 1 and elevation_angles[s][min(index + 1, len(time) - 1)] > elevation_min:
-                    index += 1
-                link_end_index = index + 1  # Correctly include the current satellite's last visible index
-
-                self.applicable_output['link number'].append(self.number_of_links)
-                self.applicable_output['time'].append(np.array(time[link_start_index:link_end_index]))
-                self.applicable_output['pos AC'].append(geometrical_output['pos AC'][link_start_index:link_end_index])
-                self.applicable_output['lon AC'].append(geometrical_output['lon AC'][link_start_index:link_end_index])
-                self.applicable_output['lat AC'].append(geometrical_output['lat AC'][link_start_index:link_end_index])
-                self.applicable_output['heights AC'].append(geometrical_output['heights AC'][link_start_index:link_end_index])
-                self.applicable_output['speeds AC'].append(geometrical_output['speeds AC'][link_start_index:link_end_index])
-                self.applicable_output['pos SC'].append(geometrical_output['pos SC'][s][link_start_index:link_end_index])
-                self.applicable_output['lon SC'].append(geometrical_output['lon SC'][s][link_start_index:link_end_index])
-                self.applicable_output['lat SC'].append(geometrical_output['lat SC'][s][link_start_index:link_end_index])
-                self.applicable_output['vel SC'].append(geometrical_output['vel SC'][s][link_start_index:link_end_index])
-                self.applicable_output['heights SC'].append(geometrical_output['heights SC'][s][link_start_index:link_end_index])
-                self.applicable_output['ranges'].append(geometrical_output['ranges'][s][link_start_index:link_end_index])
-                self.applicable_output['elevation'].append(geometrical_output['elevation'][s][link_start_index:link_end_index])
-                self.applicable_output['azimuth'].append(geometrical_output['azimuth'][s][link_start_index:link_end_index])
-                self.applicable_output['zenith'].append(geometrical_output['zenith'][s][link_start_index:link_end_index])
-                self.applicable_output['radial'].append(geometrical_output['radial'][s][link_start_index:link_end_index])
-                self.applicable_output['slew rates'].append(geometrical_output['slew rates'][s][link_start_index:link_end_index])
-                self.applicable_output['elevation rates'].append(geometrical_output['elevation rates'][s][link_start_index:link_end_index])
-                self.applicable_output['azimuth rates'].append(geometrical_output['azimuth rates'][s][link_start_index:link_end_index])
-                self.applicable_output['doppler shift'].append(geometrical_output['doppler shift'][s][link_start_index:link_end_index])
-
-            if not sats_in_LOS or index == len(time)-1:
-                index += 1  # Ensure we always move forward
-
-        self.flatten_applicable_output()
-        
-        print('Propagation model')
-        print('------------------------------------------------')
-        print('Propagation of all applicable links')
-        print('Number of available links             : ' + str(self.number_of_links))
-        #print(self.sats_visibility)
+        for s in range(len(self.sats_applicable)):
+            # Initialize lists to collect data for each satellite
+            satellite_data = {key: [] for key in self.applicable_output.keys()}
+            satellite_data['link number'] = s + 1  # Assuming link number is simply the satellite index + 1
 
 
+            for index in range(len(time)):
+                if self.sats_applicable[s][index] == 1:
+                    # Satellite is visible, collect geometrical data
+                    satellite_data['time'].append(time[index])
+                    satellite_data['pos AC'].append(geometrical_output['pos AC'][index])
+                    satellite_data['lon AC'].append(geometrical_output['lon AC'][index])
+                    satellite_data['lat AC'].append(geometrical_output['lat AC'][index])
+                    satellite_data['heights AC'].append(geometrical_output['heights AC'][index])
+                    satellite_data['speeds AC'].append(geometrical_output['speeds AC'][index])
+                    satellite_data['pos SC'].append(geometrical_output['pos SC'][s][index])
+                    satellite_data['lon SC'].append(geometrical_output['lon SC'][s][index])
+                    satellite_data['lat SC'].append(geometrical_output['lat SC'][s][index])
+                    satellite_data['vel SC'].append(geometrical_output['vel SC'][s][index])
+                    satellite_data['heights SC'].append(geometrical_output['heights SC'][s][index])
+                    satellite_data['ranges'].append(geometrical_output['ranges'][s][index])
+                    satellite_data['elevation'].append(geometrical_output['elevation'][s][index])
+                    satellite_data['azimuth'].append(geometrical_output['azimuth'][s][index])
+                    satellite_data['zenith'].append(geometrical_output['zenith'][s][index])
+                    satellite_data['radial'].append(geometrical_output['radial'][s][index])
+                    satellite_data['slew rates'].append(geometrical_output['slew rates'][s][index])
+                    satellite_data['elevation rates'].append(geometrical_output['elevation rates'][s][index])
+                    satellite_data['azimuth rates'].append(geometrical_output['azimuth rates'][s][index])
+                    satellite_data['doppler shift'].append(geometrical_output['doppler shift'][s][index])
 
+                else:
+                    # Satellite is not visible, store placeholders
+                    satellite_data['time'].append(time[index])
+                    satellite_data['pos AC'].append(0)
+                    satellite_data['lon AC'].append(0)
+                    satellite_data['lat AC'].append(0)
+                    satellite_data['heights AC'].append(0)
+                    satellite_data['speeds AC'].append(0)
+                    satellite_data['pos SC'].append(0)
+                    satellite_data['lon SC'].append(0)
+                    satellite_data['lat SC'].append(0)
+                    satellite_data['vel SC'].append(0)
+                    satellite_data['heights SC'].append(0)
+                    satellite_data['ranges'].append(0)
+                    satellite_data['elevation'].append(0)
+                    satellite_data['azimuth'].append(0)
+                    satellite_data['zenith'].append(0)
+                    satellite_data['radial'].append(0)
+                    satellite_data['slew rates'].append(0)
+                    satellite_data['elevation rates'].append(0)
+                    satellite_data['azimuth rates'].append(0)
+                    satellite_data['doppler shift'].append(0)
 
-        return self.applicable_output, self.applicable_total_output, self.sats_visibility
+            for key in self.applicable_output:
+                self.applicable_output[key].append(satellite_data[key])
 
-    def visualize_satellite_visibility(self, sats_visibility, time, number_sats_per_plane, number_of_planes):
-        # Plot 1: Individual satellite visibility
-        plt.figure(figsize=(14, 8))
-        plt.title('Satellite Visibility Over Time')
-        for index, time_point in enumerate(time):
-            visible_sats = sats_visibility[index]
-            for sat in visible_sats:
-                plt.scatter([time_point] * len(visible_sats), [sat + 1 for _ in visible_sats], color='blue', alpha=0.6)
-        plt.ylabel('Satellite Number')
-        plt.xlabel('Time Index')
-        plt.grid(True)
-        plt.yticks(range(0, number_sats_per_plane * number_of_planes + 1))
+        return self.applicable_output, self.sats_visibility, self.sats_applicable
+
+    def plot_satellite_visibility(self, time):
+        # Convert sats_applicable to a NumPy array for easier manipulation
+        sats_applicable_np = np.array(self.sats_applicable)
+        # Calculate the accumulated visibility (sum along the satellite axis)
+        accumulated_visibility = np.sum(sats_applicable_np, axis=0)
+        # Prepare the figure and axes for plotting
+        fig, axes = plt.subplots(2, 1, figsize=(12, 10), sharex=True)
+        # Plot for visibility of each satellite over time
+        axes[0].set_title("Satellite Visibility Over Time")
+        for s in range(len(self.sats_applicable)):
+            axes[0].plot(time, sats_applicable_np[s, :], label=f'Sat {s+1}')
+        axes[0].set_ylabel("Visibility (0 or 1)")
+        axes[0].legend(loc='upper right')
+        # Plot for accumulated visible satellites over time
+        axes[1].set_title("Accumulated Satellites Visible Over Time")
+        axes[1].plot(time, accumulated_visibility, color='red', label='Accumulated Visibility')
+        axes[1].set_xlabel("Time")
+        axes[1].set_ylabel("Number of Visible Satellites")
+        axes[1].legend(loc='upper left')
         plt.show()
-       
 
-        # Plot 2: Accumulated number of visible satellites over time
-        plt.figure(figsize=(14, 8))
-        plt.title('Number of Visible Satellites Over Time')
-        num_visible_sats = [len(vis) for vis in sats_visibility]  # Number of visible satellites at each time index
-        plt.plot(time, num_visible_sats, marker='o', linestyle='-', color='red')
-        plt.ylabel('Number of Visible Satellites')
-        plt.xlabel('Time Index')
-        plt.grid(True)
-        plt.show()
-
-
-
-    def flatten_applicable_output(self):
-        self.applicable_total_output['time'] = flatten(self.applicable_output['time'])
-        self.applicable_total_output['pos AC'] = flatten(self.applicable_output['pos AC'])
-        self.applicable_total_output['lon AC'] = flatten(self.applicable_output['lon AC'])
-        self.applicable_total_output['lat AC'] = flatten(self.applicable_output['lat AC'])
-        self.applicable_total_output['heights AC'] = flatten(self.applicable_output['heights AC'])
-        self.applicable_total_output['speeds AC'] = flatten(self.applicable_output['speeds AC'])
     
-        self.applicable_total_output['pos SC'] = flatten(self.applicable_output['pos SC'])
-        self.applicable_total_output['lon SC'] = flatten(self.applicable_output['lon SC'])
-        self.applicable_total_output['lat SC'] = flatten(self.applicable_output['lat SC'])
-        self.applicable_total_output['vel SC'] = flatten(self.applicable_output['vel SC'])
-        self.applicable_total_output['heights SC'] = flatten(self.applicable_output['heights SC'])
-        self.applicable_total_output['ranges'] = flatten(self.applicable_output['ranges'])
-        self.applicable_total_output['elevation'] = flatten(self.applicable_output['elevation'])
-        self.applicable_total_output['azimuth'] = flatten(self.applicable_output['azimuth'])
-        self.applicable_total_output['zenith'] = flatten(self.applicable_output['zenith'])
-        self.applicable_total_output['radial'] = flatten(self.applicable_output['radial'])
-        self.applicable_total_output['slew rates'] = flatten(self.applicable_output['slew rates'])
-        self.applicable_total_output['elevation rates'] = flatten(self.applicable_output['elevation rates'])
-        self.applicable_total_output['azimuth rates'] = flatten(self.applicable_output['azimuth rates'])
-        self.applicable_total_output['doppler shift'] = flatten(self.applicable_output['doppler shift'])
+    
+    def plot_satellite_visibility_scatter(self, time):
+        # Convert sats_applicable to a NumPy array for easier manipulation
+        sats_applicable_np = np.array(self.sats_applicable)
+        
+        # Calculate the accumulated visibility (sum along the satellite axis)
+        accumulated_visibility = np.sum(sats_applicable_np, axis=0)
+        
+        # Prepare the figure and axes for plotting
+        fig, axes = plt.subplots(2, 1, figsize=(12, 10), sharex=True)
+        
+        # Plot for visibility of each satellite over time using scatter plot
+        axes[0].set_title("Satellite Visibility Over Time")
+        for s in range(sats_applicable_np.shape[0]):
+            # Find indices (time points) where satellite s is visible
+            visible_indices = np.where(sats_applicable_np[s, :] == 1)[0]
+            # Plot these as scatter points
+            axes[0].scatter(visible_indices, np.full(visible_indices.shape, s), alpha=0.6, label=f'Sat {s+1}')
+        axes[0].set_ylabel("Satellite Index")
+        axes[0].legend(loc='upper right', bbox_to_anchor=(1.1, 1.05))
+        
+        # Plot for accumulated visible satellites over time
+        axes[1].set_title("Accumulated Satellites Visible Over Time")
+        axes[1].plot(time, accumulated_visibility, color='red', label='Accumulated Visibility')
+        axes[1].set_xlabel("Time")
+        axes[1].set_ylabel("Number of Visible Satellites")
+        axes[1].legend(loc='upper left')
+        
+        plt.tight_layout()
+        plt.show()
+
+
+
 
 print('')
 print('------------------END-TO-END-LASER-SATCOM-MODEL-------------------------')
@@ -218,7 +234,18 @@ mission_duration = time[-1] - time[0]
 samples_mission_level = number_sats_per_plane * number_of_planes * len(link_geometry.geometrical_output['elevation'])
 
 Links_applicable = applicable_links(time=time)
-applicable_output, applicable_total_output, sats_visibility, sats_applicable = Links_applicable.applicability(link_geometry.geometrical_output, time, step_size_link)
+applicable_output, sats_visibility,sats_applicable = Links_applicable.applicability(link_geometry.geometrical_output, time, step_size_link)
 
-Links_applicable.visualize_satellite_visibility(sats_visibility= Links_applicable.sats_visibility, time=time, number_sats_per_plane=number_sats_per_plane, number_of_planes=number_of_planes)
-print(sats_applicable)
+#Links_applicable.visualize_satellite_visibility(sats_applicable = Links_applicable.sats_applicable, time=time, num_satellites=num_satellites)
+#print(applicable_output['time'])
+#print(len(applicable_output['pos SC']))
+#print(len(time))
+
+#Links_applicable.plot_satellite_visibility_scatter(time=time)
+#Links_applicable.plot_satellite_visibility(time = time)
+
+
+#print("Length of visible sattelite array", len(sats_visibility[2]))
+#print("Length of applicable sattelite array", len(sats_applicable[]))
+#print("time array lenght", len(time))
+#print(len(applicable_output["pos SC"][3]))

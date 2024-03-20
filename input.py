@@ -31,8 +31,8 @@ omega_earth = 2 * np.pi / 86400.0
 # Set-up of Macro-scale model
 #----------------------------
 start_time = 0.0                                  # Start epoch of the simulation
-end_time = 17200* 6  #3600.0   / 2                 # End epoch of the simulation #THIS IS ADJUSTED VALUE should be 6*3600
-step_size_link = 5.0                              # Step size at which the macro-scale model is simulated
+end_time = 3600* 6  #3600.0   / 2                 # End epoch of the simulation #THIS IS ADJUSTED VALUE should be 6*3600
+step_size_link = 50.0                              # Step size at which the macro-scale model is simulated #this should be 5
 step_size_SC = 7.0                                # Numerical propagation time step of all SPACECRAFT in the constellation
 step_size_AC = step_size_link                     # Numerical propagation time step of the AIRCRAFT
 integrator = "Runge Kutta 4"
@@ -164,7 +164,7 @@ constellation_type = "LEO_cons"                 # Type of constellation (1 sat i
 h_SC = 1200.0E3 #(SDA) or 550.0E3 (Starlink)       # Initial altitude of the satellite(s)
 inc_SC = 85.0 #55.98 (Starlink) or 0.0 (GEO) or 80.0 (SDA)  # Initial inclination of the satellite(s)
 number_of_planes = 2                           # Number of planes within the constellation (if 1 sat: number_of_planes = 1)
-number_sats_per_plane = 10                # Number of satellites per plane within the constellation (if 1 sat: number_sats_per_plane = 1)
+number_sats_per_plane = 2                # Number of satellites per plane within the constellation (if 1 sat: number_sats_per_plane = 1)
 num_satellites = number_of_planes*number_sats_per_plane #defined to make sure this is the leading value while propagating the links
 #---------------------In case of 'TLE' method------------------
 TLE_filename_load = r'C:\Users\wiege\Documents\TUDelft_Spaceflight\Thesis\ac_sc_data\constellation_TLE_data\oneweb_tle.json'

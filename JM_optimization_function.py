@@ -16,13 +16,97 @@ from Link_budget import link_budget
 from bit_level import bit_level
 from channel_level import channel_level
 
+#import link applicabality
+from JM_applicable_links import applicable_links
+
+#import performance paramaters 
+from JM_Perf_Param_Availability import Availability_performance
+from JM_Perf_Param_BER import BER_performance
+from JM_Perf_Param_Latency import latency_performance
+from JM_Perf_Param_Throughput import Throughput_performance
+
+
 # let's assume that the output from the mission level is four matrices
 # the collumns in the matrices are the time indeces
 # the rows are the number of satellites
-# the names of the matrices are, latency, throuhgput, availability, Bit_error_rate
+# the names of the matrices are, normalized_latency, throuhgput, availability, Bit_error_rate
 
 # ------------------------------------------------------------------
 # ------------------------------------------------------------------
+#-------------------------- SETUP ----------------------------
+print('')
+print('------------------END-TO-END-LASER-SATCOM-MODEL-------------------------')
+#------------------------------------------------------------------------
+#------------------------------TIME-VECTORS------------------------------
+#------------------------------------------------------------------------
+# Macro-scale time vector is generated with time step 'step_size_link'
+# Micro-scale time vector is generated with time step 'step_size_channel_level'
+
+t_macro = np.arange(0.0, (end_time - start_time), step_size_link)
+samples_mission_level = len(t_macro)
+t_micro = np.arange(0.0, interval_channel_level, step_size_channel_level)
+samples_channel_level = len(t_micro)
+print('Macro-scale: Interval=', (end_time - start_time)/60, 'min, step size=', step_size_link, 'sec,  macro-scale steps=', samples_mission_level)
+print('Micro-scale: Interval=', interval_channel_level    , '  sec, step size=', step_size_channel_level*1000, 'msec, micro-scale steps=', samples_channel_level)
+
+print('----------------------------------------------------------------------------------MACRO-LEVEL-----------------------------------------------------------------------------------------')
+print('')
+print('-----------------------------------MISSION-LEVEL-----------------------------------------')
+#------------------------------------------------------------------------
+#------------------------------------LCT---------------------------------
+#------------------------------------------------------------------------
+# Compute the sensitivity and compute the threshold
+LCT = terminal_properties()
+LCT.BER_to_P_r(BER = BER_thres,
+               modulation = modulation,
+               detection = detection,
+               threshold = True)
+PPB_thres = PPB_func(LCT.P_r_thres, data_rate)
+
+#------------------------------------------------------------------------
+#-----------------------------LINK-GEOMETRY------------------------------
+#------------------------------------------------------------------------
+# Initiate LINK GEOMETRY class, with inheritance of AIRCRAFT class and CONSTELLATION class
+# First both AIRCRAFT and SATELLITES are propagated with 'link_geometry.propagate'
+# Then, the relative geometrical state is computed with 'link_geometry.geometrical_outputs'
+# Here, all links are generated between the AIRCRAFT and each SATELLITE in the constellation
+link_geometry = link_geometry()
+link_geometry.propagate(time=t_macro, step_size_AC=step_size_AC, step_size_SC=step_size_SC,
+                        aircraft_filename=aircraft_filename_load, step_size_analysis=False, verification_cons=False)
+link_geometry.geometrical_outputs()
+# Initiate time vector at mission level. This is the same as the propagated AIRCRAFT time vector
+time = link_geometry.time
+mission_duration = time[-1] - time[0]
+# Update the samples/steps at mission level
+samples_mission_level = number_sats_per_plane * number_of_planes * len(link_geometry.geometrical_output['elevation'])
+
+Links_applicable = applicable_links(time=time)
+applicable_output, sats_visibility, sats_applicable = Links_applicable.applicability(link_geometry.geometrical_output, time, step_size_link)
+
+
+
+# Create an instance of the performance classes
+latency_performance_instance = latency_performance(time, link_geometry)
+# throughput_performance_instance = throughput_performance()
+# BER_performance_instance = BER_performance()
+# Availability_performance_instance = availability_performance()
+
+
+
+
+
+# Now call the method on the instance and initiliaze the four matrices
+# Latency
+propagation_latency = latency_performance_instance.calculate_latency_performance()
+normalized_propagation_latency_min = latency_performance_instance.distance_normalization_min(propagation_latency=propagation_latency)
+
+#Throughput
+#throughput_performance = throughput_performance_instance.calculate_throughput_performance()
+#normalized_throughput_performance = throughput_performance_instance.time_normalization(throughput_performance=throughput_performance)
+
+
+
+
 
 
 # Configuration parameters
@@ -30,20 +114,11 @@ T_acq = 20  # Acquisition time in seconds
 mission_time = 3600  # Total mission time in seconds
 Num_opt_head = 1  # Number of optical heads
 time_step = 100  # Time step in seconds
-num_satellites = 10 # Number of satellites
 
-# Visibility duration simulation for each satellite
-def generate_visibility_durations(num_satellites, base_duration=12*60, variation=120):
-    """
-    Generate random visibility durations for each satellite.
-    The base duration is around 12 minutes (720 seconds), with a possible variation.
-    """
-    return np.random.randint(base_duration - variation, base_duration + variation, size=num_satellites)
-visibility_durations = generate_visibility_durations(num_satellites)
 
 # define input weights per performance parameter
 latency_weight = 0.25
-throughput_weight = 0
+throughput_weight = 0.4
 availabily_weight = 0.5
 bit_error_rate_weight = 0.25
 weights = [latency_weight, throughput_weight, availabily_weight, bit_error_rate_weight]
@@ -55,111 +130,67 @@ time_steps = np.arange(0, mission_time, time_step)
 num_rows = num_satellites
 
 
+def initialize_performance_matrices_with_ones(normalized_latency):
+    """
+    Initialize matrices for throughput, BER, and availability with ones,
+    matching the size of the normalized_latency matrix.
 
-# In real scenario remove this one, as the visibility matrix will be all matrices that occur at a certain point in LOS
-def create_visibility_matrix(num_rows, num_columns, visibility_durations, time_step):
-    """
-    Create a visibility matrix indicating whether each satellite is visible (1) or not (0) at each time step.
-    """
-    visibility_matrix = np.zeros((num_rows, num_columns))
-    for row in range(num_rows):
-        visibility_length = visibility_durations[row] // time_step
-        start_time_step = np.random.randint(0, num_columns - visibility_length)
-        end_time_step = start_time_step + visibility_length
-        visibility_matrix[row, start_time_step:end_time_step] = 1  # Mark as visible
-    return visibility_matrix
-
-# In real scenario remove this one, as the random variables are simply storing the performance parameter outputs for each link
-def create_random_values_for_visible_satellites(num_rows, num_columns, visibility_matrix):
-    """
-    Create a matrix with random values assigned only for visible satellites at the timestamps they are visible.
     Parameters:
-    num_rows: The number of satellites.
-    num_columns: The number of time steps across the mission duration.
-    visibility_matrix: A matrix indicating whether each satellite is visible (1) or not (0) at each time step.
+    - normalized_latency: A NumPy array representing the normalized latency.
+
     Returns:
-    A matrix with random values assigned where satellites are visible.
+    - A tuple of matrices for throughput, BER, and availability, all filled with ones.
     """
-    # Initialize the matrix with zeros
-    values_matrix = np.zeros((num_rows, num_columns))
-    # Iterate through each satellite and time step
-    for row in range(num_rows):
-        for col in range(num_columns):
-            # Check if the satellite is visible at this time step
-            if visibility_matrix[row, col] == 1:
-                # Assign a random value because the satellite is visible
-                values_matrix[row, col] = np.random.rand()
-    return values_matrix
+    # Determine the shape of the normalized_latency matrix
+    shape = normalized_latency.shape
 
-# this one needs to stay but probably requires some changes
-def apply_custom_penalty(values, active_index, T_acq, visibility_durations, Num_opt_head):
-    """
+    # Initialize matrices for throughput, BER, and availability with ones
+    dummy_throughput_performance = np.ones(shape, dtype=float)
+    dummy_BER_performance = np.ones(shape, dtype=float)
+    dummy_bit_error_rate_performance = np.ones(shape, dtype=float)
 
-    Applies a custom penalty to non-active satellites based on T_acq, individual satellite visibility times,
-    and the number of optical heads.
-    Parameters:
-    values: An array of weighted values for all satellites at a specific time step.
-    active_index: The index of the currently active satellite.
-    T_acq: Acquisition time.
-    visibility_times: A list or array of visibility times in seconds for each satellite.
-    Num_opt_head: Number of optimal heads.
-    Returns:
-    penalized_values: The values after applying the penalty to non-active satellites.
-    """
-    penalized_values = np.array(values)
-    if Num_opt_head == 1:
-        for i in range(len(values)):
-            if i != active_index:
-                penalty_value = T_acq / visibility_durations[i] if visibility_durations[i] != 0 else 0
-                penalized_values[i] -= penalty_value
-                penalized_values[i] = max(0, penalized_values[i])
-    return penalized_values
-#max_satellite_indices = [np.random.randint(0, 10) for _ in range(mission_time // time_step)]  # Replace with actual data
-#plot_highest_value_satellites(mission_time, time_step, max_satellite_indices)
+    return dummy_throughput_performance, dummy_BER_performance, dummy_bit_error_rate_performance
 
-# this one needs to stay but probably requires some changes
-def find_and_track_active_satellites(weights, T_acq, mission_time, Num_opt_head, *matrices):
-    # Setup as before
-    if len(weights) != len(matrices):
+#initiliaze dummy matrices
+
+dummy_throughput_performance, dummy_BER_performance, dummy_bit_error_rate_performance = initialize_performance_matrices_with_ones(normalized_latency=normalized_propagation_latency_min)
+#print(len(dummy_BER_performance))
+#print(len(dummy_BER_performance[5]))
+performance_matrices = [normalized_propagation_latency_min, dummy_throughput_performance, dummy_BER_performance, dummy_bit_error_rate_performance]
+
+print(len(performance_matrices))
+def find_and_track_active_satellites(weights, sats_applicable, *performance_matrices):
+    sats_applicable=np.array(sats_applicable)
+    # Ensure the number of weights matches the number of performance matrices
+    if len(weights) != len(performance_matrices):
         raise ValueError("Mismatch in number of weights and matrices")
-    if not all(m.shape == matrices[0].shape for m in matrices):
-        raise ValueError("All matrices must have the same shape")
-    # Combine weights with matrices
-    weighted_matrices = [w * m for w, m in zip(weights, matrices)]
-    weighted_sum = sum(weighted_matrices)
+
+    # Prepare a matrix to store the weighted sum of performance metrics for each satellite at each time step
+    weighted_sum = np.zeros_like(sats_applicable, dtype=float)
+
+    # Apply weights to performance matrices
+    for weight, matrix in zip(weights, performance_matrices):
+        weighted_sum += weight * matrix
+
     active_satellites = []
-    last_active_satellite = -1
     for time_step in range(weighted_sum.shape[1]):  # Iterate through each time step
-        values_at_time_step = weighted_sum[:, time_step]
-        # Apply penalty only if there was an active satellite before and we are not at the first step
-        if last_active_satellite != -1:
-            values_at_time_step = apply_custom_penalty(values_at_time_step, last_active_satellite, T_acq, visibility_durations, Num_opt_head)
-        # Determine the active satellite: check the highest value if it's greater than 0
-        if np.max(values_at_time_step) > 0:  # There's a visible satellite
-            active_satellite = np.argmax(values_at_time_step)
+        # Filter to consider only applicable (visible) satellites at this time step
+        applicable_at_time_step = sats_applicable[:, time_step]
+        performance_at_time_step = weighted_sum[:, time_step] * applicable_at_time_step
+        
+        # Determine the active satellite by checking the highest weighted performance value, if any are applicable
+        if np.any(applicable_at_time_step > 0) and np.max(performance_at_time_step) > 0:
+            # Find the index of the satellite with the highest weighted performance score
+            active_satellite = np.argmax(performance_at_time_step)
             active_satellites.append(active_satellite)
-            last_active_satellite = active_satellite
-        else:  # No satellites visible
+        else:
+            # No satellites are applicable at this time step
             active_satellites.append("No link")
-            last_active_satellite = -1  # Reset last active satellite since there's no link
+
     return active_satellites
 
 
-#----------------------------------------------------------------------------------------------
-# Main Simulation:
-# Generate visibility durations for each satellite
-visibility_durations = generate_visibility_durations(num_satellites)
-
-# Create the visibility matrix for all satellites over the mission time
-visibility_matrix = create_visibility_matrix(num_rows, num_columns, visibility_durations, time_step)
-
-# Generate matrices with random values for visible satellites for each parameter
-latency_performance = create_random_values_for_visible_satellites(num_rows, num_columns, visibility_matrix)
-throughput_performance = create_random_values_for_visible_satellites(num_rows, num_columns, visibility_matrix)
-availability_performance = create_random_values_for_visible_satellites(num_rows, num_columns, visibility_matrix)
-bit_error_rate_performance = create_random_values_for_visible_satellites(num_rows, num_columns, visibility_matrix)
-active_satellites = find_and_track_active_satellites(weights, T_acq, mission_time, Num_opt_head, latency_performance, throughput_performance, availability_performance, bit_error_rate_performance)
-print(active_satellites)
+active_satellites = find_and_track_active_satellites(weights, sats_applicable, *performance_matrices)
 
 def plot_active_satellites(time_steps, active_satellites, num_rows):
     """
@@ -180,7 +211,7 @@ def plot_active_satellites(time_steps, active_satellites, num_rows):
     plt.grid(True)
     # Adjust y-ticks to include all satellite indices plus an extra one for "No link"
     # Here, I set 'Sat 0' label to represent 'No link' for clarity
-    plt.yticks(range(-1, num_rows), ['No link'] + [f'Sat {i+1}' for i in range(num_rows)])  # Note: Satellites indexed from 1 for readability
+    plt.yticks(range(-1, num_satellites), ['No link'] + [f'Sat {i+1}' for i in range(num_satellites)])  # Note: Satellites indexed from 1 for readability
     plt.legend()
     plt.show()
 
@@ -209,6 +240,13 @@ def init():
     satellite_icon.set_extent((0, 0, -1, -1))  # Hide icon initially
     return line, satellite_icon,
 
+fps = 2.5  # For example, if your animation runs at 2.5 frames per second
+shift_per_second = 0.1  # Shift the window 5 timesteps to the right every second
+
+# Determine the number of frames after which to shift the window
+frames_per_shift = fps  # Assuming you want to shift every second
+window_width = 100
+
 # Function to update the animation at each frame
 def update(frame):
     xdata = time_steps[:frame]  # Time steps up to the current frame
@@ -226,6 +264,8 @@ def update(frame):
         # Optionally, hide the satellite icon if there's no valid position
         satellite_icon.set_extent((0, 0, 0, 0))  # This hides the icon by setting its extent to zero area
     return line, satellite_icon
+
+
 
 # Create the animation
 ani = FuncAnimation(fig, update, frames=num_columns, init_func=init, blit=True, repeat=False, interval=400)

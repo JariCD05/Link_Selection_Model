@@ -13,17 +13,27 @@ from LCT import terminal_properties
 from Link_budget import link_budget
 from bit_level import bit_level
 from channel_level import channel_level
-from JM_Link_Propagation_test import link_propagation_test
+from JM_Link_Propagation import link_propagation_test
 
 
 # In the old model, the geometrical data was put into the Routing_network(), which creates the routing output. So in that scenario the choice which link was selected before its performance was calculated.
-# In this case we need to do it the other way around, for the available links we need to calculate their potential performance and based on that we need to make a choice which link is selected.
+# In this case we need to do it the other way around, for the applicable links we need to calculate their potential performance and based on that we need to make a choice which link is selected.
 # In the file, JM_link_propagation, the mission level is copied from the model from wieger without the old routing network (as that was the part where the link choice was made). This file needs to calculate the link performance for all applicable links
 # Applicable links are links that are visible to the satelite at that specific time interval. It can be the case that in later stages more restrictions will be added to being "applicable" as it can become computational to extensive to analyze the performance output of a couple hundred of links.
-# This will be done in def check_link_applicable
-# The output of check_link_applicable should be a list at timestamp i listing all applicable links. Satellites are the rows, 1 collumn with either a 1 or a zero
 
-# The output of JM_Link_Propagation should be four matrices (latency_performance, throughput_performance, bit_error_rate_performance, availability_performance)
+# This will be done in def check_link_applicable
+# The output of check_link_applicable should be a list of; at timestamp i listing all applicable links. Satellites are the rows, the collumns are the timestemp, filled with either a 1 or a zero
+# For the time instances that a satllites is applicable also the geometrical output shalls be stored. Thus a zero needs to be stored if a satellite is not visible, but the geometrical data needs to be stored once it is visible. 
+
+# The output of JM_applicable links is the input for the link propagation file
+# we have equal size list with applicability stored and geometrical output, these are stored in applicability_output
+
+# The link_propagation file shall be iterated over time
+# for i in range(len(time)):
+#   for j in range(len(applicable satellites)):
+# this will lead to a case where at all time instances 
+# the biggest issue is now that I don't now how to set up the link_propagation file such that it loops overtime at a specific timestamp
+# The output of JM_Link_Propagation should be four matrices (latency_performance, throughput_performance, bit_error_rate_performance, availability_performance) at all time instances
 # These matrices should have in the rows the applicable satellite WARNING
 # WARNING, make sure to assign a number to each satellite at the beginning of the loop of mission level. Namely, the applicability matrix will be updated with each timestamp, but the performance output in JM_Link_propagation should use the same numbering
 # WARNING, it can be the case that satellite 2, 5, 6, 10, 12 are not applicable but the other ones are. The JM_Link_propagation should return the performance of satellite 1, 3, 4, 7, 8, 9, 11
@@ -39,7 +49,7 @@ from JM_Link_Propagation_test import link_propagation_test
 # bit_error_rate_performance: matrix showing sum of the number of time-instances that bit_error_rate is below a certain value
 # availability_performance: matrix showing sum of the number of time-instances that P_rx + penalty is larger than P_R theshold
 
-# in order to be able to compare these matrices with one another, the need to be normilized
+# in order to be able to compare these matrices with one another, they need to be normilized
 # this is done with def time_normalization and distance_normalization
 
 # Output of def time_normalization:
