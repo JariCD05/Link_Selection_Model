@@ -71,7 +71,7 @@ class applicable_links():
                 if elev > elevation_min:
                     self.sats_applicable[s][index] = 1
                 else:
-                    self.sats_applicable[s][index] = 0
+                    self.sats_applicable[s][index] = np.nan
 
         for s in range(len(self.sats_applicable)):
             # Initialize lists to collect data for each satellite
@@ -106,25 +106,25 @@ class applicable_links():
                 else:
                     # Satellite is not visible, store placeholders
                     satellite_data['time'].append(time[index])
-                    satellite_data['pos AC'].append(0)
-                    satellite_data['lon AC'].append(0)
-                    satellite_data['lat AC'].append(0)
-                    satellite_data['heights AC'].append(0)
-                    satellite_data['speeds AC'].append(0)
-                    satellite_data['pos SC'].append(0)
-                    satellite_data['lon SC'].append(0)
-                    satellite_data['lat SC'].append(0)
-                    satellite_data['vel SC'].append(0)
-                    satellite_data['heights SC'].append(0)
-                    satellite_data['ranges'].append(0)
-                    satellite_data['elevation'].append(0)
-                    satellite_data['azimuth'].append(0)
-                    satellite_data['zenith'].append(0)
-                    satellite_data['radial'].append(0)
-                    satellite_data['slew rates'].append(0)
-                    satellite_data['elevation rates'].append(0)
-                    satellite_data['azimuth rates'].append(0)
-                    satellite_data['doppler shift'].append(0)
+                    satellite_data['pos AC'].append(np.nan)
+                    satellite_data['lon AC'].append(np.nan)
+                    satellite_data['lat AC'].append(np.nan)
+                    satellite_data['heights AC'].append(np.nan)
+                    satellite_data['speeds AC'].append(np.nan)
+                    satellite_data['pos SC'].append(np.nan)
+                    satellite_data['lon SC'].append(np.nan)
+                    satellite_data['lat SC'].append(np.nan)
+                    satellite_data['vel SC'].append(np.nan)
+                    satellite_data['heights SC'].append(np.nan)
+                    satellite_data['ranges'].append(np.nan)
+                    satellite_data['elevation'].append(np.nan)
+                    satellite_data['azimuth'].append(np.nan)
+                    satellite_data['zenith'].append(np.nan)
+                    satellite_data['radial'].append(np.nan)
+                    satellite_data['slew rates'].append(np.nan)
+                    satellite_data['elevation rates'].append(np.nan)
+                    satellite_data['azimuth rates'].append(np.nan)
+                    satellite_data['doppler shift'].append(np.nan)
 
             for key in self.applicable_output:
                 self.applicable_output[key].append(satellite_data[key])
@@ -154,7 +154,43 @@ class applicable_links():
 
     
     
-    def plot_satellite_visibility_scatter(self, time):
+    #def plot_satellite_visibility_scatter(self, time):
+    #    # Convert sats_applicable to a NumPy array for easier manipulation
+    #    sats_applicable_np = np.array(self.sats_applicable)
+    #    
+    #    # Calculate the accumulated visibility (sum along the satellite axis)
+    #    accumulated_visibility = np.sum(sats_applicable_np, axis=0)
+    #    
+    #    # Prepare the figure and axes for plotting
+    #    fig, axes = plt.subplots(2, 1, figsize=(12, 10), sharex=True)
+    #    
+    #    # Plot for visibility of each satellite over time using scatter plot
+    #    axes[0].set_title("Satellite Visibility Over Time")
+    #    for s in range(sats_applicable_np.shape[0]):
+    #        # Find indices (time points) where satellite s is visible
+    #        visible_indices = np.where(sats_applicable_np[s, :] == 1)[0]
+    #        # Plot these as scatter points
+    #        axes[0].scatter(visible_indices, np.full(visible_indices.shape, s), alpha=0.6, label=f'Sat {s+1}')
+    #    axes[0].set_ylabel("Satellite Index")
+    #    axes[0].legend(loc='upper right', bbox_to_anchor=(1.1, 1.05))
+    #    
+    #    # Plot for accumulated visible satellites over time
+    #    axes[1].set_title("Accumulated Satellites Visible Over Time")
+    #    axes[1].plot(time/step_size_link, accumulated_visibility, color='red', label='Accumulated Visibility')
+    #    axes[1].set_xlabel("Time")
+    #    axes[1].set_ylabel("Number of Visible Satellites")
+    #    axes[1].legend(loc='upper left')
+    #    
+    #    plt.tight_layout()
+    #    plt.show()
+
+    def plot_satellite_visibility_scatter_update(self, time):
+        # Remove or comment out the legend line if you don't want the legend.
+        # axes[0].legend(loc='upper right', bbox_to_anchor=(1.1, 1.05))
+
+        # Plot for visibility of each satellite over time using scatter plot
+
+
         # Convert sats_applicable to a NumPy array for easier manipulation
         sats_applicable_np = np.array(self.sats_applicable)
         
@@ -169,20 +205,30 @@ class applicable_links():
         for s in range(sats_applicable_np.shape[0]):
             # Find indices (time points) where satellite s is visible
             visible_indices = np.where(sats_applicable_np[s, :] == 1)[0]
+            # Adjusting the y-value by adding 1 for satellite indexing
+            y_values = np.full(visible_indices.shape, s + 1)
             # Plot these as scatter points
-            axes[0].scatter(visible_indices, np.full(visible_indices.shape, s), alpha=0.6, label=f'Sat {s+1}')
+            axes[0].scatter(visible_indices, y_values, alpha=0.6)
+
+            if len(visible_indices) > 0:
+                # Calculate the middle index of visible_indices for annotation
+                middle_index = visible_indices[len(visible_indices) // 2]
+                # Annotate the middle point with the satellite number
+                axes[0].text(middle_index, s + 1 + 0.1, f'Sat {s+1}', ha='center', va='bottom', fontsize=9, alpha=0.7)
+
         axes[0].set_ylabel("Satellite Index")
-        axes[0].legend(loc='upper right', bbox_to_anchor=(1.1, 1.05))
-        
+
+        # Continue with the rest of your plotting code as before
         # Plot for accumulated visible satellites over time
         axes[1].set_title("Accumulated Satellites Visible Over Time")
-        axes[1].plot(time, accumulated_visibility, color='red', label='Accumulated Visibility')
+        axes[1].plot(time/step_size_link, accumulated_visibility, color='red', label='Accumulated Visibility')
         axes[1].set_xlabel("Time")
         axes[1].set_ylabel("Number of Visible Satellites")
         axes[1].legend(loc='upper left')
-        
+
         plt.tight_layout()
         plt.show()
+
 
 
 
@@ -242,6 +288,7 @@ applicable_output, sats_visibility,sats_applicable = Links_applicable.applicabil
 #print(len(time))
 
 #Links_applicable.plot_satellite_visibility_scatter(time=time)
+#Links_applicable.plot_satellite_visibility_scatter_update(time=time)
 #Links_applicable.plot_satellite_visibility(time = time)
 
 

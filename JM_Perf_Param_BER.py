@@ -29,32 +29,17 @@ class BER_performance():
         self.speed_of_light = speed_of_light
 
     def calculate_BER_performance(self):
-        # Extract ranges for all satellites over time from the applicable_output
-        ranges = self.applicable_output['ranges']
-        num_satellites = len(ranges)
-        num_time_instances = len(self.time)
-
-        # Initialize the propagation_latency array
-        self.propagation_latency = np.zeros((num_satellites, num_time_instances))
-
-        # Calculate propagation latency for each satellite at each time index
-        for sat_index in range(num_satellites):
-            for time_index in range(num_time_instances):
-                # Ensure there's a valid range value before calculating latency
-                if ranges[sat_index][time_index] is not None:
-                    latency_propagation = ranges[sat_index][time_index] / self.speed_of_light
-                    self.propagation_latency[sat_index, time_index] = latency_propagation
+      
 
         return self.BER_performance
     
 
 
-
-    def calculate_normalized_BER_performance(data, potential_linktime):
+    def calculate_normalized_BER_performance(self, data, potential_linktime):
         max_time = np.max(potential_linktime, axis=1)
-        normalized_BER_performance = data / max_time[:, np.newaxis]
+        self.normalized_BER_performance = data / max_time[:, np.newaxis]
 
-        return normalized_BER_performance
+        return self.normalized_BER_performance
     
 #print('')
 #print('------------------END-TO-END-LASER-SATCOM-MODEL-------------------------')

@@ -158,7 +158,7 @@ def bit_level(LCT,
         # ax.grid()
         # ax.legend()
 
-        plt.show()
+        #plt.show()
 
     def plot_bit_level_time_series():
         fig_T, ax_output_t = plt.subplots(1, 2)
@@ -210,7 +210,7 @@ def bit_level(LCT,
         # ax_ber.legend(fontsize=15)
         # ax_ber.grid()
 
-        plt.show()
+        #plt.show()
         
     def plot_coding_errors():
 
@@ -248,7 +248,7 @@ def bit_level(LCT,
             ax_coding[1].legend(fontsize=10)
             ax_coding[1].grid()
 
-            plt.show()
+            #plt.show()
 
 
 
@@ -271,7 +271,7 @@ def bit_level(LCT,
 
             ax[0].legend()
             ax[1].legend()
-        plt.show()
+        #plt.show()
 
 
     waterfall_plot()

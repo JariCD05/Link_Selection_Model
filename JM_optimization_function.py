@@ -22,8 +22,9 @@ from JM_applicable_links import applicable_links
 #import performance paramaters 
 from JM_Perf_Param_Availability import Availability_performance
 from JM_Perf_Param_BER import BER_performance
-from JM_Perf_Param_Latency import latency_performance
+from JM_Perf_Param_Latency import Latency_performance
 from JM_Perf_Param_Throughput import Throughput_performance
+from JM_Perf_Param_Cost import Cost_performance
 
 
 # let's assume that the output from the mission level is four matrices
@@ -83,25 +84,35 @@ samples_mission_level = number_sats_per_plane * number_of_planes * len(link_geom
 Links_applicable = applicable_links(time=time)
 applicable_output, sats_visibility, sats_applicable = Links_applicable.applicability(link_geometry.geometrical_output, time, step_size_link)
 
-
+print(sats_applicable)
 
 # Create an instance of the performance classes
-latency_performance_instance = latency_performance(time, link_geometry)
-# throughput_performance_instance = throughput_performance()
-# BER_performance_instance = BER_performance()
+
+
+
+
 # Availability_performance_instance = availability_performance()
-
-
-
+# BER_performance_instance = BER_performance()
+Cost_performance_instance = Cost_performance(time, link_geometry)
+Latency_performance_instance = Latency_performance(time, link_geometry)
+# Throughput_performance_instance = throughput_performance()
 
 
 # Now call the method on the instance and initiliaze the four matrices
+
+# Cost
+cost_performance = Cost_performance_instance.calculate_cost_performance()
+normalized_cost_performance = Cost_performance_instance.calculate_normalized_cost_performance(cost_performance)
+
+
+
+
 # Latency
-propagation_latency = latency_performance_instance.calculate_latency_performance()
-normalized_propagation_latency_min = latency_performance_instance.distance_normalization_min(propagation_latency=propagation_latency)
+propagation_latency = Latency_performance_instance.calculate_latency_performance()
+normalized_latency_performance = Latency_performance_instance.distance_normalization_min(propagation_latency=propagation_latency)
 
 #Throughput
-#throughput_performance = throughput_performance_instance.calculate_throughput_performance()
+#Throughput_performance = throughput_performance_instance.calculate_throughput_performance()
 #normalized_throughput_performance = throughput_performance_instance.time_normalization(throughput_performance=throughput_performance)
 
 
@@ -117,11 +128,13 @@ time_step = 100  # Time step in seconds
 
 
 # define input weights per performance parameter
-latency_weight = 0.25
-throughput_weight = 0.4
-availabily_weight = 0.5
-bit_error_rate_weight = 0.25
-weights = [latency_weight, throughput_weight, availabily_weight, bit_error_rate_weight]
+client_input_availability = 0.2
+client_input_BER = 0.3
+client_input_cost = 0.2
+client_input_latency = 0
+client_input_throughput = 0.5
+
+weights = [client_input_availability, client_input_BER, client_input_cost, client_input_latency, client_input_throughput]
 
 # setup mission outlin
 num_columns = mission_time // time_step
@@ -147,18 +160,18 @@ def initialize_performance_matrices_with_ones(normalized_latency):
     # Initialize matrices for throughput, BER, and availability with ones
     dummy_throughput_performance = np.ones(shape, dtype=float)
     dummy_BER_performance = np.ones(shape, dtype=float)
-    dummy_bit_error_rate_performance = np.ones(shape, dtype=float)
+    dummy_availability_performance = np.ones(shape, dtype=float)
 
-    return dummy_throughput_performance, dummy_BER_performance, dummy_bit_error_rate_performance
+    return dummy_throughput_performance, dummy_BER_performance, dummy_availability_performance
 
 #initiliaze dummy matrices
 
-dummy_throughput_performance, dummy_BER_performance, dummy_bit_error_rate_performance = initialize_performance_matrices_with_ones(normalized_latency=normalized_propagation_latency_min)
+dummy_throughput_performance, dummy_BER_performance, dummy_availability_performance = initialize_performance_matrices_with_ones(normalized_latency=normalized_latency_performance)
 #print(len(dummy_BER_performance))
 #print(len(dummy_BER_performance[5]))
-performance_matrices = [normalized_propagation_latency_min, dummy_throughput_performance, dummy_BER_performance, dummy_bit_error_rate_performance]
+performance_matrices = [dummy_availability_performance, dummy_BER_performance, normalized_cost_performance, normalized_latency_performance, dummy_throughput_performance]
 
-print(len(performance_matrices))
+#print(len(performance_matrices))
 def find_and_track_active_satellites(weights, sats_applicable, *performance_matrices):
     sats_applicable=np.array(sats_applicable)
     # Ensure the number of weights matches the number of performance matrices
@@ -173,19 +186,26 @@ def find_and_track_active_satellites(weights, sats_applicable, *performance_matr
         weighted_sum += weight * matrix
 
     active_satellites = []
+    performance_over_time = []
     for time_step in range(weighted_sum.shape[1]):  # Iterate through each time step
         # Filter to consider only applicable (visible) satellites at this time step
         applicable_at_time_step = sats_applicable[:, time_step]
         performance_at_time_step = weighted_sum[:, time_step] * applicable_at_time_step
-        
+        performance_over_time.append(performance_at_time_step)
+
         # Determine the active satellite by checking the highest weighted performance value, if any are applicable
         if np.any(applicable_at_time_step > 0) and np.max(performance_at_time_step) > 0:
             # Find the index of the satellite with the highest weighted performance score
             active_satellite = np.argmax(performance_at_time_step)
             active_satellites.append(active_satellite)
+            
         else:
             # No satellites are applicable at this time step
             active_satellites.append("No link")
+    
+    print(performance_over_time[5])
+    #print(performance_over_time)
+
 
     return active_satellites
 
@@ -270,7 +290,7 @@ def update(frame):
 # Create the animation
 ani = FuncAnimation(fig, update, frames=num_columns, init_func=init, blit=True, repeat=False, interval=400)
 
-#ani.save('link_selection.mp4', writer='ffmpeg', fps=2.5)
+
 plt.title('Link selection')
 plt.xlabel('Time Step')
 plt.ylabel('Link selected')
@@ -278,6 +298,12 @@ plt.yticks(range(-1, num_rows), ['No link'] + [f'Sat {i+1}' for i in range(num_r
 plt.grid(True)
 ani.save('link_selection.mp4', writer='ffmpeg', fps=2.5)
 plt.show()
+
+
+#Links_applicable.plot_satellite_visibility_scatter(time=time)
+#Links_applicable.plot_satellite_visibility(time = time)
+
+
 
 
 

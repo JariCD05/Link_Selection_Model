@@ -358,6 +358,20 @@ class attenuation:
             self.h_ext = np.exp( -self.b_v * self.H_scale * abs(1/np.cos(zenith_angles) / 1000 *
                             (1 - np.exp(-range_link / (self.H_scale * abs(1/np.cos(zenith_angles)))  ))))
         return self.h_ext
+    
+ 
+
+    def h_ext_func_jari(self, range_link, zenith_angles, method="ISA profile"):
+        # Convert inputs to NumPy arrays if they are not already
+        range_link = np.asarray(range_link)
+        zenith_angles = np.asarray(zenith_angles)
+
+        if method == "ISA profile":
+            # Ensure division, np.cos, and other operations are performed on NumPy arrays
+            self.h_ext = np.exp(-self.b_v * self.H_scale * abs(1/np.cos(zenith_angles) / 1000 *
+                            (1 - np.exp(-range_link / (self.H_scale * abs(1/np.cos(zenith_angles)))))))
+        return self.h_ext
+
 
     def h_clouds_func(self, method = 'static', mask = False):
         if method == 'static':

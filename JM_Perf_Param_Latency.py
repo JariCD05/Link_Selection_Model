@@ -20,7 +20,7 @@ from JM_applicable_links import applicable_links
 
 
 
-class latency_performance():
+class Latency_performance():
     def __init__(self, time, link_geometry):
         # Assuming link_geometry.geometrical_output and step_size_link are defined elsewhere
         self.Links_applicable = applicable_links(time=time)
@@ -51,7 +51,7 @@ class latency_performance():
 
     def distance_normalization_min(self, propagation_latency):
         num_satellites = propagation_latency.shape[0]
-        normalized_latency_min = np.zeros_like(propagation_latency)
+        self.normalized_latency_performance = np.zeros_like(propagation_latency)
 
         for sat_index in range(num_satellites):
             # Filter out zero values and find the minimum nonzero latency
@@ -61,17 +61,17 @@ class latency_performance():
                 # Normalize the latency values for the current satellite based on the minimum nonzero latency
                 for time_index in range(propagation_latency.shape[1]):
                     if propagation_latency[sat_index, time_index] > 0:
-                        normalized_latency_min[sat_index, time_index] = min_latency/(propagation_latency[sat_index, time_index])
+                        self.normalized_latency_performance[sat_index, time_index] = min_latency/(propagation_latency[sat_index, time_index])
                     else:
                         # If original latency is zero, it remains zero in the normalized array
-                        normalized_latency_min[sat_index, time_index] = 0
+                        self.normalized_latency_performance[sat_index, time_index] = 0
             else:
                 # If there are no nonzero latencies (which might be unusual), handle as needed
                 # This scenario would imply all latencies for this satellite are zero
                 # You might choose to set the normalized latency to a specific value, or leave it as zero
                 pass
 
-        return normalized_latency_min
+        return self.normalized_latency_performance
     
     def plot_normalized_latency_heatmap(self, normalized_latency, time):
         # Assuming `time` is a 1D array with the same length as the number of columns in `normalized_latency`
@@ -168,14 +168,14 @@ class latency_performance():
 ## After defining the latency_performance class...
 #
 ## Create an instance of the class
-#latency_performance_instance = latency_performance(time, link_geometry)
+#latency_performance_instance = Latency_performance(time, link_geometry)
 #
 ## Now call the method on the instance
 #propagation_latency = latency_performance_instance.calculate_latency_performance()
-#normalized_propagation_latency_min = latency_performance_instance.distance_normalization_min(propagation_latency=propagation_latency)
-#visualization = latency_performance_instance.plot_normalized_latency_heatmap(normalized_latency=normalized_propagation_latency_min, time = time)
-#visualization_scatter = latency_performance_instance.plot_normalized_latency_scatter(normalized_latency=normalized_propagation_latency_min, time=time, satellite_index=26)
+#normalized_latency_performance = latency_performance_instance.distance_normalization_min(propagation_latency=propagation_latency)
+#visualization = latency_performance_instance.plot_normalized_latency_heatmap(normalized_latency=normalized_latency_performance, time = time)
+#visualization_scatter = latency_performance_instance.plot_normalized_latency_scatter(normalized_latency=normalized_latency_performance, time=time, satellite_index=26)
 #
 ## If you want to print or work with the propagation_latency
-#print(len(normalized_propagation_latency_min))
+#print(len(normalized_latency_performance))
 #print(propagation_latency[1][700])

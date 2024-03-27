@@ -120,6 +120,10 @@ else:
     heights_AC     = routing_output['heights AC'][link_number]
     speeds_AC      = routing_output['speeds AC' ][link_number]
 
+elevation[elevation<0] = 0 
+print(elevation)
+print(len(elevation))
+print(len(elevation_per_link))
 
 # Define cross-section of macro-scale simulation based on the elevation angles.
 # These cross-sections are used for micro-scale plots.
@@ -335,6 +339,9 @@ latency_qeue = 5.0e-3
 latency_processing = 3.0e-3
 latency = latency_propagation + latency_transmission + latency_qeue + latency_processing
 
+#------- extra performance parameters ---------
+
+# availabaility 
 
 # ------------------------------------------------------------------------
 # ---------------------------------OUTPUT---------------------------------
@@ -412,7 +419,5 @@ else:
 # save_to_file([geometrical_output, performance_output])
 
 
-
-
-
-
+print(performance_output['throughput'])
+print(len(performance_output['throughput']))

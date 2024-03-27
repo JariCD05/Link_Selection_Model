@@ -57,6 +57,60 @@ def cross_section(elevation_cross_section, elevation, time_links):
         time_cross_section.append(t)
     return indices, time_cross_section
 
+def cross_section_links(elevation_cross_section, elevation, time):
+    time_cross_section = []
+    indices = []
+    for e in elevation_cross_section:
+        index = np.argmin(abs(elevation - np.deg2rad(e)))
+        indices.append(index)
+        t = time[index] / 3600
+        time_cross_section.append(t)
+    return indices, time_cross_section
+
+import numpy as np
+
+def cross_section_over_time(elevation_cross_section, elevation, all_time):
+    """
+    Calculate the closest time instances for specified elevation angles 
+    for each satellite.
+    
+    Parameters:
+    - elevation_cross_section: A list or array of target elevation angles (in degrees).
+    - elevations: A 2D array (30 satellites x N time instances) of elevation angles (in radians).
+    - all_time: An array of time values corresponding to the elevation measurements.
+    
+    Returns:
+    - indices: A 2D list where each sublist contains indices of the closest matches 
+               for each target elevation angle per satellite.
+    - time_cross_sections: A 2D list where each sublist contains time values (in hours) 
+                           corresponding to the closest matches for each target elevation 
+                           angle per satellite.
+    """
+    indices = []
+    time_cross_sections = []
+
+    for satellite_elevations in elevation:
+        satellite_indices = []
+        satellite_times = []
+        
+        for e in elevation_cross_section:
+            # Convert target elevation angle from degrees to radians
+            target_elevation_rad = np.deg2rad(e)
+            
+            # Find the index of the closest elevation angle for the current satellite
+            index = np.argmin(abs(satellite_elevations - target_elevation_rad))
+            satellite_indices.append(index)
+            
+            # Convert the corresponding time from seconds to hours
+            t = all_time[index]/3600
+            satellite_times.append(t)
+        
+        indices.append(satellite_indices)
+        time_cross_sections.append(satellite_times)
+    
+    return indices, time_cross_sections
+
+
 def h_p_airy(angle, D_r, focal_length):
     # REF: Wikipedia Airy Disk
     # Fraunhofer diffraction pattern
@@ -90,6 +144,12 @@ def radius_of_curvature(ranges):
 
 def beam_spread(angle_div, ranges):
     w_r = angle_div * ranges
+    return w_r
+
+def beam_spread_jari(angle_div, ranges):
+    ranges_array = np.array(ranges)
+
+    w_r = angle_div * ranges_array
     return w_r
 
 def beam_spread_turbulence_ST(Lambda0, Lambda, var, w_r):
@@ -160,13 +220,14 @@ def filtering(effect: str,                  # Effect is eiter turbulence (scinti
     if effect == 'scintillation' or effect == 'beam wander' or effect == 'angle of arrival':
         data_filt = np.empty(np.shape(data))
         for i in range(len(data)):
-            # Digital filter settings
-            b, a = butter(N=order, Wn=f_cutoff_low[i], btype=filter_type, analog=False, fs=f_sampling)
+            if f_cutoff_low[i].data != 0:        
+                # Digital filter settings
+                b, a = butter(N=order, Wn=f_cutoff_low[i], btype=filter_type, analog=False, fs=f_sampling)
 
-            z, p, k = scipy.signal.tf2zpk(b, a)
-            r = np.max(np.abs(p))
-            approx_impulse_len = int(np.ceil(np.log(eps) / np.log(r)))
-            data_filt[i] = filtfilt(b, a, data[i], method="gust", irlen=approx_impulse_len)
+                z, p, k = scipy.signal.tf2zpk(b, a)
+                r = np.max(np.abs(p))
+                approx_impulse_len = int(np.ceil(np.log(eps) / np.log(r)))
+                data_filt[i] = filtfilt(b, a, data[i], method="gust", irlen=approx_impulse_len)
 
 
     elif effect == 'TX jitter' or effect == 'RX jitter':

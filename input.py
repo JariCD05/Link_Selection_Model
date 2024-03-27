@@ -163,9 +163,14 @@ SC_filename_save  = r'/Users/jaristensen/Desktop/Visual_Studio/Thesis/Link_Selec
 constellation_type = "LEO_cons"                 # Type of constellation (1 sat in LEO, 1 sat in GEO, LEO constellation)
 h_SC = 1200.0E3 #(SDA) or 550.0E3 (Starlink)       # Initial altitude of the satellite(s)
 inc_SC = 85.0 #55.98 (Starlink) or 0.0 (GEO) or 80.0 (SDA)  # Initial inclination of the satellite(s)
-number_of_planes = 2                           # Number of planes within the constellation (if 1 sat: number_of_planes = 1)
+number_of_planes = 2                         # Number of planes within the constellation (if 1 sat: number_of_planes = 1)
 number_sats_per_plane = 2                # Number of satellites per plane within the constellation (if 1 sat: number_sats_per_plane = 1)
 num_satellites = number_of_planes*number_sats_per_plane #defined to make sure this is the leading value while propagating the links
+variable_link_cost_const1 = 1.667                           # 100 EUR per minute, thus 1.6667 per second, for constellation x
+fixed_link_cost_const1 = 100                                # 100 EUR per acquisition, , for constellation x
+
+constellation_variable_link_cost = [variable_link_cost_const1] # the combined set of all variable link costs
+constellation_fixed_link_cost = [fixed_link_cost_const1]
 #---------------------In case of 'TLE' method------------------
 TLE_filename_load = r'C:\Users\wiege\Documents\TUDelft_Spaceflight\Thesis\ac_sc_data\constellation_TLE_data\oneweb_tle.json'
 
