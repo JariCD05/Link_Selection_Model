@@ -91,11 +91,11 @@ print(sats_applicable)
 
 
 
-# Availability_performance_instance = availability_performance()
+# Availability_performance_instance = Availability_performance()
 # BER_performance_instance = BER_performance()
 Cost_performance_instance = Cost_performance(time, link_geometry)
 Latency_performance_instance = Latency_performance(time, link_geometry)
-# Throughput_performance_instance = throughput_performance()
+Throughput_performance_instance = Throughput_performance(time, link_geometry)
 
 
 # Now call the method on the instance and initiliaze the four matrices
@@ -112,10 +112,10 @@ propagation_latency = Latency_performance_instance.calculate_latency_performance
 normalized_latency_performance = Latency_performance_instance.distance_normalization_min(propagation_latency=propagation_latency)
 
 #Throughput
-#Throughput_performance = throughput_performance_instance.calculate_throughput_performance()
+throughput_performance = Throughput_performance_instance.calculate_throughput_performance()
 #normalized_throughput_performance = throughput_performance_instance.time_normalization(throughput_performance=throughput_performance)
 
-
+print(throughput_performance)
 
 
 
@@ -297,7 +297,7 @@ plt.ylabel('Link selected')
 plt.yticks(range(-1, num_rows), ['No link'] + [f'Sat {i+1}' for i in range(num_rows)])
 plt.grid(True)
 ani.save('link_selection.mp4', writer='ffmpeg', fps=2.5)
-plt.show()
+#plt.show()
 
 
 #Links_applicable.plot_satellite_visibility_scatter(time=time)

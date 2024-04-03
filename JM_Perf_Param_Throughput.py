@@ -17,28 +17,6 @@ from bit_level import bit_level
 from channel_level import channel_level
 from JM_applicable_links import applicable_links
 
-
-
-
-class Throughput_performance:
-    def __init__(self, time, link_geometry):
-        # Assuming link_geometry.geometrical_output and step_size_link are defined elsewhere
-        self.Links_applicable = applicable_links(time=time)
-        self.applicable_output, self.sats_visibility, self.sats_applicable = self.Links_applicable.applicability(link_geometry.geometrical_output, time, step_size_link)
-        self.time = time
-        self.speed_of_light = speed_of_light
-
-    def calculate_throughput_performance(self):
- 
-
-        return self.troughput_performance
-    
-    def calculate_normalized_throughput_performance(self, data, potential_linktime):
-        max_time = np.max(potential_linktime, axis=1)
-        self.normalized_throughput_performance = data / max_time[:, np.newaxis]
-
-        return self.normalized_throughput_performance
-    
     
 print('')
 print('------------------END-TO-END-LASER-SATCOM-MODEL-------------------------')
@@ -252,77 +230,135 @@ else:
 
 
 
-#throughput = np.array_split(throughput, num_satellites)
+throughput = np.array_split(throughput, num_satellites)
+print(len(throughput))
 
 
-# ----------------------------FADE-STATISTICS-----------------------------
+class Throughput_performance:
+    def __init__(self, time, link_geometry):
+        # Assuming link_geometry.geometrical_output and step_size_link are defined elsewhere
+        self.Links_applicable = applicable_links(time=time)
+        self.applicable_output, self.sats_visibility, self.sats_applicable = self.Links_applicable.applicability(link_geometry.geometrical_output, time, step_size_link)
+        self.time = time
+        self.speed_of_light = speed_of_light
+        self.throughput = throughput
 
-number_of_fades = np.sum((P_r[:, 1:] < LCT.P_r_thres[1]) & (P_r[:, :-1] > LCT.P_r_thres[1]), axis=1)
-fractional_fade_time = np.count_nonzero((P_r < LCT.P_r_thres[1]), axis=1) / samples_channel_level
-mean_fade_time = fractional_fade_time / number_of_fades * interval_channel_level
+    def calculate_throughput_performance(self):
+        self.throughput_performance = [[0 for _ in range(len(time))] for _ in range(num_satellites)]
 
-# Power penalty in order to include a required fade fraction.
-# REF: Giggenbach (2008), Fading-loss assessment
-h_penalty   = penalty(P_r=P_r, desired_frac_fade_time=desired_frac_fade_time)                                           
-h_penalty_perfect_pointing   = penalty(P_r=P_r_perfect_pointing, desired_frac_fade_time=desired_frac_fade_time)
-P_r_penalty_perfect_pointing = P_r_perfect_pointing.mean(axis=1) * h_penalty_perfect_pointing
+        for s in range(num_satellites):
+            # Convert the throughput list for the current satellite to a NumPy array if not already
+            throughput_array = np.array(self.throughput[s])
 
-# ---------------------------------LINK-MARGIN--------------------------------
-margin     = P_r / LCT.P_r_thres[1]
+            # Find indices where throughput equals 250,000,000
+            qualifying_indices = np.where(throughput_array == 250000000)[0]
 
-# -------------------------------DISTRIBUTIONS----------------------------
-# Local distributions for each macro-scale time step (over micro-scale interval)
-pdf_P_r, cdf_P_r, x_P_r, std_P_r, mean_P_r = distribution_function(W2dBm(P_r),len(P_r_0),min=-60.0,max=-20.0,steps=1000)
-pdf_BER, cdf_BER, x_BER, std_BER, mean_BER = distribution_function(np.log10(BER),len(P_r_0),min=-30.0,max=0.0,steps=10000)
-if coding == 'yes':
-    pdf_BER_coded, cdf_BER_coded, x_BER_coded, std_BER_coded, mean_BER_coded = \
-        distribution_function(np.log10(BER_coded),len(P_r_0),min=-30.0,max=0.0,steps=10000)
+            if len(qualifying_indices) == 0:
+                # If no instance of 250,000,000 is found, skip this satellite
+                continue
 
-# Global distributions over macro-scale interval
-P_r_total = P_r.flatten()
-BER_total = BER.flatten()
-P_r_pdf_total, P_r_cdf_total, x_P_r_total, std_P_r_total, mean_P_r_total = distribution_function(data=W2dBm(P_r_total), length=1, min=-60.0, max=0.0, steps=1000)
-BER_pdf_total, BER_cdf_total, x_BER_total, std_BER_total, mean_BER_total = distribution_function(data=np.log10(BER_total), length=1, min=np.log10(BER_total.min()), max=np.log10(BER_total.max()), steps=1000)
+            # Get the index of the first occurrence of 250,000,000
+            first_qualifying_index = qualifying_indices[0]
 
-if coding == 'yes':
-    BER_coded_total = BER_coded.flatten()
-    BER_coded_pdf_total, BER_coded_cdf_total, x_BER_coded_total, std_BER_coded_total, mean_BER_coded_total = \
-        distribution_function(data=np.log10(BER_coded_total), length=1, min=-30.0, max=0.0, steps=100)
+            # Initialize the running sum to 0 initially
+            running_sum = 0
 
+            # Loop through time in reverse order starting from the first qualifying index
+            for index in range(len(time)-1, first_qualifying_index-1, -1):
+                # Increment running_sum if the condition is met
+                if throughput_array[index] == 250000000:
+                    running_sum += 1
+                # Update throughput performance with the current running sum
+                self.throughput_performance[s][index] = running_sum
 
-# ------------------------------------------------------------------------
-# -------------------------------AVERAGING--------------------------------
-# ------------------------------------------------------------------------
+            # Ensure all values before the first qualifying index are set to 0
+            for index in range(first_qualifying_index):
+                self.throughput_performance[s][index] = 0
 
-# ---------------------------UPDATE-LINK-BUDGET---------------------------
-# All micro-scale losses are averaged and added to the link budget
-# Also adds a penalty term to the link budget as a requirement for the desired fade time, defined in input.py
-link.dynamic_contributions(PPB=PPB.mean(axis=1),
-                           T_dyn_tot=h_tot.mean(axis=1),
-                           T_scint=h_scint.mean(axis=1),
-                           T_TX=h_TX.mean(axis=1),
-                           T_RX=h_RX.mean(axis=1),
-                           h_penalty=h_penalty,
-                           P_r=P_r.mean(axis=1),
-                           BER=BER.mean(axis=1))
+        return self.throughput_performance
+    
+    def calculate_normalized_throughput_performance(self, data, potential_linktime):
+        max_time = np.max(potential_linktime, axis=1)
+        self.normalized_throughput_performance = data / max_time[:, np.newaxis]
+
+        return self.normalized_throughput_performance
 
 
-if coding == 'yes':
-    link.coding(G_coding=G_coding.mean(axis=1),
-                BER_coded=BER_coded.mean(axis=1))
-    P_r = P_r_coded
-# A fraction (0.9) of the light is subtracted from communication budget and used for tracking budget
-link.tracking()
-link.link_margin()
+Throughput_performance_instance = Throughput_performance(time, link_geometry)
+throughput_performance = Throughput_performance_instance.calculate_throughput_performance()
 
+print(throughput_performance)
+#print(throughput)
 
-# ------------------------------------------------------------------------
-# --------------------------PERFORMANCE-METRICS---------------------------
-# ------------------------------------------------------------------------
+## ----------------------------FADE-STATISTICS-----------------------------
+#
+#number_of_fades = np.sum((P_r[:, 1:] < LCT.P_r_thres[1]) & (P_r[:, :-1] > LCT.P_r_thres[1]), axis=1)
+#fractional_fade_time = np.count_nonzero((P_r < LCT.P_r_thres[1]), axis=1) / samples_channel_level
+#mean_fade_time = fractional_fade_time / number_of_fades * interval_channel_level
+#
+## Power penalty in order to include a required fade fraction.
+## REF: Giggenbach (2008), Fading-loss assessment
+#h_penalty   = penalty(P_r=P_r, desired_frac_fade_time=desired_frac_fade_time)                                           
+#h_penalty_perfect_pointing   = penalty(P_r=P_r_perfect_pointing, desired_frac_fade_time=desired_frac_fade_time)
+#P_r_penalty_perfect_pointing = P_r_perfect_pointing.mean(axis=1) * h_penalty_perfect_pointing
+#
+## ---------------------------------LINK-MARGIN--------------------------------
+#margin     = P_r / LCT.P_r_thres[1]
+#
+## -------------------------------DISTRIBUTIONS----------------------------
+## Local distributions for each macro-scale time step (over micro-scale interval)
+#pdf_P_r, cdf_P_r, x_P_r, std_P_r, mean_P_r = distribution_function(W2dBm(P_r),len(P_r_0),min=-60.0,max=-20.0,steps=1000)
+#pdf_BER, cdf_BER, x_BER, std_BER, mean_BER = distribution_function(np.log10(BER),len(P_r_0),min=-30.0,max=0.0,steps=10000)
+#if coding == 'yes':
+#    pdf_BER_coded, cdf_BER_coded, x_BER_coded, std_BER_coded, mean_BER_coded = \
+#        distribution_function(np.log10(BER_coded),len(P_r_0),min=-30.0,max=0.0,steps=10000)
+#
+## Global distributions over macro-scale interval
+#P_r_total = P_r.flatten()
+#BER_total = BER.flatten()
+#P_r_pdf_total, P_r_cdf_total, x_P_r_total, std_P_r_total, mean_P_r_total = distribution_function(data=W2dBm(P_r_total), length=1, min=-60.0, max=0.0, steps=1000)
+#BER_pdf_total, BER_cdf_total, x_BER_total, std_BER_total, mean_BER_total = distribution_function(data=np.log10(BER_total), length=1, min=np.log10(BER_total.min()), max=np.log10(BER_total.max()), steps=1000)
+#
+#if coding == 'yes':
+#    BER_coded_total = BER_coded.flatten()
+#    BER_coded_pdf_total, BER_coded_cdf_total, x_BER_coded_total, std_BER_coded_total, mean_BER_coded_total = \
+#        distribution_function(data=np.log10(BER_coded_total), length=1, min=-30.0, max=0.0, steps=100)
+#
+#
+## ------------------------------------------------------------------------
+## -------------------------------AVERAGING--------------------------------
+## ------------------------------------------------------------------------
+#
+## ---------------------------UPDATE-LINK-BUDGET---------------------------
+## All micro-scale losses are averaged and added to the link budget
+## Also adds a penalty term to the link budget as a requirement for the desired fade time, defined in input.py
+#link.dynamic_contributions(PPB=PPB.mean(axis=1),
+#                           T_dyn_tot=h_tot.mean(axis=1),
+#                           T_scint=h_scint.mean(axis=1),
+#                           T_TX=h_TX.mean(axis=1),
+#                           T_RX=h_RX.mean(axis=1),
+#                           h_penalty=h_penalty,
+#                           P_r=P_r.mean(axis=1),
+#                           BER=BER.mean(axis=1))
+#
+#
+#if coding == 'yes':
+#    link.coding(G_coding=G_coding.mean(axis=1),
+#                BER_coded=BER_coded.mean(axis=1))
+#    P_r = P_r_coded
+## A fraction (0.9) of the light is subtracted from communication budget and used for tracking budget
+#link.tracking()
+#link.link_margin()
+#
+#
+## ------------------------------------------------------------------------
+## --------------------------PERFORMANCE-METRICS---------------------------
+## ------------------------------------------------------------------------
+#
+#
+#availability_vector = (link.LM_comm_BER6 >= 1.0).astype(int)
 
-
-availability_vector = (link.LM_comm_BER6 >= 1.0).astype(int)
-
+#HERE THE VISUALIZATION OF BOTH THE AVAILABILITY AND THROUGHPUT CAN BE FOUND!
 
 #print("throughput of four links", throughput[56:85])
 #print("Availability of link 1", availability_vector[56:85])
@@ -363,8 +399,8 @@ availability_vector = (link.LM_comm_BER6 >= 1.0).astype(int)
 
 
 
-print(BER[57:86])
-print(len(BER[57]))
-print(len(BER))
-
-print(len(BER_total))
+#print(BER[57:86])
+#print(len(BER[57]))
+#print(len(BER))
+#
+#print(len(BER_total))
