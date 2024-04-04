@@ -82,7 +82,7 @@ mission_duration = time[-1] - time[0]
 samples_mission_level = number_sats_per_plane * number_of_planes * len(link_geometry.geometrical_output['elevation'])
 
 Links_applicable = applicable_links(time=time)
-applicable_output, sats_visibility, sats_applicable = Links_applicable.applicability(link_geometry.geometrical_output, time, step_size_link)
+applicable_output, sats_applicable = Links_applicable.applicability(link_geometry.geometrical_output, time, step_size_link)
 
 print(sats_applicable)
 
@@ -102,13 +102,11 @@ Throughput_performance_instance = Throughput_performance(time, link_geometry)
 
 #Availability
 availability_performance = Availability_performance_instance.calculate_availability_performance()
-# normalized_availability_performance = Availability_performance_instance.calculate_normalized_availability_performance
+normalized_availability_performance = Availability_performance_instance.calculate_normalized_availability_performance(data = availability_performance, sats_applicable=sats_applicable)
 
 # Cost
 cost_performance = Cost_performance_instance.calculate_cost_performance()
 normalized_cost_performance = Cost_performance_instance.calculate_normalized_cost_performance(cost_performance)
-
-
 
 
 # Latency
@@ -133,11 +131,11 @@ time_step = 100  # Time step in seconds
 
 
 # define input weights per performance parameter
-client_input_availability = 0
+client_input_availability = 0.2
 client_input_BER = 0
-client_input_cost = 0.25
-client_input_latency = 0.25
-client_input_throughput = 0.5
+client_input_cost = 0.2
+client_input_latency = 0.2
+client_input_throughput = 0.4
 
 weights = [client_input_availability, client_input_BER, client_input_cost, client_input_latency, client_input_throughput]
 
@@ -163,18 +161,18 @@ def initialize_performance_matrices_with_ones(normalized_latency):
     shape = normalized_latency.shape
 
     # Initialize matrices for throughput, BER, and availability with ones
-    dummy_throughput_performance = np.ones(shape, dtype=float)
+    
     dummy_BER_performance = np.ones(shape, dtype=float)
-    dummy_availability_performance = np.ones(shape, dtype=float)
+    
 
-    return dummy_BER_performance, dummy_availability_performance
+    return dummy_BER_performance
 
 #initiliaze dummy matrices
 
-dummy_BER_performance, dummy_availability_performance = initialize_performance_matrices_with_ones(normalized_latency=normalized_latency_performance)
+dummy_BER_performance = initialize_performance_matrices_with_ones(normalized_latency=normalized_latency_performance)
 #print(len(dummy_BER_performance))
 #print(len(dummy_BER_performance[5]))
-performance_matrices = [dummy_availability_performance, dummy_BER_performance, normalized_cost_performance, normalized_latency_performance, normalized_throughput_performance]
+performance_matrices = [normalized_availability_performance, dummy_BER_performance, normalized_cost_performance, normalized_latency_performance, normalized_throughput_performance]
 
 #print(len(performance_matrices))
 def find_and_track_active_satellites(weights, sats_applicable, *performance_matrices):
@@ -219,7 +217,6 @@ active_satellites = find_and_track_active_satellites(weights, sats_applicable, *
 print("normalized Latency", normalized_latency_performance)
 print("normalized cost", normalized_cost_performance)
 print("Active satellites", active_satellites)
-
 
 def plot_active_satellites(time_steps, active_satellites, num_rows):
     """

@@ -67,7 +67,7 @@ mission_duration = time[-1] - time[0]
 samples_mission_level = number_sats_per_plane * number_of_planes * len(link_geometry.geometrical_output['elevation'])
 
 Links_applicable = applicable_links(time=time)
-applicable_output, sats_visibility,sats_applicable = Links_applicable.applicability(link_geometry.geometrical_output, time, step_size_link)
+applicable_output, sats_applicable = Links_applicable.applicability(link_geometry.geometrical_output, time, step_size_link)
 
 
 

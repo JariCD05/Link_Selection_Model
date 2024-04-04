@@ -57,7 +57,7 @@ class applicable_links():
         # and 'elevation_min' is already defined
         elevation_angles = geometrical_output['elevation']
         # Initialize the lists with the shape of 'elevation_angles', filled with 0s
-        self.sats_visibility = [[0 for _ in range(len(time))] for _ in range(len(elevation_angles))]
+       
         self.sats_applicable = [[0 for _ in range(len(time))] for _ in range(len(elevation_angles))]
 
         # Iterate through each time instance
@@ -129,7 +129,7 @@ class applicable_links():
             for key in self.applicable_output:
                 self.applicable_output[key].append(satellite_data[key])
 
-        return self.applicable_output, self.sats_visibility, self.sats_applicable
+        return self.applicable_output,  self.sats_applicable
 
     def plot_satellite_visibility(self, time):
         # Convert sats_applicable to a NumPy array for easier manipulation
@@ -280,7 +280,7 @@ mission_duration = time[-1] - time[0]
 samples_mission_level = number_sats_per_plane * number_of_planes * len(link_geometry.geometrical_output['elevation'])
 
 Links_applicable = applicable_links(time=time)
-applicable_output, sats_visibility,sats_applicable = Links_applicable.applicability(link_geometry.geometrical_output, time, step_size_link)
+applicable_output, sats_applicable = Links_applicable.applicability(link_geometry.geometrical_output, time, step_size_link)
 
 #Links_applicable.visualize_satellite_visibility(sats_applicable = Links_applicable.sats_applicable, time=time, num_satellites=num_satellites)
 #print(applicable_output['time'])
@@ -288,7 +288,7 @@ applicable_output, sats_visibility,sats_applicable = Links_applicable.applicabil
 #print(len(time))
 
 #Links_applicable.plot_satellite_visibility_scatter(time=time)
-Links_applicable.plot_satellite_visibility_scatter_update(time=time)
+#Links_applicable.plot_satellite_visibility_scatter_update(time=time)
 #Links_applicable.plot_satellite_visibility(time = time)
 
 
@@ -296,3 +296,5 @@ Links_applicable.plot_satellite_visibility_scatter_update(time=time)
 print("Length of applicable sattelite array", len(sats_applicable[2]))
 #print("time array lenght", len(time))
 #print(len(applicable_output["pos SC"][3]))
+
+print(sats_applicable)

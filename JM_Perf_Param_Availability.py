@@ -68,7 +68,7 @@ mission_duration = time[-1] - time[0]
 samples_mission_level = number_sats_per_plane * number_of_planes * len(link_geometry.geometrical_output['elevation'])
 
 Links_applicable = applicable_links(time=time)
-applicable_output, sats_visibility,sats_applicable = Links_applicable.applicability(link_geometry.geometrical_output, time, step_size_link)
+applicable_output, sats_applicable = Links_applicable.applicability(link_geometry.geometrical_output, time, step_size_link)
 
 
 # Define cross-section of macro-scale simulation based on the elevation angles.
@@ -311,7 +311,7 @@ class Availability_performance():
     def __init__(self, time, link_geometry):
         # Assuming link_geometry.geometrical_output and step_size_link are defined elsewhere
         self.Links_applicable = applicable_links(time=time)
-        self.applicable_output, self.sats_visibility, self.sats_applicable = self.Links_applicable.applicability(link_geometry.geometrical_output, time, step_size_link)
+        self.applicable_output, self.sats_applicable = self.Links_applicable.applicability(link_geometry.geometrical_output, time, step_size_link)
         self.time = time
         self.speed_of_light = speed_of_light
         self.availability_vector = availability_vector
@@ -346,13 +346,19 @@ class Availability_performance():
         return self.availability_performance
        
 
-    def calculate_normalized_availability_performance(self, data, potential_linktime):
-        max_time = np.max(potential_linktime, axis=1)
+    def calculate_normalized_availability_performance(self, data, sats_applicable):
+        max_time = np.nansum(sats_applicable, axis=1)
         self.normalized_availability_performance = data / max_time[:, np.newaxis]
-
+        print(len(max_time))
+        print(max_time)
         return self.normalized_availability_performance
     
 
-Availability_performance_instance = Availability_performance(time, link_geometry)
-availability_performance = Availability_performance_instance.calculate_availability_performance()
-print(availability_performance)
+
+
+
+#Availability_performance_instance = Availability_performance(time, link_geometry)
+#availability_performance = Availability_performance_instance.calculate_availability_performance()
+#normalized_availability_performance = Availability_performance_instance.calculate_normalized_availability_performance(data = availability_performance, sats_applicable=sats_applicable)
+#print(availability_performance)
+#print(normalized_availability_performance)

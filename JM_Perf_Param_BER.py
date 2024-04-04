@@ -24,7 +24,7 @@ class BER_performance():
     def __init__(self, time, link_geometry):
         # Assuming link_geometry.geometrical_output and step_size_link are defined elsewhere
         self.Links_applicable = applicable_links(time=time)
-        self.applicable_output, self.sats_visibility, self.sats_applicable = self.Links_applicable.applicability(link_geometry.geometrical_output, time, step_size_link)
+        self.applicable_output, self.sats_applicable = self.Links_applicable.applicability(link_geometry.geometrical_output, time, step_size_link)
         self.time = time
         self.speed_of_light = speed_of_light
 

@@ -66,7 +66,7 @@ mission_duration = time[-1] - time[0]
 samples_mission_level = number_sats_per_plane * number_of_planes * len(link_geometry.geometrical_output['elevation'])
 
 Links_applicable = applicable_links(time=time)
-applicable_output, sats_visibility,sats_applicable = Links_applicable.applicability(link_geometry.geometrical_output, time, step_size_link)
+applicable_output, sats_applicable = Links_applicable.applicability(link_geometry.geometrical_output, time, step_size_link)
 
 
 # Define cross-section of macro-scale simulation based on the elevation angles.
@@ -239,7 +239,7 @@ class Throughput_performance:
     def __init__(self, time, link_geometry):
         # Assuming link_geometry.geometrical_output and step_size_link are defined elsewhere
         self.Links_applicable = applicable_links(time=time)
-        self.applicable_output, self.sats_visibility, self.sats_applicable = self.Links_applicable.applicability(link_geometry.geometrical_output, time, step_size_link)
+        self.applicable_output, self.sats_applicable = self.Links_applicable.applicability(link_geometry.geometrical_output, time, step_size_link)
         self.time = time
         self.speed_of_light = speed_of_light
         self.throughput = throughput
