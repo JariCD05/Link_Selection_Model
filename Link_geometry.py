@@ -489,16 +489,16 @@ class link_geometry:
 # Macro-scale time vector is generated with time step 'step_size_link'
 # Micro-scale time vector is generated with time step 'step_size_channel_level'
 
-t_macro = np.arange(0.0, (end_time - start_time), step_size_link)
-samples_mission_level = len(t_macro)
-t_micro = np.arange(0.0, interval_channel_level, step_size_channel_level)
-samples_channel_level = len(t_micro)
-print('Macro-scale: Interval=', (end_time - start_time)/60, 'min, step size=', step_size_link, 'sec,  macro-scale steps=', samples_mission_level)
-print('Micro-scale: Interval=', interval_channel_level    , '  sec, step size=', step_size_channel_level*1000, 'msec, micro-scale steps=', samples_channel_level)
-
-print('----------------------------------------------------------------------------------MACRO-LEVEL-----------------------------------------------------------------------------------------')
-print('')
-print('-----------------------------------MISSION-LEVEL-----------------------------------------')
+#t_macro = np.arange(0.0, (end_time - start_time), step_size_link)
+#samples_mission_level = len(t_macro)
+#t_micro = np.arange(0.0, interval_channel_level, step_size_channel_level)
+#samples_channel_level = len(t_micro)
+#print('Macro-scale: Interval=', (end_time - start_time)/60, 'min, step size=', step_size_link, 'sec,  macro-scale steps=', samples_mission_level)
+#print('Micro-scale: Interval=', interval_channel_level    , '  sec, step size=', step_size_channel_level*1000, 'msec, micro-scale steps=', samples_channel_level)
+#
+#print('----------------------------------------------------------------------------------MACRO-LEVEL-----------------------------------------------------------------------------------------')
+#print('')
+#print('-----------------------------------MISSION-LEVEL-----------------------------------------')
 
 
 ##------------------------------------------------------------------------
