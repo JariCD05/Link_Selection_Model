@@ -164,7 +164,7 @@ constellation_type = "LEO_cons"                 # Type of constellation (1 sat i
 h_SC = 1200.0E3 #(SDA) or 550.0E3 (Starlink)       # Initial altitude of the satellite(s)
 inc_SC = 85.0 #55.98 (Starlink) or 0.0 (GEO) or 80.0 (SDA)  # Initial inclination of the satellite(s)
 number_of_planes = 2                         # Number of planes within the constellation (if 1 sat: number_of_planes = 1)
-number_sats_per_plane = 2                # Number of satellites per plane within the constellation (if 1 sat: number_sats_per_plane = 1)
+number_sats_per_plane = 4                # Number of satellites per plane within the constellation (if 1 sat: number_sats_per_plane = 1)
 num_satellites = number_of_planes*number_sats_per_plane #defined to make sure this is the leading value while propagating the links
 variable_link_cost_const1 = 1.667                           # 100 EUR per minute, thus 1.6667 per second, for constellation x
 fixed_link_cost_const1 = 100                                # 100 EUR per acquisition, , for constellation x

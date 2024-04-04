@@ -91,7 +91,7 @@ print(sats_applicable)
 
 
 
-# Availability_performance_instance = Availability_performance()
+Availability_performance_instance = Availability_performance(time, link_geometry)
 # BER_performance_instance = BER_performance()
 Cost_performance_instance = Cost_performance(time, link_geometry)
 Latency_performance_instance = Latency_performance(time, link_geometry)
@@ -99,6 +99,10 @@ Throughput_performance_instance = Throughput_performance(time, link_geometry)
 
 
 # Now call the method on the instance and initiliaze the four matrices
+
+#Availability
+availability_performance = Availability_performance_instance.calculate_availability_performance()
+# normalized_availability_performance = Availability_performance_instance.calculate_normalized_availability_performance
 
 # Cost
 cost_performance = Cost_performance_instance.calculate_cost_performance()
@@ -113,9 +117,10 @@ normalized_latency_performance = Latency_performance_instance.distance_normaliza
 
 #Throughput
 throughput_performance = Throughput_performance_instance.calculate_throughput_performance()
-#normalized_throughput_performance = throughput_performance_instance.time_normalization(throughput_performance=throughput_performance)
+normalized_throughput_performance = Throughput_performance_instance.calculate_normalized_throughput_performance(data = throughput_performance, availability_performance=availability_performance)
 
-print(throughput_performance)
+#print(throughput_performance)
+#print(normalized_throughput_performance)
 
 
 
@@ -128,10 +133,10 @@ time_step = 100  # Time step in seconds
 
 
 # define input weights per performance parameter
-client_input_availability = 0.2
-client_input_BER = 0.3
-client_input_cost = 0.2
-client_input_latency = 0
+client_input_availability = 0
+client_input_BER = 0
+client_input_cost = 0.25
+client_input_latency = 0.25
 client_input_throughput = 0.5
 
 weights = [client_input_availability, client_input_BER, client_input_cost, client_input_latency, client_input_throughput]
@@ -162,14 +167,14 @@ def initialize_performance_matrices_with_ones(normalized_latency):
     dummy_BER_performance = np.ones(shape, dtype=float)
     dummy_availability_performance = np.ones(shape, dtype=float)
 
-    return dummy_throughput_performance, dummy_BER_performance, dummy_availability_performance
+    return dummy_BER_performance, dummy_availability_performance
 
 #initiliaze dummy matrices
 
-dummy_throughput_performance, dummy_BER_performance, dummy_availability_performance = initialize_performance_matrices_with_ones(normalized_latency=normalized_latency_performance)
+dummy_BER_performance, dummy_availability_performance = initialize_performance_matrices_with_ones(normalized_latency=normalized_latency_performance)
 #print(len(dummy_BER_performance))
 #print(len(dummy_BER_performance[5]))
-performance_matrices = [dummy_availability_performance, dummy_BER_performance, normalized_cost_performance, normalized_latency_performance, dummy_throughput_performance]
+performance_matrices = [dummy_availability_performance, dummy_BER_performance, normalized_cost_performance, normalized_latency_performance, normalized_throughput_performance]
 
 #print(len(performance_matrices))
 def find_and_track_active_satellites(weights, sats_applicable, *performance_matrices):
@@ -194,23 +199,27 @@ def find_and_track_active_satellites(weights, sats_applicable, *performance_matr
         performance_over_time.append(performance_at_time_step)
 
         # Determine the active satellite by checking the highest weighted performance value, if any are applicable
-        if np.any(applicable_at_time_step > 0) and np.max(performance_at_time_step) > 0:
-            # Find the index of the satellite with the highest weighted performance score
-            active_satellite = np.argmax(performance_at_time_step)
+        if np.any(~np.isnan(performance_at_time_step)) and np.nanmax(performance_at_time_step) > 0:
+            active_satellite = np.nanargmax(performance_at_time_step)
             active_satellites.append(active_satellite)
             
         else:
             # No satellites are applicable at this time step
             active_satellites.append("No link")
-    
-    print(performance_over_time[5])
-    #print(performance_over_time)
+    #print("sats_applicable", sats_applicable)
+    print("performance over time at timestamp 5", performance_over_time[5])
+    print("performance over time", performance_over_time)
 
 
     return active_satellites
 
 
 active_satellites = find_and_track_active_satellites(weights, sats_applicable, *performance_matrices)
+
+print("normalized Latency", normalized_latency_performance)
+print("normalized cost", normalized_cost_performance)
+print("Active satellites", active_satellites)
+
 
 def plot_active_satellites(time_steps, active_satellites, num_rows):
     """
@@ -297,7 +306,7 @@ plt.ylabel('Link selected')
 plt.yticks(range(-1, num_rows), ['No link'] + [f'Sat {i+1}' for i in range(num_rows)])
 plt.grid(True)
 ani.save('link_selection.mp4', writer='ffmpeg', fps=2.5)
-#plt.show()
+plt.show()
 
 
 #Links_applicable.plot_satellite_visibility_scatter(time=time)

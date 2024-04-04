@@ -16,6 +16,7 @@ from Link_budget import link_budget
 from bit_level import bit_level
 from channel_level import channel_level
 from JM_applicable_links import applicable_links
+from JM_Perf_Param_Availability import Availability_performance
 
     
 print('')
@@ -277,17 +278,25 @@ class Throughput_performance:
 
         return self.throughput_performance
     
-    def calculate_normalized_throughput_performance(self, data, potential_linktime):
-        max_time = np.max(potential_linktime, axis=1)
+    def calculate_normalized_throughput_performance(self, data, availability_performance):
+        max_time = np.max(availability_performance, axis=1)
         self.normalized_throughput_performance = data / max_time[:, np.newaxis]
 
         return self.normalized_throughput_performance
 
 
-Throughput_performance_instance = Throughput_performance(time, link_geometry)
-throughput_performance = Throughput_performance_instance.calculate_throughput_performance()
+#Availability_performance_instance = Availability_performance(time, link_geometry)
+##availability_performance = Availability_performance_instance.calculate_availability_performance()
 
-print(throughput_performance)
+
+#Throughput_performance_instance = Throughput_performance(time, link_geometry)
+#throughput_performance = Throughput_performance_instance.calculate_throughput_performance()
+#normalized_throughput_performance = Throughput_performance_instance.calculate_normalized_throughput_performance(data = throughput_performance, availability_performance=availability_performance)
+#print(throughput_performance)
+
+#print(normalized_throughput_performance)
+
+
 #print(throughput)
 
 ## ----------------------------FADE-STATISTICS-----------------------------

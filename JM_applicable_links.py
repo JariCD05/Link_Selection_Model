@@ -288,11 +288,11 @@ applicable_output, sats_visibility,sats_applicable = Links_applicable.applicabil
 #print(len(time))
 
 #Links_applicable.plot_satellite_visibility_scatter(time=time)
-#Links_applicable.plot_satellite_visibility_scatter_update(time=time)
+Links_applicable.plot_satellite_visibility_scatter_update(time=time)
 #Links_applicable.plot_satellite_visibility(time = time)
 
 
 #print("Length of visible sattelite array", len(sats_visibility[2]))
-#print("Length of applicable sattelite array", len(sats_applicable[]))
+print("Length of applicable sattelite array", len(sats_applicable[2]))
 #print("time array lenght", len(time))
 #print(len(applicable_output["pos SC"][3]))
