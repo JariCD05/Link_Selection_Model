@@ -16,7 +16,6 @@ from LCT import terminal_properties
 from Link_budget import link_budget
 from bit_level import bit_level
 from channel_level import channel_level
-from throughput_test import SatelliteThroughputCorrected
 
 #import link applicabality
 from JM_applicable_links import applicable_links
@@ -29,6 +28,7 @@ from JM_Perf_Param_BER import ber_performance
 from JM_Perf_Param_Latency import Latency_performance
 from JM_Perf_Param_Throughput import Throughput_performance
 from JM_Perf_Param_Cost import Cost_performance
+
 
 
 print('')
@@ -312,63 +312,18 @@ reliability_BER = BER.mean(axis=1)
 
 availability_vector = (link.LM_comm_BER6 >= 1.0).astype(int)
 availability_vector = np.array_split(availability_vector, num_satellites)
-print(availability_vector)
+
 #print(availability_vector)
-
-
-###-------------------------Visibility------------------------------------
-
-Applicable_links_instance = applicable_links(time)
-applicable_output, sats_applicable = Applicable_links_instance.applicability(link_geometry.geometrical_output, time, step_size_link)
-
-
-#Plot visible satellites
-#Applicable_links_instance.plot_satellite_visibility_scatter_update()
-
-
-satellite_model_corrected = SatelliteThroughputCorrected(time)
-satellite_model_corrected.calculate_throughput()
-throughput_data_corrected = satellite_model_corrected.get_throughput()
-
-
-# Plotting with corrected data
-plt.figure(figsize=(14, 7))
-timestamps = list(range(len(satellite_model_corrected.time)))
-plt.plot(timestamps, throughput_data_corrected[0], label='Satellite 1', color='blue')
-plt.plot(timestamps, throughput_data_corrected[1], label='Satellite 2', color='red', linestyle='--')
-plt.title('Satellite throughput over time - limit case')
-plt.xlabel('Timestamp')
-plt.ylabel('Throughput [bits/s]')
-plt.legend()
-plt.grid(True)
-plt.show()
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 
 # ------------------------------------------------------------------------
 # --------------------------PERFORMANCE-METRICS---------------------------
 # ------------------------------------------------------------------------
 
-Availability_performance_instance = Availability_performance(time, link_geometry, availability_vector) #NORMAL CASE THIS SHOULD BE availability_vector
+Availability_performance_instance = Availability_performance(time, link_geometry, availability_vector)
 BER_performance_instance = ber_performance(time, link_geometry, throughput)
 Cost_performance_instance = Cost_performance(time, link_geometry)
 Latency_performance_instance = Latency_performance(time, link_geometry)
-Throughput_performance_instance = Throughput_performance(time, link_geometry, throughput_data_corrected)#NORMAL CASE THIS SHOULD BE througphut
- 
+Throughput_performance_instance = Throughput_performance(time, link_geometry, throughput)
 
 
 # Now call the method on the instance and initiliaze the four matrices
@@ -379,17 +334,11 @@ normalized_availability_performance = Availability_performance_instance.calculat
 availability_performance_including_penalty = Availability_performance_instance.calculate_availability_performance_including_penalty(T_acq = 20, step_size_link = 5)
 normalized_availability_performance_including_penalty = Availability_performance_instance.calculate_normalized_availability_performance_including_penalty(data = availability_performance_including_penalty, sats_applicable=sats_applicable)
 
-
-#print(availability_performance)
-#print(normalized_availability_performance)
-
-
 #BER
 BER_performance = BER_performance_instance.calculate_BER_performance()
 normalized_BER_performance = BER_performance_instance.calculate_normalized_BER_performance(data = BER_performance, availability_performance=availability_performance)
 BER_performance_including_penalty = BER_performance_instance.calculate_BER_performance_including_penalty(T_acq = 20, step_size_link = 5)
 normalized_BER_performance_including_penalty = BER_performance_instance.calculate_normalized_BER_performance_including_penalty(data = BER_performance_including_penalty, sats_applicable=sats_applicable)
-
 
 # Cost
 cost_performance = Cost_performance_instance.calculate_cost_performance()
@@ -397,328 +346,96 @@ normalized_cost_performance = Cost_performance_instance.calculate_normalized_cos
 cost_performance_including_penalty = Cost_performance_instance.calculate_cost_performance_including_penalty()
 normalized_cost_performance_including_penalty = Cost_performance_instance.calculate_normalized_cost_performance_including_penalty(cost_performance_including_penalty)
 
+
 # Latency
 propagation_latency = Latency_performance_instance.calculate_latency_performance()
-normalized_latency_performance = Latency_performance_instance.distance_normalization_min(propagation_latency)
+normalized_latency_performance = Latency_performance_instance.distance_normalization_min(propagation_latency=propagation_latency)
 
 #Throughput
 throughput_performance = Throughput_performance_instance.calculate_throughput_performance()
 normalized_throughput_performance = Throughput_performance_instance.calculate_normalized_throughput_performance(data = throughput_performance, data_rate_ac=data_rate_ac)
 
+import matplotlib.pyplot as plt
+import numpy as np
+import os
 
-# ------------------------------------------------------------------------
-# --------------------------client Input---------------------------
-# ------------------------------------------------------------------------
-
-# Configuration parameters
-T_acq = 20  # Acquisition time in seconds
-mission_time = 3600  # Total mission time in seconds
-Num_opt_head = 1  # Number of optical heads
-
-
-
-# define input weights per performance parameter
-client_input_availability = 0.2
-client_input_BER = 0.3
-client_input_cost = 0.1
-client_input_latency = 0.1
-client_input_throughput = 0.3
-
-weights = [client_input_availability, client_input_BER, client_input_cost, client_input_latency, client_input_throughput]
-
-
-
-
-#def initialize_performance_matrices_with_ones(normalized_latency):
-#    """
-#    Initialize matrices for throughput, BER, and availability with ones,
-#    matching the size of the normalized_latency matrix.
-#
-#    Parameters:
-#    - normalized_latency: A NumPy array representing the normalized latency.
-#
-#    Returns:
-#    - A tuple of matrices for throughput, BER, and availability, all filled with ones.
-#    """
-#    # Determine the shape of the normalized_latency matrix
-#    shape = normalized_latency.shape
-#
-#    # Initialize matrices for throughput, BER, and availability with ones
-#    
-#    dummy_BER_performance = np.ones(shape, dtype=float)
-#    
-#
-#    return dummy_BER_performance
-
-#initiliaze dummy matrices
-
-#dummy_BER_performance = initialize_performance_matrices_with_ones(normalized_latency=normalized_latency_performance)
-#print(len(dummy_BER_performance))
-#print(len(dummy_BER_performance[5]))
-
-#print(performance_matrices)
-#print(len(performance_matrices))
-
-
-#def find_and_track_active_satellites_adjusted(weights, sats_applicable, performance_matrices, performance_matrices_including_penalty):
-#    sats_applicable = np.array(sats_applicable)
-#    num_satellites, num_time_steps = sats_applicable.shape
-#    active_satellites = ["No link"] * num_time_steps  # Initialize with "No link" to indicate no active satellite initially
-#
-#    for time_step in range(num_time_steps):
-#        weighted_performance = np.zeros(num_satellites)
-#        
-#        # Determine if the previous timestep resulted in "No link", indicating a restart is needed
-#        restart_evaluation = time_step == 0 or active_satellites[time_step-1] == "No link"
-#
-#        # Calculate weighted performance for each satellite at this time step
-#        for sat_index in range(num_satellites):
-#            for weight_index, weight in enumerate(weights):
-#                # Use performance_matrices_including_penalty by default, unless conditions for performance_matrices are met
-#                matrix = performance_matrices_including_penalty[weight_index]
-#                
-#                # Conditions to use performance_matrices instead
-#                if restart_evaluation or sat_index == active_satellites[time_step-1]:
-#                    matrix = performance_matrices[weight_index]
-#
-#                performance_value = matrix[sat_index, time_step]
-#                weighted_performance[sat_index] += weight * performance_value
-#
-#        # Apply applicability filter to weighted performances
-#        applicable_performances = weighted_performance * sats_applicable[:, time_step]
-#        
-#        # Check if there are any applicable satellites with positive performance
-#        if np.any(applicable_performances > 0):
-#            # Find satellite with the highest weighted applicable performance
-#            active_satellite_index = np.argmax(applicable_performances)
-#            active_satellites[time_step] = active_satellite_index
-#        else:
-#            # If no applicable satellites, mark this timestep as "No link"
-#            active_satellites[time_step] = "No link"
-#
-#    return active_satellites
-
-
-
-#active_satellites = find_and_track_active_satellites_adjusted(weights, sats_applicable, performance_matrices, performance_matrices_including_penalty)
-#print(active_satellites)
-
-#print("performance matrices", performance_matrices)
-#print("----------------------------------------------------------------------------------------")
-#print("performance matrices includiong penalty", performance_matrices_including_penalty)
-
-#print("----------------------------------------------------------------------------------------")
-
-#print("combined_performance_over_time", combined_performance_over_time)
-
-#print("----------------------------------------------------------------------------------------")
-
-#print("individual_performance_over_time", individual_performance_over_time)
-
-#print("----------------------------------------------------------------------------------------")
-
-
-performance_matrices = [normalized_availability_performance, normalized_BER_performance, normalized_cost_performance, normalized_latency_performance, normalized_throughput_performance]
-performance_matrices_including_penalty = [normalized_availability_performance_including_penalty, normalized_BER_performance_including_penalty, normalized_cost_performance_including_penalty, normalized_latency_performance, normalized_throughput_performance]
-
-def find_and_track_active_satellites(weights, sats_applicable, *performance_matrices):
-    sats_applicable=np.array(sats_applicable)
-    # Ensure the number of weights matches the number of performance matrices
-    if len(weights) != len(performance_matrices):
-        raise ValueError("Mismatch in number of weights and matrices")
-
-    # Prepare a matrix to store the weighted sum of performance metrics for each satellite at each time step
-    weighted_sum = np.zeros_like(sats_applicable, dtype=float)
-
-    # Apply weights to performance matrices
-    for weight, matrix in zip(weights, performance_matrices):
-        weighted_sum += weight * matrix
-
-    active_satellites = []
-    performance_over_time = []
-    performance_parameters_over_time = {i: [] for i in range(len(performance_matrices))}  # Dictionary to store individual performance parameters
-
-    for time_step in range(weighted_sum.shape[1]):  # Iterate through each time step
-        # Filter to consider only applicable (visible) satellites at this time step
-        applicable_at_time_step = sats_applicable[:, time_step]
-        performance_at_time_step = weighted_sum[:, time_step] * applicable_at_time_step
-        performance_over_time.append(performance_at_time_step)
-
-        for param_index, matrix in enumerate(performance_matrices):
-            param_performance = matrix[:, time_step] * applicable_at_time_step
-            performance_parameters_over_time[param_index].append(param_performance)
-
-        # Determine the active satellite by checking the highest weighted performance value, if any are applicable
-        if np.any(~np.isnan(performance_at_time_step)) and np.nanmax(performance_at_time_step) > 0:
-            active_satellite = np.nanargmax(performance_at_time_step)
-            active_satellites.append(active_satellite)
-            
-        else:
-            # No satellites are applicable at this time step
-            active_satellites.append("No link")
-    #print("sats_applicable", sats_applicable)
-    #print("performance over time at timestamp 5", performance_over_time[5])
-    #print("performance over time", performance_over_time)
-
-
-    return active_satellites, performance_over_time, performance_parameters_over_time
-
-active_satellites, performance_over_time, performance_parameters_over_time = find_and_track_active_satellites(weights, sats_applicable, *performance_matrices)
-
-
-print(active_satellites[24:28])
-print("performance_over_time[10:16]", performance_over_time[10:16])
-print("performance_over_time[73:81]", performance_over_time[73:81])
-
-import csv
-
-time_ranges = [(21, 37), (55, 69)] 
-
-with open('performance_parameters_over_time.csv', mode='w', newline='') as file:
-    writer = csv.writer(file)
-    writer.writerow(['Parameter Index', 'Time', 'Performance Value'])  # Header
-
-    # Iterate over each performance parameter and time range
-    for param_index, performances in performance_parameters_over_time.items():
-        for time_range in time_ranges:
-            for time_point in range(time_range[0], time_range[1] + 1):  # Include the end time
-                if time_point < len(performances):
-                    writer.writerow([param_index, time_point, performances[time_point]])
-                else:
-                    # Handle the case where the time_point index is out of range
-                    print(f"Index {time_point} is out of range for performance parameter index {param_index}.")
-
-
-#print("normalized Latency", normalized_latency_performance)
-#print("normalized cost", normalized_cost_performance)
-#print("Active satellites", active_satellites)
-
-def plot_active_satellites(time_steps, active_satellites, num_satellites):
+def visualization_performance_parameters(data, title):
     """
-    Plot the active satellites over time.
+    Generates and saves plots for each satellite's performance parameter data with dynamic y-axis limits.
+    
     Parameters:
-    time_steps: An array of time steps.
-    active_satellites: A list containing the index of the active satellite or "No link" at each time step.
-    num_satellites: The number of satellites (used to set the y-axis limits).
+    - data: NumPy array with shape (num_satellites, len(time)), performance data for satellites.
+    - title: String, the title and filename base for the plot.
     """
-    # Convert 'active_satellites' entries from 'No link' to -1, and all others to their respective integer indices
-    active_satellite_indices = [-1 if sat == "No link" else int(sat) for sat in active_satellites]
-    # Now, plot the corrected active satellite indices over time
-    plt.figure(figsize=[15,5])
-    plt.plot(time_steps, active_satellite_indices, label='Active Satellite', marker='o', linestyle='-', markersize=5)
-    plt.title('Active Satellite Over Time')
-    plt.xlabel('Time (s)')
-    plt.ylabel('Satellite Index')
-    plt.grid(True)
-    # Adjust y-ticks to include all satellite indices plus an extra one for "No link"
-    # Here, I set 'Sat 0' label to represent 'No link' for clarity
-    plt.yticks(range(-1, num_satellites), ['No link'] + [f'Sat {i+1}' for i in range(num_satellites)])  # Note: Satellites indexed from 1 for readability
-    plt.legend()
+    num_satellites, len_time = data.shape
+    save_folder = "midterm"  # Adjust as necessary
+    os.makedirs(save_folder, exist_ok=True)  # Ensure the folder exists
+    
+    # Creating the plot
+    fig, axes = plt.subplots(num_satellites, 1, figsize=(10, num_satellites * 2), sharex=True)
+    
+    for i in range(num_satellites):
+        ax = axes[i] if num_satellites > 1 else axes  # Handle case of single subplot
+        ax.plot(data[i, :], label=f'Satellite {i+1}')
+        
+        # Dynamic ylim based on the maximum value of the current dataset
+        max_value = np.max(data[i, :])
+        ax.set_ylim(max(max_value * 1.1,1))        
+        ax.set_ylabel('Performance')
+        ax.legend(loc='upper right')
+        if i == num_satellites - 1:  # Only label the x-axis on the bottom subplot
+            ax.set_xlabel('Time Stamp')
+    
+    plt.tight_layout()
+    plt.suptitle(title, y=1.02)  # Add title above all subplots
     plt.show()
-
-# Now call the function with the actual parameters
-#plot_active_satellites(time_steps, active_satellites, num_satellites)
-from matplotlib.animation import FuncAnimation
-from PIL import Image
-# Configuration and data setup
-num_columns = len(active_satellites)  # Based on the length of your 'active_satellites' array
-time_steps = np.arange(num_columns)  # Create an array for the time steps
-
-# Load and prepare the satellite image
-satellite_img = Image.open("satellite.png")  # Adjust path if necessary
-satellite_img = satellite_img.resize((200, 2000))  # Resize image for visibility in plot
-
-# Prepare for plotting
-fig, ax = plt.subplots(figsize = (15,10))
-ax.set_xlim(0, num_columns)
-ax.set_ylim(-1, num_satellites)  # -1 to include "No link" below the first satellite index
-line, = ax.plot([], [], lw=2)
-satellite_icon = ax.imshow(satellite_img, extent=(0, 1, -1, 0))  # Initial placement
-
-# Function to initialize the animation
-def init():
-    line.set_data([], [])
-    satellite_icon.set_extent((0, 0, -1, -1))  # Hide icon initially
-    return line, satellite_icon,
-
-fps = 2.5  # For example, if your animation runs at 2.5 frames per second
-shift_per_second = 0.1  # Shift the window 5 timesteps to the right every second
-
-# Determine the number of frames after which to shift the window
-frames_per_shift = fps  # Assuming you want to shift every second
-window_width = 100
-
-# Function to update the animation at each frame
-def update(frame):
-    xdata = time_steps[:frame]  # Time steps up to the current frame
-    # Ensure ydata contains elements up to the current frame, handle "No link" properly
-    ydata = [-1 if i >= len(active_satellites) or active_satellites[i] == "No link" else int(active_satellites[i]) for i in range(frame)]
-    # Update the line data
-    line.set_data(xdata, ydata)
-    # Only update the satellite position if there is corresponding ydata for the frame
-    if ydata:  # Check if ydata is not empty
-        satellite_position = ydata[-1]  # Get the last item safely since we now know ydata is not empty
-        # Update the satellite icon's position, adjusting if frame is within bounds
-        if frame < num_columns:
-            satellite_icon.set_extent((frame - 0.5, frame + 0.5, satellite_position - 0.5, satellite_position + 0.5))
-    else:
-        # Optionally, hide the satellite icon if there's no valid position
-        satellite_icon.set_extent((0, 0, 0, 0))  # This hides the icon by setting its extent to zero area
-    return line, satellite_icon
+    
+    # Saving the plot
+    filename = os.path.join(save_folder, f"{title.replace(' ', '_')}.png")
+    fig.savefig(filename)
+    print(f"Plot saved to {filename}")
 
 
 
-# Create the animation
-ani = FuncAnimation(fig, update, frames=num_columns, init_func=init, blit=True, repeat=False, interval=400)
+def generate_all_performance_plots():
+    # Define your datasets and titles here
+    datasets = [
+        availability_performance,
+        BER_performance,
+        cost_performance,
+        propagation_latency,
+        throughput_performance,
+        normalized_availability_performance,
+        normalized_BER_performance,
+        normalized_cost_performance,
+        normalized_latency_performance,
+        normalized_throughput_performance,
+        availability_performance_including_penalty,
+        BER_performance_including_penalty,
+        cost_performance_including_penalty
+    ]
+    titles = [
+        "availability_performance",
+        "BER_performance",
+        "Cost_performance",
+        "Latency_performance",
+        "Throughput_performance",
+        "Normalized Availability Performance",
+        "Normalized BER Performance",
+        "Normalized Cost Performance",
+        "Normalized Latency Performance",
+        "Normalized Throughput Performance",
+        "Availability Performance Including Penalty",
+        "BER Performance Including Penalty",
+        "Cost Performance Including Penalty"
+    ]
+    
+    # Ensure datasets are NumPy arrays; if not, convert them
+    datasets = [np.array(data) for data in datasets]
 
+    # Loop through datasets and titles, calling the visualization function for each
+    for data, title in zip(datasets, titles):
+        visualization_performance_parameters(data, title)
 
-plt.title('Link selection')
-plt.xlabel('Time Step')
-plt.ylabel('Link selected')
-plt.yticks(range(-1, num_satellites), ['No link'] + [f'Sat {i+1}' for i in range(num_satellites)])
-plt.grid(True)
-ani.save('link_selection.mp4', writer='ffmpeg', fps=2.5)
-#plt.show()
-
-
-#Links_applicable.plot_satellite_visibility_scatter(time=time)
-#Links_applicable.plot_satellite_visibility(time = time)
-
-
-
-
-
-
-
-
-#plot BER vs availability
-#BER_performance_instance.BER_performance_vs_availability_visualization(throughput, availability_vector)
-
-#plot availability
-#Availability_performance_instance.availability_visualization(availability_performance, normalized_availability_performance, availability_performance_including_penalty, normalized_availability_performance_including_penalty)
-
-
-#plot BER
-#BER_performance_instance.BER_visualization(BER_performance, normalized_BER_performance, BER_performance_including_penalty, normalized_BER_performance_including_penalty)
-
-#plot Latency
-#Latency_performance_instance.latency_visualization(propagation_latency, normalized_latency_performance)
-
-#plot throughput
-Throughput_performance_instance.throughput_visualization(throughput_performance, normalized_throughput_performance)
-
-#plot Cost
-#Cost_performance_instance.cost_visualization(cost_performance, normalized_cost_performance, cost_performance_including_penalty, normalized_cost_performance_including_penalty)
-
-
-
-
-weights = Throughput_performance_instance.get_weights()
-weighted_values = Throughput_performance_instance.get_weighted_values()
-
-# Example to print out weights and weighted values for analysis
-for weight in weights:
-    print("Satellite:", weight[0], "Timestamp:", weight[1], "Weights:", weight[2])
-
-for weighted_value in weighted_values:
-    print("Satellite:", weighted_value[0], "Timestamp:", weighted_value[1], "Weighted Values:", weighted_value[2])
+# Call the function to generate and save all plots
+generate_all_performance_plots()

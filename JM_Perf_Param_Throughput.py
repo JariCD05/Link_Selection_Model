@@ -3,6 +3,7 @@ import random
 from itertools import chain
 import numpy as np
 from matplotlib import pyplot as plt
+import math
 
 # Import input parameters and helper functions
 from input import *
@@ -232,7 +233,32 @@ from JM_Perf_Param_Availability import Availability_performance
 #
 #
 #throughput = np.array_split(throughput, num_satellites)
-#print(len(throughput))
+
+
+#class Throughput_performance:
+#    def __init__(self, time, link_geometry, throughput):
+#        # Assuming link_geometry.geometrical_output and step_size_link are defined elsewhere
+#        self.Links_applicable = applicable_links(time=time)
+#        self.applicable_output, self.sats_applicable = self.Links_applicable.applicability(link_geometry.geometrical_output, time, step_size_link)
+#        self.time = time
+#        self.speed_of_light = speed_of_light
+#        self.throughput = throughput
+#
+#    def calculate_throughput_performance(self):
+#        # Initialize throughput_performance with zeros
+#        self.throughput_performance = [[0 for _ in range(len(self.time))] for _ in range(num_satellites)]
+#
+#        for s in range(num_satellites):
+#            for t in range(len(self.time)):
+#                # Only calculate the average for non-zero throughput values
+#                if self.throughput[s][t] > 0:
+#                    future_values = [throughput for throughput in self.throughput[s][t:] if throughput > 0]
+#                    if future_values:  # Check if there are future non-zero values
+#                        self.throughput_performance[s][t] = sum(future_values) / len(future_values)
+#                # If the current throughput is zero, it remains zero and we don't calculate the average
+#
+#        return self.throughput_performance
+#    
 
 
 class Throughput_performance:
@@ -241,64 +267,121 @@ class Throughput_performance:
         self.Links_applicable = applicable_links(time=time)
         self.applicable_output, self.sats_applicable = self.Links_applicable.applicability(link_geometry.geometrical_output, time, step_size_link)
         self.time = time
-        self.speed_of_light = speed_of_light
+        self.speed_of_light = speed_of_light  # Assuming speed_of_light is defined elsewhere
         self.throughput = throughput
 
-    def calculate_throughput_performance(self):
+    def __init__(self, time, link_geometry, throughput):
+        # Assuming link_geometry.geometrical_output and step_size_link are defined elsewhere
+        self.Links_applicable = applicable_links(time=time)
+        self.applicable_output, self.sats_applicable = self.Links_applicable.applicability(link_geometry.geometrical_output, time, step_size_link)
+        self.time = time
+        self.throughput = throughput
+        self.weights_record = []  # To store weights for each satellite and timestamp
+        self.weighted_values_record = []  # To store weighted future values for each satellite and timestamp
+
+    def calculate_throughput_performance(self, lambda_decay=0.1):
+        # Initialize throughput_performance with zeros
+        num_satellites = len(self.throughput)  # Assuming num_satellites is the length of throughput list
         self.throughput_performance = [[0 for _ in range(len(self.time))] for _ in range(num_satellites)]
 
         for s in range(num_satellites):
-            # Convert the throughput list for the current satellite to a NumPy array if not already
-            throughput_array = np.array(self.throughput[s])
+            for t in range(len(self.time)):
+                if self.throughput[s][t] > 0:
+                    future_values = self.throughput[s][t:]
+                    weights = [math.exp(-lambda_decay * i) for i in range(len(future_values))]
+                    weighted_future_values = [value * weight for value, weight in zip(future_values, weights)]
 
-            # Find indices where throughput equals 250,000,000
-            qualifying_indices = np.where(throughput_array == 250000000)[0]
+                    # Store weights and weighted future values for analysis
+                    self.weights_record.append((s, t, weights))
+                    self.weighted_values_record.append((s, t, weighted_future_values))
 
-            if len(qualifying_indices) == 0:
-                # If no instance of 250,000,000 is found, skip this satellite
-                continue
-
-            # Get the index of the first occurrence of 250,000,000
-            first_qualifying_index = qualifying_indices[0]
-
-            # Initialize the running sum to 0 initially
-            running_sum = 0
-
-            # Loop through time in reverse order starting from the first qualifying index
-            for index in range(len(self.time)-1, first_qualifying_index-1, -1):
-                # Increment running_sum if the condition is met
-                if throughput_array[index] == 250000000:
-                    running_sum += 1
-                # Update throughput performance with the current running sum
-                self.throughput_performance[s][index] = running_sum
-
-            # Ensure all values before the first qualifying index are set to 0
-            for index in range(first_qualifying_index):
-                self.throughput_performance[s][index] = 0
+                    if sum(weights) > 0:  # To avoid division by zero
+                        self.throughput_performance[s][t] = sum(weighted_future_values) / sum(weights)
+                # If the current throughput is zero, it remains zero
 
         return self.throughput_performance
-    
-    def calculate_normalized_throughput_performance(self, data, availability_performance):
-        max_time = np.max(availability_performance, axis=1)
-        self.normalized_throughput_performance = data / max_time[:, np.newaxis]
+
+    def get_weights(self):
+        return self.weights_record
+
+    def get_weighted_values(self):
+        return self.weighted_values_record
+
+
+
+
+
+    def calculate_normalized_throughput_performance(self, data, data_rate_ac):
+        # Convert data to a NumPy array to make sure we're working with NumPy functionality
+        data_array = np.array(data)
+        
+        # Create a normalized_throughput_performance array filled with zeros
+        # with the same shape as data_array
+        self.normalized_throughput_performance = np.zeros(data_array.shape)
+
+        
+        # Perform element-wise division
+        self.normalized_throughput_performance = data_array / data_rate_ac
 
         return self.normalized_throughput_performance
 
 
+    def throughput_visualization(self, throughput_performance, normalized_throughput_performance):
+        # Converting the throughput visualization plots to scatter plots and removing all zero values
+
+        # Plotting with zero values filtered out in scatter plot format
+        fig, axs = plt.subplots(2, 1, figsize=(15, 10))
+
+        # Filter and Scatter Plot 1: Throughput Performance
+        for s in range(num_satellites):
+            non_zero_indices = [i for i, v in enumerate(throughput_performance[s]) if v > 0]
+            non_zero_values = [v for v in throughput_performance[s] if v > 0]
+            axs[0].scatter(non_zero_indices, non_zero_values, label=f'Sat {s+1}')
+        axs[0].set_title('Throughput Performance $Q_{R} (t_{j})$')
+        axs[0].set_xlabel('Time Steps')
+        axs[0].set_ylabel('Throughput [bits/($t_{A_{i,e}} - t_{j}$)]')
+        axs[0].legend()
+
+        # Filter and Scatter Plot 2: Normalized Throughput Performance
+        for s in range(num_satellites):
+            non_zero_indices = [i for i, v in enumerate(normalized_throughput_performance[s]) if v > 0]
+            non_zero_values = [v for v in normalized_throughput_performance[s] if v > 0]
+            axs[1].scatter(non_zero_indices, non_zero_values, label=f'Sat {s+1}')
+        axs[1].set_title('Normalized Throughput Performance $\hat{Q}_{R} (t_{j})$')
+        axs[1].set_xlabel('Time Steps')
+        axs[1].set_ylabel('Normalized Throughput [-]')
+        axs[1].legend()
+
+        plt.tight_layout()
+        plt.show()
+
+
+
+    
+    
+    #Throughput_performance_instance = Throughput_performance(time, link_geometry, throughput)
+    #
+    #throughput_performance = Throughput_performance_instance.calculate_throughput_performance()
+    #normalized_throughput_performance = Throughput_performance_instance.calculate_normalized_throughput_performance(data = throughput_performance, data_rate_ac=data_rate_ac)
+    #
+    #
+    #print(throughput_performance)  
+    #print(normalized_throughput_performance)  
+    
+
+
+
+
+
+
 #Availability_performance_instance = Availability_performance(time, link_geometry)
 ##availability_performance = Availability_performance_instance.calculate_availability_performance()
-
-
 #Throughput_performance_instance = Throughput_performance(time, link_geometry)
 #throughput_performance = Throughput_performance_instance.calculate_throughput_performance()
 #normalized_throughput_performance = Throughput_performance_instance.calculate_normalized_throughput_performance(data = throughput_performance, availability_performance=availability_performance)
 #print(throughput_performance)
-
 #print(normalized_throughput_performance)
-
-
 #print(throughput)
-
 ## ----------------------------FADE-STATISTICS-----------------------------
 #
 #number_of_fades = np.sum((P_r[:, 1:] < LCT.P_r_thres[1]) & (P_r[:, :-1] > LCT.P_r_thres[1]), axis=1)
@@ -366,9 +449,7 @@ class Throughput_performance:
 #
 #
 #availability_vector = (link.LM_comm_BER6 >= 1.0).astype(int)
-
-#HERE THE VISUALIZATION OF BOTH THE AVAILABILITY AND THROUGHPUT CAN BE FOUND!
-
+##HERE THE VISUALIZATION OF BOTH THE AVAILABILITY AND THROUGHPUT CAN BE FOUND!
 #print("throughput of four links", throughput[56:85])
 #print("Availability of link 1", availability_vector[56:85])
 #
@@ -404,12 +485,6 @@ class Throughput_performance:
 #plt.legend(loc='upper left')
 #ax2.legend(loc='upper right')
 #plt.grid(True)
-#plt.show()
+##plt.show()
 
 
-
-#print(BER[57:86])
-#print(len(BER[57]))
-#print(len(BER))
-#
-#print(len(BER_total))

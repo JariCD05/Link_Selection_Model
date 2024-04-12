@@ -30,20 +30,20 @@ class Cost_performance():
 
    
     def calculate_cost_performance(self):
-        # Assuming self.num_satellites and self.num_time_instances are available
-        # If not, you would need to calculate or access these values accordingly
-        num_satellites = len(self.applicable_output['ranges']) # or another way to get the number of satellites
-        num_time_instances = len(self.time) # Assuming this is how you get time instances
 
         # Initialize the cost_performance array
-        self.cost_performance = np.zeros((num_satellites, num_time_instances))
+        self.cost_performance = np.zeros((num_satellites, len(self.time)))
 
         # Set cost performance for each satellite at each time index
         for sat_index in range(num_satellites):
-            for time_index in range(num_time_instances):
+            for time_index in range(len(self.time)):
                 self.cost_performance[sat_index, time_index] = variable_link_cost_const1
 
+        # Multiply by sats_applicable to zero out non-applicable instances
+        self.cost_performance *= self.sats_applicable
+
         return self.cost_performance
+
 
 
 
@@ -56,68 +56,72 @@ class Cost_performance():
         
         return self.normalized_cost_performance
 
+    def calculate_cost_performance_including_penalty(self):
+        
+        # Initialize the cost_performance array
+        self.cost_performance_including_penalty = np.zeros((num_satellites, len(self.time)))
 
+        for sat_index in range(num_satellites):
+            for time_index in range(len(self.time)):
+                    self.cost_performance_including_penalty[sat_index, time_index] = fixed_link_cost_const1 + variable_link_cost_const1
+
+        self.cost_performance_including_penalty *= self.sats_applicable
+
+        return self.cost_performance_including_penalty
+
+    def calculate_normalized_cost_performance_including_penalty(self, cost_performance_including_penalty):
+        # Calculate the normalization factor
+        normalization_factor = max(constellation_variable_link_cost)+ max(constellation_fixed_link_cost)
+
+        # Normalize the cost_performance array
+        self.normalized_cost_performance_including_penalty = 1 - (cost_performance_including_penalty / normalization_factor)
     
-#print('')
-#print('------------------END-TO-END-LASER-SATCOM-MODEL-------------------------')
-##------------------------------------------------------------------------
-##------------------------------TIME-VECTORS------------------------------
-##------------------------------------------------------------------------
-## Macro-scale time vector is generated with time step 'step_size_link'
-## Micro-scale time vector is generated with time step 'step_size_channel_level'
-#
-#t_macro = np.arange(0.0, (end_time - start_time), step_size_link)
-#samples_mission_level = len(t_macro)
-#t_micro = np.arange(0.0, interval_channel_level, step_size_channel_level)
-#samples_channel_level = len(t_micro)
-#print('Macro-scale: Interval=', (end_time - start_time)/60, 'min, step size=', step_size_link, 'sec,  macro-scale steps=', samples_mission_level)
-#print('Micro-scale: Interval=', interval_channel_level    , '  sec, step size=', step_size_channel_level*1000, 'msec, micro-scale steps=', samples_channel_level)
-#
-#print('----------------------------------------------------------------------------------MACRO-LEVEL-----------------------------------------------------------------------------------------')
-#print('')
-#print('-----------------------------------MISSION-LEVEL-----------------------------------------')
-##------------------------------------------------------------------------
-##------------------------------------LCT---------------------------------
-##------------------------------------------------------------------------
-## Compute the sensitivity and compute the threshold
-#LCT = terminal_properties()
-#LCT.BER_to_P_r(BER = BER_thres,
-#               modulation = modulation,
-#               detection = detection,
-#               threshold = True)
-#PPB_thres = PPB_func(LCT.P_r_thres, data_rate)
-#
-##------------------------------------------------------------------------
-##-----------------------------LINK-GEOMETRY------------------------------
-##------------------------------------------------------------------------
-## Initiate LINK GEOMETRY class, with inheritance of AIRCRAFT class and CONSTELLATION class
-## First both AIRCRAFT and SATELLITES are propagated with 'link_geometry.propagate'
-## Then, the relative geometrical state is computed with 'link_geometry.geometrical_outputs'
-## Here, all links are generated between the AIRCRAFT and each SATELLITE in the constellation
-#link_geometry = link_geometry()
-#link_geometry.propagate(time=t_macro, step_size_AC=step_size_AC, step_size_SC=step_size_SC,
-#                        aircraft_filename=aircraft_filename_load, step_size_analysis=False, verification_cons=False)
-#link_geometry.geometrical_outputs()
-## Initiate time vector at mission level. This is the same as the propagated AIRCRAFT time vector
-#time = link_geometry.time
-#mission_duration = time[-1] - time[0]
-## Update the samples/steps at mission level
-#samples_mission_level = number_sats_per_plane * number_of_planes * len(link_geometry.geometrical_output['elevation'])
-#
-#Links_applicable = applicable_links(time=time)
-#applicable_output, sats_visibility,sats_applicable = Links_applicable.applicability(link_geometry.geometrical_output, time, step_size_link)
-#
-## After defining the latency_performance class...
-#
-## Create an instance of the class
-#latency_performance_instance = latency_performance(time, link_geometry)
-#
-## Now call the method on the instance
-#propagation_latency = latency_performance_instance.calculate_latency_performance()
-#normalized_latency_performance = latency_performance_instance.distance_normalization_min(propagation_latency=propagation_latency)
-#visualization = latency_performance_instance.plot_normalized_latency_heatmap(normalized_latency=normalized_latency_performance, time = time)
-#visualization_scatter = latency_performance_instance.plot_normalized_latency_scatter(normalized_latency=normalized_latency_performance, time=time, satellite_index=26)
-#
-## If you want to print or work with the propagation_latency
-#print(len(normalized_latency_performance))
-#print(propagation_latency[1][700])
+        return self.normalized_cost_performance_including_penalty
+    
+
+
+    def cost_visualization(self, cost_performance, normalized_cost_performance, cost_performance_including_penalty, normalized_cost_performance_including_penalty):
+        fig, axs = plt.subplots(2, 2, figsize=(15, 10))
+
+        # Filter and Scatter Plot 1: Cost Performance
+        for s in range(num_satellites):
+            non_zero_indices = [i for i, v in enumerate(cost_performance[s]) if v > 0]
+            non_zero_values = [v for v in cost_performance[s] if v > 0]
+            axs[0, 0].scatter(non_zero_indices, non_zero_values, label=f'Sat {s+1}')
+        axs[0, 0].set_title('Cost Performance $q_{C} (t_{j})$')
+        axs[0, 0].set_xlabel('Time Steps')
+        axs[0, 0].set_ylabel('Cost [€]')
+        axs[0, 0].legend()
+
+        # Filter and Scatter Plot 2: Normalized Cost Performance
+        for s in range(num_satellites):
+            non_zero_indices = [i for i, v in enumerate(normalized_cost_performance[s]) if v > 0]
+            non_zero_values = [v for v in normalized_cost_performance[s] if v > 0]
+            axs[0, 1].scatter(non_zero_indices, non_zero_values, label=f'Sat {s+1}')
+        axs[0, 1].set_title('Normalized Cost Performance $\hat{q}_{C} (t_{j})$')
+        axs[0, 1].set_xlabel('Time Steps')
+        axs[0, 1].set_ylabel('Normalized Cost [-]')
+        axs[0, 1].legend()
+
+        # Filter and Scatter Plot 3: Cost Performance Including Penalty
+        for s in range(num_satellites):
+            non_zero_indices = [i for i, v in enumerate(cost_performance_including_penalty[s]) if v > 0]
+            non_zero_values = [v for v in cost_performance_including_penalty[s] if v > 0]
+            axs[1, 0].scatter(non_zero_indices, non_zero_values, label=f'Sat {s+1}')
+        axs[1, 0].set_title('Cost Performance Including Penalty $q_{C} (t_{j})$')
+        axs[1, 0].set_xlabel('Time Steps')
+        axs[1, 0].set_ylabel('Cost w/ Penalty [€]')
+        axs[1, 0].legend()
+
+        # Filter and Scatter Plot 4: Normalized Cost Performance Including Penalty
+        for s in range(num_satellites):
+            non_zero_indices = [i for i, v in enumerate(normalized_cost_performance_including_penalty[s]) if v > 0]
+            non_zero_values = [v for v in normalized_cost_performance_including_penalty[s] if v > 0]
+            axs[1, 1].scatter(non_zero_indices, non_zero_values, label=f'Sat {s+1}')
+        axs[1, 1].set_title('Normalized Cost Performance Including Penalty $\hat{q}_{C} (t_{j})$')
+        axs[1, 1].set_xlabel('Time Steps')
+        axs[1, 1].set_ylabel('Normalized Cost w/ Penalty [-]')
+        axs[1, 1].legend()
+
+        plt.tight_layout()
+        plt.show()

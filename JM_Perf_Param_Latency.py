@@ -72,46 +72,91 @@ class Latency_performance():
                 pass
 
         return self.normalized_latency_performance
-    
-    def plot_normalized_latency_heatmap(self, normalized_latency, time):
-        # Assuming `time` is a 1D array with the same length as the number of columns in `normalized_latency`
-        num_satellites = normalized_latency.shape[0]
-        plt.figure(figsize=(10, 6))
 
-        # Create a heatmap of the normalized latency
-        plt.imshow(normalized_latency, aspect='auto', cmap='viridis', origin='lower',
-                   extent=[time[0], time[-1], 0, num_satellites])
+    def latency_visualization(self, propagation_latency, normalized_latency_performance):    
+        # Converting the latency visualization plots to scatter plots and removing all zero values
 
-        plt.colorbar(label='Normalized Latency (1 - L/max(L))')
-        plt.xlabel('Time')
-        plt.ylabel('Satellite Index')
-        plt.title('Normalized Latency Performance per Satellite Over Time')
+        # Plotting with zero values filtered out in scatter plot format
+        fig, axs = plt.subplots(2, 1, figsize=(15, 10))
 
-        # Optional: Adjust y-ticks to show integer satellite indices
-        plt.yticks(np.arange(0, num_satellites, 1))
+        # Filter and Scatter Plot 1: Propagation Latency
+        for s in range(num_satellites):
+            non_zero_indices = [i for i, v in enumerate(propagation_latency[s]) if v > 0]
+            non_zero_values = [v for v in propagation_latency[s] if v > 0]
+            axs[0].scatter(non_zero_indices, non_zero_values, label=f'Sat {s+1}')
+        axs[0].set_title('Propagation Latency $q_{LAT} (t_{j})$')
+        axs[0].set_xlabel('Time Steps')
+        axs[0].set_ylabel('Latency (s)')
+        axs[0].legend()
 
+        # Filter and Scatter Plot 2: Normalized Propagation Latency
+        for s in range(num_satellites):
+            non_zero_indices = [i for i, v in enumerate(normalized_latency_performance[s]) if v > 0]
+            non_zero_values = [v for v in normalized_latency_performance[s] if v > 0]
+            axs[1].scatter(non_zero_indices, non_zero_values, label=f'Sat {s+1}')
+        axs[1].set_title('Normalized Propagation Latency $\hat{q}_{LAT} (t_{j})$')
+        axs[1].set_xlabel('Time Steps')
+        axs[1].set_ylabel('Normalized Latency [-]')
+        axs[1].legend()
+
+        plt.tight_layout()
         plt.show()
 
-    def plot_normalized_latency_scatter(self, normalized_latency, time, satellite_index):
-        # Ensure the satellite index is within the range of available satellites
-        if satellite_index < 0 or satellite_index >= normalized_latency.shape[0]:
-            print("Satellite index out of range.")
-            return
 
-        plt.figure(figsize=(10, 6))
 
-        # Extract the normalized latency values for the specified satellite
-        satellite_latency = normalized_latency[satellite_index, :]
 
-        # Create a scatter plot of the normalized latency for the specified satellite over time
-        plt.scatter(time, satellite_latency, color='blue', label=f'Satellite {satellite_index+1}')
 
-        plt.xlabel('Time')
-        plt.ylabel('Normalized Latency (1 - L/max(L))')
-        plt.title(f'Normalized Latency for Satellite {satellite_index+1} Over Time')
-        plt.legend()
 
-        plt.show()
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+#    def plot_normalized_latency_heatmap(self, normalized_latency, time):
+#        # Assuming `time` is a 1D array with the same length as the number of columns in `normalized_latency`
+#        num_satellites = normalized_latency.shape[0]
+#        plt.figure(figsize=(10, 6))
+#
+#        # Create a heatmap of the normalized latency
+#        plt.imshow(normalized_latency, aspect='auto', cmap='viridis', origin='lower',
+#                   extent=[time[0], time[-1], 0, num_satellites])
+#
+#        plt.colorbar(label='Normalized Latency (1 - L/max(L))')
+#        plt.xlabel('Time')
+#        plt.ylabel('Satellite Index')
+#        plt.title('Normalized Latency Performance per Satellite Over Time')
+#
+#        # Optional: Adjust y-ticks to show integer satellite indices
+#        plt.yticks(np.arange(0, num_satellites, 1))
+#
+#        plt.show()
+#
+#    def plot_normalized_latency_scatter(self, normalized_latency, num_satellites):
+#
+#        plt.figure(figsize=(10, 6))
+#
+#        # Extract the normalized latency values for the specified satellite
+#        satellite_latency = normalized_latency[num_satellites, :]
+#
+#        # Create a scatter plot of the normalized latency for the specified satellite over time
+#        plt.scatter(self.time, satellite_latency, color='blue', label=f'Satellite {num_satellites+1}')
+#
+#        plt.xlabel('Time')
+#        plt.ylabel('Normalized Latency (1 - L/max(L))')
+#        plt.title(f'Normalized Latency for Satellite {num_satellites+1} Over Time')
+#        plt.legend()
+#
+#        plt.show()
 
 
 

@@ -84,7 +84,7 @@ samples_mission_level = number_sats_per_plane * number_of_planes * len(link_geom
 Links_applicable = applicable_links(time=time)
 applicable_output, sats_applicable = Links_applicable.applicability(link_geometry.geometrical_output, time, step_size_link)
 
-print(sats_applicable)
+#print(sats_applicable)
 
 # Create an instance of the performance classes
 

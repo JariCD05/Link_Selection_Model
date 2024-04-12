@@ -18,6 +18,7 @@ class applicable_links():
     def __init__(self, time):
         self.links = np.zeros(len(time))
         self.number_of_links = 0
+        self.time = time
         self.total_handover_time = 0 # seconds
         self.total_acquisition_time = 0 # seconds
         self.acquisition = np.zeros(len(time))
@@ -184,22 +185,17 @@ class applicable_links():
     #    plt.tight_layout()
     #    plt.show()
 
-    def plot_satellite_visibility_scatter_update(self, time):
-        # Remove or comment out the legend line if you don't want the legend.
-        # axes[0].legend(loc='upper right', bbox_to_anchor=(1.1, 1.05))
 
-        # Plot for visibility of each satellite over time using scatter plot
-
-
+    def plot_satellite_visibility_scatter_update(self):
         # Convert sats_applicable to a NumPy array for easier manipulation
         sats_applicable_np = np.array(self.sats_applicable)
-        
+
         # Calculate the accumulated visibility (sum along the satellite axis)
-        accumulated_visibility = np.sum(sats_applicable_np, axis=0)
-        
+        accumulated_visibility = np.nansum(sats_applicable_np, axis=0)
+
         # Prepare the figure and axes for plotting
         fig, axes = plt.subplots(2, 1, figsize=(12, 10), sharex=True)
-        
+
         # Plot for visibility of each satellite over time using scatter plot
         axes[0].set_title("Satellite Visibility Over Time")
         for s in range(sats_applicable_np.shape[0]):
@@ -208,26 +204,24 @@ class applicable_links():
             # Adjusting the y-value by adding 1 for satellite indexing
             y_values = np.full(visible_indices.shape, s + 1)
             # Plot these as scatter points
-            axes[0].scatter(visible_indices, y_values, alpha=0.6)
-
-            if len(visible_indices) > 0:
-                # Calculate the middle index of visible_indices for annotation
-                middle_index = visible_indices[len(visible_indices) // 2]
-                # Annotate the middle point with the satellite number
-                axes[0].text(middle_index, s + 1 + 0.1, f'Sat {s+1}', ha='center', va='bottom', fontsize=9, alpha=0.7)
+            axes[0].scatter(visible_indices, y_values, alpha=0.6, label=f'Sat {s+1}')
 
         axes[0].set_ylabel("Satellite Index")
+        axes[0].legend(loc='upper right')
 
-        # Continue with the rest of your plotting code as before
-        # Plot for accumulated visible satellites over time
+        # Plot for accumulated visible satellites over time using scatter plot
         axes[1].set_title("Accumulated Satellites Visible Over Time")
-        axes[1].plot(time/step_size_link, accumulated_visibility, color='red', label='Accumulated Visibility')
-        axes[1].set_xlabel("Time")
+        # Create scatter plot for accumulated visibility
+        # Here we assume 'time' is a sequence of time steps corresponding to 'accumulated_visibility'
+        axes[1].scatter(self.time/step_size_link, accumulated_visibility, color='red', label='Accumulated Visibility')
+        axes[1].set_xlabel("Time (steps)")
         axes[1].set_ylabel("Number of Visible Satellites")
-        axes[1].legend(loc='upper left')
+        axes[1].legend(loc='upper right')
 
         plt.tight_layout()
         plt.show()
+
+  
 
 
 
