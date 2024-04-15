@@ -367,7 +367,7 @@ Availability_performance_instance = Availability_performance(time, link_geometry
 BER_performance_instance = ber_performance(time, link_geometry, throughput)
 Cost_performance_instance = Cost_performance(time, link_geometry)
 Latency_performance_instance = Latency_performance(time, link_geometry)
-Throughput_performance_instance = Throughput_performance(time, link_geometry, throughput_data_corrected)#NORMAL CASE THIS SHOULD BE througphut
+Throughput_performance_instance = Throughput_performance(time, link_geometry, throughput)#NORMAL CASE THIS SHOULD BE througphut
  
 
 
@@ -565,34 +565,6 @@ def find_and_track_active_satellites(weights, sats_applicable, *performance_matr
 
 active_satellites, performance_over_time, performance_parameters_over_time = find_and_track_active_satellites(weights, sats_applicable, *performance_matrices)
 
-
-print(active_satellites[24:28])
-print("performance_over_time[10:16]", performance_over_time[10:16])
-print("performance_over_time[73:81]", performance_over_time[73:81])
-
-import csv
-
-time_ranges = [(21, 37), (55, 69)] 
-
-with open('performance_parameters_over_time.csv', mode='w', newline='') as file:
-    writer = csv.writer(file)
-    writer.writerow(['Parameter Index', 'Time', 'Performance Value'])  # Header
-
-    # Iterate over each performance parameter and time range
-    for param_index, performances in performance_parameters_over_time.items():
-        for time_range in time_ranges:
-            for time_point in range(time_range[0], time_range[1] + 1):  # Include the end time
-                if time_point < len(performances):
-                    writer.writerow([param_index, time_point, performances[time_point]])
-                else:
-                    # Handle the case where the time_point index is out of range
-                    print(f"Index {time_point} is out of range for performance parameter index {param_index}.")
-
-
-#print("normalized Latency", normalized_latency_performance)
-#print("normalized cost", normalized_cost_performance)
-#print("Active satellites", active_satellites)
-
 def plot_active_satellites(time_steps, active_satellites, num_satellites):
     """
     Plot the active satellites over time.
@@ -705,7 +677,7 @@ ani.save('link_selection.mp4', writer='ffmpeg', fps=2.5)
 #Latency_performance_instance.latency_visualization(propagation_latency, normalized_latency_performance)
 
 #plot throughput
-Throughput_performance_instance.throughput_visualization(throughput_performance, normalized_throughput_performance)
+#Throughput_performance_instance.throughput_visualization(throughput_performance, normalized_throughput_performance)
 
 #plot Cost
 #Cost_performance_instance.cost_visualization(cost_performance, normalized_cost_performance, cost_performance_including_penalty, normalized_cost_performance_including_penalty)
@@ -713,12 +685,14 @@ Throughput_performance_instance.throughput_visualization(throughput_performance,
 
 
 
-weights = Throughput_performance_instance.get_weights()
-weighted_values = Throughput_performance_instance.get_weighted_values()
+#weights = Throughput_performance_instance.get_weights()
+#weighted_values = Throughput_performance_instance.get_weighted_values()
+#
+## Example to print out weights and weighted values for analysis
+#for weight in weights:
+#    print("Satellite:", weight[0], "Timestamp:", weight[1], "Weights:", weight[2])
+#
+#for weighted_value in weighted_values:
+#    print("Satellite:", weighted_value[0], "Timestamp:", weighted_value[1], "Weighted Values:", weighted_value[2])
 
-# Example to print out weights and weighted values for analysis
-for weight in weights:
-    print("Satellite:", weight[0], "Timestamp:", weight[1], "Weights:", weight[2])
 
-for weighted_value in weighted_values:
-    print("Satellite:", weighted_value[0], "Timestamp:", weighted_value[1], "Weighted Values:", weighted_value[2])

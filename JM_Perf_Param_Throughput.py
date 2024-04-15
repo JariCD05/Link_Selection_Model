@@ -259,29 +259,20 @@ from JM_Perf_Param_Availability import Availability_performance
 #
 #        return self.throughput_performance
 #    
-
+import math
+import csv
 
 class Throughput_performance:
     def __init__(self, time, link_geometry, throughput):
-        # Assuming link_geometry.geometrical_output and step_size_link are defined elsewhere
-        self.Links_applicable = applicable_links(time=time)
-        self.applicable_output, self.sats_applicable = self.Links_applicable.applicability(link_geometry.geometrical_output, time, step_size_link)
-        self.time = time
-        self.speed_of_light = speed_of_light  # Assuming speed_of_light is defined elsewhere
-        self.throughput = throughput
-
-    def __init__(self, time, link_geometry, throughput):
-        # Assuming link_geometry.geometrical_output and step_size_link are defined elsewhere
         self.Links_applicable = applicable_links(time=time)
         self.applicable_output, self.sats_applicable = self.Links_applicable.applicability(link_geometry.geometrical_output, time, step_size_link)
         self.time = time
         self.throughput = throughput
-        self.weights_record = []  # To store weights for each satellite and timestamp
-        self.weighted_values_record = []  # To store weighted future values for each satellite and timestamp
+        self.weights_record = []
+        self.weighted_values_record = []
 
     def calculate_throughput_performance(self, lambda_decay=0.1):
-        # Initialize throughput_performance with zeros
-        num_satellites = len(self.throughput)  # Assuming num_satellites is the length of throughput list
+        num_satellites = len(self.throughput)
         self.throughput_performance = [[0 for _ in range(len(self.time))] for _ in range(num_satellites)]
 
         for s in range(num_satellites):
@@ -291,24 +282,33 @@ class Throughput_performance:
                     weights = [math.exp(-lambda_decay * i) for i in range(len(future_values))]
                     weighted_future_values = [value * weight for value, weight in zip(future_values, weights)]
 
-                    # Store weights and weighted future values for analysis
                     self.weights_record.append((s, t, weights))
                     self.weighted_values_record.append((s, t, weighted_future_values))
 
-                    if sum(weights) > 0:  # To avoid division by zero
+                    if sum(weights) > 0:
                         self.throughput_performance[s][t] = sum(weighted_future_values) / sum(weights)
-                # If the current throughput is zero, it remains zero
+
+        self.export_to_csv('weights.csv', self.weights_record, ['Satellite', 'Timestamp', 'Weights'])
+        self.export_to_csv('weighted_values.csv', self.weighted_values_record, ['Satellite', 'Timestamp', 'Weighted_Values'])
 
         return self.throughput_performance
+
+    def export_to_csv(self, filename, data, headers):
+        with open(filename, mode='w', newline='') as file:
+            writer = csv.writer(file)
+            writer.writerow(headers)
+            for record in data:
+                # Prepare each row to be written to CSV
+                satellite, timestamp, values = record
+                # Flattening the list of weights/values to a single string for easier CSV handling
+                values_str = ', '.join(f'{value:.2f}' for value in values)
+                writer.writerow([satellite, timestamp, values_str])
 
     def get_weights(self):
         return self.weights_record
 
     def get_weighted_values(self):
         return self.weighted_values_record
-
-
-
 
 
     def calculate_normalized_throughput_performance(self, data, data_rate_ac):
