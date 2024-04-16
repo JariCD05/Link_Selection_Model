@@ -221,74 +221,9 @@ class applicable_links():
         plt.tight_layout()
         plt.show()
 
+
+
+
   
 
 
-
-
-
-#print('')
-#print('------------------END-TO-END-LASER-SATCOM-MODEL-------------------------')
-##------------------------------------------------------------------------
-##------------------------------TIME-VECTORS------------------------------
-##------------------------------------------------------------------------
-## Macro-scale time vector is generated with time step 'step_size_link'
-## Micro-scale time vector is generated with time step 'step_size_channel_level'
-#
-#t_macro = np.arange(0.0, (end_time - start_time), step_size_link)
-#samples_mission_level = len(t_macro)
-#t_micro = np.arange(0.0, interval_channel_level, step_size_channel_level)
-#samples_channel_level = len(t_micro)
-#print('Macro-scale: Interval=', (end_time - start_time)/60, 'min, step size=', step_size_link, 'sec,  macro-scale steps=', samples_mission_level)
-#print('Micro-scale: Interval=', interval_channel_level    , '  sec, step size=', step_size_channel_level*1000, 'msec, micro-scale steps=', samples_channel_level)
-#
-#print('----------------------------------------------------------------------------------MACRO-LEVEL-----------------------------------------------------------------------------------------')
-#print('')
-#print('-----------------------------------MISSION-LEVEL-----------------------------------------')
-##------------------------------------------------------------------------
-##------------------------------------LCT---------------------------------
-##------------------------------------------------------------------------
-## Compute the sensitivity and compute the threshold
-#LCT = terminal_properties()
-#LCT.BER_to_P_r(BER = BER_thres,
-#               modulation = modulation,
-#               detection = detection,
-#               threshold = True)
-#PPB_thres = PPB_func(LCT.P_r_thres, data_rate)
-#
-##------------------------------------------------------------------------
-##-----------------------------LINK-GEOMETRY------------------------------
-##------------------------------------------------------------------------
-## Initiate LINK GEOMETRY class, with inheritance of AIRCRAFT class and CONSTELLATION class
-## First both AIRCRAFT and SATELLITES are propagated with 'link_geometry.propagate'
-## Then, the relative geometrical state is computed with 'link_geometry.geometrical_outputs'
-## Here, all links are generated between the AIRCRAFT and each SATELLITE in the constellation
-#link_geometry = link_geometry()
-#link_geometry.propagate(time=t_macro, step_size_AC=step_size_AC, step_size_SC=step_size_SC,
-#                        aircraft_filename=aircraft_filename_load, step_size_analysis=False, verification_cons=False)
-#link_geometry.geometrical_outputs()
-## Initiate time vector at mission level. This is the same as the propagated AIRCRAFT time vector
-#time = link_geometry.time
-#mission_duration = time[-1] - time[0]
-## Update the samples/steps at mission level
-#samples_mission_level = number_sats_per_plane * number_of_planes * len(link_geometry.geometrical_output['elevation'])
-#
-#Links_applicable = applicable_links(time=time)
-#applicable_output, sats_applicable = Links_applicable.applicability(link_geometry.geometrical_output, time, step_size_link)
-#
-##Links_applicable.visualize_satellite_visibility(sats_applicable = Links_applicable.sats_applicable, time=time, num_satellites=num_satellites)
-##print(applicable_output['time'])
-##print(len(applicable_output['pos SC']))
-##print(len(time))
-#
-##Links_applicable.plot_satellite_visibility_scatter(time=time)
-##Links_applicable.plot_satellite_visibility_scatter_update(time=time)
-##Links_applicable.plot_satellite_visibility(time = time)
-#
-#
-##print("Length of visible sattelite array", len(sats_visibility[2]))
-##print("Length of applicable sattelite array", len(sats_applicable[2]))
-##print("time array lenght", len(time))
-##print(len(applicable_output["pos SC"][3]))
-#
-##print(sats_applicable)

@@ -4,6 +4,8 @@ from itertools import chain
 import numpy as np
 from matplotlib import pyplot as plt
 import math
+import csv
+import pandas as pd
 
 # Import input parameters and helper functions
 from input import *
@@ -19,248 +21,7 @@ from channel_level import channel_level
 from JM_applicable_links import applicable_links
 from JM_Perf_Param_Availability import Availability_performance
 
-    
-#print('')
-#print('------------------END-TO-END-LASER-SATCOM-MODEL-------------------------')
-##------------------------------------------------------------------------
-##------------------------------TIME-VECTORS------------------------------
-##------------------------------------------------------------------------
-## Macro-scale time vector is generated with time step 'step_size_link'
-## Micro-scale time vector is generated with time step 'step_size_channel_level'
-#
-#t_macro = np.arange(0.0, (end_time - start_time), step_size_link)
-#samples_mission_level = len(t_macro)
-#t_micro = np.arange(0.0, interval_channel_level, step_size_channel_level)
-#samples_channel_level = len(t_micro)
-#print('Macro-scale: Interval=', (end_time - start_time)/60, 'min, step size=', step_size_link, 'sec,  macro-scale steps=', samples_mission_level)
-#print('Micro-scale: Interval=', interval_channel_level    , '  sec, step size=', step_size_channel_level*1000, 'msec, micro-scale steps=', samples_channel_level)
-#
-#print('----------------------------------------------------------------------------------MACRO-LEVEL-----------------------------------------------------------------------------------------')
-#print('')
-#print('-----------------------------------MISSION-LEVEL-----------------------------------------')
-##------------------------------------------------------------------------
-##------------------------------------LCT---------------------------------
-##------------------------------------------------------------------------
-## Compute the sensitivity and compute the threshold
-#LCT = terminal_properties()
-#LCT.BER_to_P_r(BER = BER_thres,
-#               modulation = modulation,
-#               detection = detection,
-#               threshold = True)
-#PPB_thres = PPB_func(LCT.P_r_thres, data_rate)
-#
-##------------------------------------------------------------------------
-##-----------------------------LINK-GEOMETRY------------------------------
-##------------------------------------------------------------------------
-## Initiate LINK GEOMETRY class, with inheritance of AIRCRAFT class and CONSTELLATION class
-## First both AIRCRAFT and SATELLITES are propagated with 'link_geometry.propagate'
-## Then, the relative geometrical state is computed with 'link_geometry.geometrical_outputs'
-## Here, all links are generated between the AIRCRAFT and each SATELLITE in the constellation
-#link_geometry = link_geometry()
-#link_geometry.propagate(time=t_macro, step_size_AC=step_size_AC, step_size_SC=step_size_SC,
-#                        aircraft_filename=aircraft_filename_load, step_size_analysis=False, verification_cons=False)
-#link_geometry.geometrical_outputs()
-## Initiate time vector at mission level. This is the same as the propagated AIRCRAFT time vector
-#time = link_geometry.time
-#mission_duration = time[-1] - time[0]
-## Update the samples/steps at mission level
-#samples_mission_level = number_sats_per_plane * number_of_planes * len(link_geometry.geometrical_output['elevation'])
-#
-#Links_applicable = applicable_links(time=time)
-#applicable_output, sats_applicable = Links_applicable.applicability(link_geometry.geometrical_output, time, step_size_link)
-#
-#
-## Define cross-section of macro-scale simulation based on the elevation angles.
-## These cross-sections are used for micro-scale plots.
-#elevation_cross_section = [2.0, 20.0, 40.0]
-#index_elevation = 1
-#
-## Retrieve data for all links directly
-#time_links = flatten(applicable_output['time'])
-#time_links_hrs = [t / 3600.0 for t in time_links]
-#ranges = flatten(applicable_output['ranges'])
-#elevation = flatten(applicable_output['elevation'])
-#zenith = flatten(applicable_output['zenith'])
-#slew_rates = flatten(applicable_output['slew rates'])
-#heights_SC = flatten(applicable_output['heights SC'])
-#heights_AC = flatten(applicable_output['heights AC'])
-#speeds_AC = flatten(applicable_output['speeds AC'])
-#
-#
-#time_per_link       = applicable_output['time']
-#time_per_link_hrs   = time_links / 3600.0
-#ranges_per_link     = applicable_output['ranges'    ]
-#elevation_per_link  = applicable_output['elevation' ]
-#zenith_per_link     = applicable_output['zenith'    ]
-#slew_rates_per_link = applicable_output['slew rates']
-#heights_SC_per_link = applicable_output['heights SC']
-#heights_AC_per_link = applicable_output['heights AC']
-#speeds_AC_per_link  = applicable_output['speeds AC' ]
-#
-#
-#
-#
-#
-#print(elevation)
-#print(len(elevation))
-#print(len(elevation_per_link))
-#
-#
-#
-#
-#
-#indices, time_cross_section = cross_section(elevation_cross_section, elevation, time_links)
-#
-#print('')
-#print('-------------------------------------LINK-LEVEL------------------------------------------')
-#print('')
-##------------------------------------------------------------------------
-##-------------------------------ATTENUATION------------------------------
-#
-#att = attenuation(att_coeff=att_coeff, H_scale=scale_height)
-#att.h_ext_func(range_link=ranges, zenith_angles=zenith, method=method_att)
-#att.h_clouds_func(method=method_clouds)
-#h_ext = att.h_ext * att.h_clouds
-## Print attenuation parameters
-#att.print()
-##------------------------------------------------------------------------
-##-------------------------------TURBULENCE-------------------------------
-## The turbulence class is initiated here. Inside the turbulence class, there are multiple methods that are run directly.
-## Firstly, a windspeed profile is calculated, which is used for the Cn^2 model. This will then be used for the r0 profile.
-## With Cn^2 and r0, the variances for scintillation and beam wander are computed
-#
-#
-#
-#
-#turb = turbulence(ranges=ranges,
-#                  h_AC=heights_AC,
-#                  h_SC=heights_SC,
-#                  zenith_angles=zenith,
-#                  angle_div=angle_div)
-#turb.windspeed_func(slew=slew_rates,
-#                    Vg=speeds_AC,
-#                    wind_model_type=wind_model_type)
-#turb.Cn_func()
-#turb.frequencies()
-#r0 = turb.r0_func()
-#turb.var_rytov_func()
-#turb.var_scint_func()
-#turb.WFE(tip_tilt="YES")
-#turb.beam_spread()
-#turb.var_bw_func()
-#turb.var_aoa_func()
-#
-#print('')
-#print('----------------------------------------------------------------------------------MACRO-LEVEL-----------------------------------------------------------------------------------------')
-#print('')
-#print('-----------------------------------CHANNEL-LEVEL-----------------------------------------')
-#print('')
-#for i in indices:
-#    turb.print(index=i, elevation=np.rad2deg(elevation), ranges=ranges, Vg=link_geometry.speed_AC.mean(),slew=slew_rates)
-## ------------------------------------------------------------------------
-## -----------------------------LINK-BUDGET--------------------------------
-## The link budget class computes the static link budget (without any micro-scale effects)
-## Then it generates a link margin, based on the sensitivity
-#link = link_budget(angle_div=angle_div, w0=w0, ranges=ranges, h_WFE=turb.h_WFE, w_ST=turb.w_ST, h_beamspread=turb.h_beamspread, h_ext=h_ext)
-#link.sensitivity(LCT.P_r_thres, PPB_thres)
-#
-## Pr0 (for COMMUNICATION and ACQUISITION phase) is computed with the link budget
-#P_r_0, P_r_0_acq = link.P_r_0_func()
-#link.print(index=indices[index_elevation], elevation=elevation, static=True)
-#
-## ------------------------------------------------------------------------
-## -------------------------MACRO-SCALE-SOLVER-----------------------------
-#noise_sh, noise_th, noise_bg, noise_beat = LCT.noise(P_r=P_r_0, I_sun=I_sun, index=indices[index_elevation])
-#SNR_0, Q_0 = LCT.SNR_func(P_r=P_r_0, detection=detection,
-#                                  noise_sh=noise_sh, noise_th=noise_th, noise_bg=noise_bg, noise_beat=noise_beat)
-#BER_0 = LCT.BER_func(Q=Q_0, modulation=modulation)
-#
-#
-#
-## ------------------------------------------------------------------------
-## ----------------------------MICRO-SCALE-MODEL---------------------------
-## Here, the channel level is simulated, losses and Pr as output
-#P_r, P_r_perfect_pointing, PPB, elevation_angles, losses, angles = \
-#    channel_level(t=t_micro,
-#                  link_budget=link,
-#                  plot_indices=indices,
-#                  LCT=LCT, turb=turb,
-#                  P_r_0=P_r_0,
-#                  ranges=ranges,
-#                  angle_div=link.angle_div,
-#                  elevation_angles=elevation,
-#                  samples=samples_channel_level,
-#                  turb_cutoff_frequency=turbulence_freq_lowpass)
-#h_tot = losses[0]
-#h_scint = losses[1]
-#h_RX    = losses[2]
-#h_TX    = losses[3]
-#h_bw    = losses[4]
-#h_aoa   = losses[5]
-#h_pj_t  = losses[6]
-#h_pj_r  = losses[7]
-#h_tot_no_pointing_errors = losses[-1]
-#r_TX = angles[0] * ranges[:, None]
-#r_RX = angles[1] * ranges[:, None]
-#
-#
-#
-#
-#
-## Here, the bit level is simulated, SNR, BER and throughput as output
-#if coding == 'yes':
-#    SNR, BER, throughput, BER_coded, throughput_coded, P_r_coded, G_coding = \
-#        bit_level(LCT=LCT,
-#                  t=t_micro,
-#                  plot_indices=indices,
-#                  samples=samples_channel_level,
-#                  P_r_0=P_r_0,
-#                  P_r=P_r,
-#                  elevation_angles=elevation,
-#                  h_tot=h_tot)
-#
-#else:
-#    SNR, BER, throughput = \
-#        bit_level(LCT=LCT,
-#                  t=t_micro,
-#                  plot_indices=indices,
-#                  samples=samples_channel_level,
-#                  P_r_0=P_r_0,
-#                  P_r=P_r,
-#                  elevation_angles=elevation,
-#                  h_tot=h_tot)
-#
-#
-#
-#throughput = np.array_split(throughput, num_satellites)
 
-
-#class Throughput_performance:
-#    def __init__(self, time, link_geometry, throughput):
-#        # Assuming link_geometry.geometrical_output and step_size_link are defined elsewhere
-#        self.Links_applicable = applicable_links(time=time)
-#        self.applicable_output, self.sats_applicable = self.Links_applicable.applicability(link_geometry.geometrical_output, time, step_size_link)
-#        self.time = time
-#        self.speed_of_light = speed_of_light
-#        self.throughput = throughput
-#
-#    def calculate_throughput_performance(self):
-#        # Initialize throughput_performance with zeros
-#        self.throughput_performance = [[0 for _ in range(len(self.time))] for _ in range(num_satellites)]
-#
-#        for s in range(num_satellites):
-#            for t in range(len(self.time)):
-#                # Only calculate the average for non-zero throughput values
-#                if self.throughput[s][t] > 0:
-#                    future_values = [throughput for throughput in self.throughput[s][t:] if throughput > 0]
-#                    if future_values:  # Check if there are future non-zero values
-#                        self.throughput_performance[s][t] = sum(future_values) / len(future_values)
-#                # If the current throughput is zero, it remains zero and we don't calculate the average
-#
-#        return self.throughput_performance
-#    
-import math
-import csv
 
 class Throughput_performance:
     def __init__(self, time, link_geometry, throughput):
@@ -271,38 +32,60 @@ class Throughput_performance:
         self.weights_record = []
         self.weighted_values_record = []
 
-    def calculate_throughput_performance(self, lambda_decay=0.1):
-        num_satellites = len(self.throughput)
+
+    def calculate_throughput_performance_including_decay(self, decay_rate=0.0):
+        # Initialize throughput_performance with zeros
         self.throughput_performance = [[0 for _ in range(len(self.time))] for _ in range(num_satellites)]
+        weights_records = []
+        weighted_values_records = []
+        throughput_performance_values_with_decay = []
 
         for s in range(num_satellites):
             for t in range(len(self.time)):
                 if self.throughput[s][t] > 0:
-                    future_values = self.throughput[s][t:]
-                    weights = [math.exp(-lambda_decay * i) for i in range(len(future_values))]
-                    weighted_future_values = [value * weight for value, weight in zip(future_values, weights)]
+                    future_values = [self.throughput[s][index] for index in range(t, len(self.time)) if self.throughput[s][index] > 0]
+                    if future_values:
+                        weights = [math.exp(-decay_rate * (index - t)) for index in range(t, len(self.time)) if self.throughput[s][index] > 0]
+                        weighted_sum = sum(fv * w for fv, w in zip(future_values, weights))
+                        total_weight = sum(weights)
+                        self.throughput_performance[s][t] = weighted_sum / total_weight
+                        # Collect records for saving
+                        weights_records.append({'Time Step': t, 'Weights': weights})
+                        weighted_values_records.append({'Time Step': t, 'Weighted Values': [fv * w for fv, w in zip(future_values, weights)]})
+                        throughput_performance_values_with_decay.append({'Time Step': t, 'Performance Values': self.throughput_performance})
 
-                    self.weights_record.append((s, t, weights))
-                    self.weighted_values_record.append((s, t, weighted_future_values))
-
-                    if sum(weights) > 0:
-                        self.throughput_performance[s][t] = sum(weighted_future_values) / sum(weights)
-
-        self.export_to_csv('weights.csv', self.weights_record, ['Satellite', 'Timestamp', 'Weights'])
-        self.export_to_csv('weighted_values.csv', self.weighted_values_record, ['Satellite', 'Timestamp', 'Weighted_Values'])
+        # Save to CSV
+        weights_df = pd.DataFrame(weights_records)
+        weighted_values_df = pd.DataFrame(weighted_values_records)
+        throughput_performance_df = pd.DataFrame(throughput_performance_values_with_decay)
+        folder_path = 'CSV'
+        os.makedirs(folder_path, exist_ok=True)
+        weights_df.to_csv(f'{folder_path}/weights_record.csv', index=False)
+        weighted_values_df.to_csv(f'{folder_path}/weighted_values_record.csv', index=False)
+        throughput_performance_df.to_csv(f'{folder_path}/decay_included_throughput_performance.csv', index=False)
 
         return self.throughput_performance
 
-    def export_to_csv(self, filename, data, headers):
-        with open(filename, mode='w', newline='') as file:
-            writer = csv.writer(file)
-            writer.writerow(headers)
-            for record in data:
-                # Prepare each row to be written to CSV
-                satellite, timestamp, values = record
-                # Flattening the list of weights/values to a single string for easier CSV handling
-                values_str = ', '.join(f'{value:.2f}' for value in values)
-                writer.writerow([satellite, timestamp, values_str])
+    def calculate_throughput_performance(self):
+        # Initialize throughput_performance with zeros
+        self.throughput_performance = [[0 for _ in range(len(self.time))] for _ in range(num_satellites)]
+        simple_throughput_values_record = []
+    
+        for s in range(num_satellites):
+            for t in range(len(self.time)):
+                if self.throughput[s][t] > 0:
+                    future_values = [self.throughput[s][index] for index in range(t, len(self.time)) if self.throughput[s][index] > 0]
+                    if future_values:
+                        self.throughput_performance[s][t] = sum(future_values) / len(future_values)
+                        simple_throughput_values_record.append({'Time Step': t, 'Performance Values': self.throughput_performance})
+    
+        # Save to CSV
+        simple_throughput_df = pd.DataFrame(simple_throughput_values_record)
+        folder_path = 'CSV'
+        os.makedirs(folder_path, exist_ok=True)
+        simple_throughput_df.to_csv(f'{folder_path}/Throughput_performance_record.csv', index=False)
+    
+        return self.throughput_performance
 
     def get_weights(self):
         return self.weights_record
@@ -318,7 +101,6 @@ class Throughput_performance:
         # Create a normalized_throughput_performance array filled with zeros
         # with the same shape as data_array
         self.normalized_throughput_performance = np.zeros(data_array.shape)
-
         
         # Perform element-wise division
         self.normalized_throughput_performance = data_array / data_rate_ac
@@ -337,7 +119,7 @@ class Throughput_performance:
             non_zero_indices = [i for i, v in enumerate(throughput_performance[s]) if v > 0]
             non_zero_values = [v for v in throughput_performance[s] if v > 0]
             axs[0].scatter(non_zero_indices, non_zero_values, label=f'Sat {s+1}')
-        axs[0].set_title('Throughput Performance $Q_{R} (t_{j})$')
+        axs[0].set_title('Throughput Performance $Q_{R} (t_{j})$ with decay rate:' f"{decay_rate}")
         axs[0].set_xlabel('Time Steps')
         axs[0].set_ylabel('Throughput [bits/($t_{A_{i,e}} - t_{j}$)]')
         axs[0].legend()
@@ -347,7 +129,7 @@ class Throughput_performance:
             non_zero_indices = [i for i, v in enumerate(normalized_throughput_performance[s]) if v > 0]
             non_zero_values = [v for v in normalized_throughput_performance[s] if v > 0]
             axs[1].scatter(non_zero_indices, non_zero_values, label=f'Sat {s+1}')
-        axs[1].set_title('Normalized Throughput Performance $\hat{Q}_{R} (t_{j})$')
+        axs[1].set_title('Normalized Throughput Performance $\hat{Q}_{R} (t_{j})$ with decay rate:' f"{decay_rate}")
         axs[1].set_xlabel('Time Steps')
         axs[1].set_ylabel('Normalized Throughput [-]')
         axs[1].legend()
@@ -356,93 +138,6 @@ class Throughput_performance:
         plt.show()
 
 
-
-    
-    
-    #Throughput_performance_instance = Throughput_performance(time, link_geometry, throughput)
-    #
-    #throughput_performance = Throughput_performance_instance.calculate_throughput_performance()
-    #normalized_throughput_performance = Throughput_performance_instance.calculate_normalized_throughput_performance(data = throughput_performance, data_rate_ac=data_rate_ac)
-    #
-    #
-    #print(throughput_performance)  
-    #print(normalized_throughput_performance)  
-    
-
-
-
-
-
-
-#Availability_performance_instance = Availability_performance(time, link_geometry)
-##availability_performance = Availability_performance_instance.calculate_availability_performance()
-#Throughput_performance_instance = Throughput_performance(time, link_geometry)
-#throughput_performance = Throughput_performance_instance.calculate_throughput_performance()
-#normalized_throughput_performance = Throughput_performance_instance.calculate_normalized_throughput_performance(data = throughput_performance, availability_performance=availability_performance)
-#print(throughput_performance)
-#print(normalized_throughput_performance)
-#print(throughput)
-## ----------------------------FADE-STATISTICS-----------------------------
-#
-#number_of_fades = np.sum((P_r[:, 1:] < LCT.P_r_thres[1]) & (P_r[:, :-1] > LCT.P_r_thres[1]), axis=1)
-#fractional_fade_time = np.count_nonzero((P_r < LCT.P_r_thres[1]), axis=1) / samples_channel_level
-#mean_fade_time = fractional_fade_time / number_of_fades * interval_channel_level
-#
-## Power penalty in order to include a required fade fraction.
-## REF: Giggenbach (2008), Fading-loss assessment
-#h_penalty   = penalty(P_r=P_r, desired_frac_fade_time=desired_frac_fade_time)                                           
-#h_penalty_perfect_pointing   = penalty(P_r=P_r_perfect_pointing, desired_frac_fade_time=desired_frac_fade_time)
-#P_r_penalty_perfect_pointing = P_r_perfect_pointing.mean(axis=1) * h_penalty_perfect_pointing
-#
-## ---------------------------------LINK-MARGIN--------------------------------
-#margin     = P_r / LCT.P_r_thres[1]
-#
-## -------------------------------DISTRIBUTIONS----------------------------
-## Local distributions for each macro-scale time step (over micro-scale interval)
-#pdf_P_r, cdf_P_r, x_P_r, std_P_r, mean_P_r = distribution_function(W2dBm(P_r),len(P_r_0),min=-60.0,max=-20.0,steps=1000)
-#pdf_BER, cdf_BER, x_BER, std_BER, mean_BER = distribution_function(np.log10(BER),len(P_r_0),min=-30.0,max=0.0,steps=10000)
-#if coding == 'yes':
-#    pdf_BER_coded, cdf_BER_coded, x_BER_coded, std_BER_coded, mean_BER_coded = \
-#        distribution_function(np.log10(BER_coded),len(P_r_0),min=-30.0,max=0.0,steps=10000)
-#
-## Global distributions over macro-scale interval
-#P_r_total = P_r.flatten()
-#BER_total = BER.flatten()
-#P_r_pdf_total, P_r_cdf_total, x_P_r_total, std_P_r_total, mean_P_r_total = distribution_function(data=W2dBm(P_r_total), length=1, min=-60.0, max=0.0, steps=1000)
-#BER_pdf_total, BER_cdf_total, x_BER_total, std_BER_total, mean_BER_total = distribution_function(data=np.log10(BER_total), length=1, min=np.log10(BER_total.min()), max=np.log10(BER_total.max()), steps=1000)
-#
-#if coding == 'yes':
-#    BER_coded_total = BER_coded.flatten()
-#    BER_coded_pdf_total, BER_coded_cdf_total, x_BER_coded_total, std_BER_coded_total, mean_BER_coded_total = \
-#        distribution_function(data=np.log10(BER_coded_total), length=1, min=-30.0, max=0.0, steps=100)
-#
-#
-## ------------------------------------------------------------------------
-## -------------------------------AVERAGING--------------------------------
-## ------------------------------------------------------------------------
-#
-## ---------------------------UPDATE-LINK-BUDGET---------------------------
-## All micro-scale losses are averaged and added to the link budget
-## Also adds a penalty term to the link budget as a requirement for the desired fade time, defined in input.py
-#link.dynamic_contributions(PPB=PPB.mean(axis=1),
-#                           T_dyn_tot=h_tot.mean(axis=1),
-#                           T_scint=h_scint.mean(axis=1),
-#                           T_TX=h_TX.mean(axis=1),
-#                           T_RX=h_RX.mean(axis=1),
-#                           h_penalty=h_penalty,
-#                           P_r=P_r.mean(axis=1),
-#                           BER=BER.mean(axis=1))
-#
-#
-#if coding == 'yes':
-#    link.coding(G_coding=G_coding.mean(axis=1),
-#                BER_coded=BER_coded.mean(axis=1))
-#    P_r = P_r_coded
-## A fraction (0.9) of the light is subtracted from communication budget and used for tracking budget
-#link.tracking()
-#link.link_margin()
-#
-#
 ## ------------------------------------------------------------------------
 ## --------------------------PERFORMANCE-METRICS---------------------------
 ## ------------------------------------------------------------------------
@@ -486,5 +181,18 @@ class Throughput_performance:
 #ax2.legend(loc='upper right')
 #plt.grid(True)
 ##plt.show()
+
+
+#---------- Weights for adjusted throughput ---------
+#weights = Throughput_performance_instance.get_weights()
+#weighted_values = Throughput_performance_instance.get_weighted_values()
+#
+## Example to print out weights and weighted values for analysis
+#for weight in weights:
+#    print("Satellite:", weight[0], "Timestamp:", weight[1], "Weights:", weight[2])
+#
+#for weighted_value in weighted_values:
+#    print("Satellite:", weighted_value[0], "Timestamp:", weighted_value[1], "Weighted Values:", weighted_value[2])
+
 
 

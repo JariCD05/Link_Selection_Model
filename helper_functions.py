@@ -3,6 +3,7 @@ import sqlite3
 import numpy as np
 import scipy.signal
 from input import *
+import os
 
 import random
 from scipy.special import j0, j1, binom
@@ -523,4 +524,3 @@ def get_difference_wrt_kepler_orbit(
         keplerian_solution_difference[epoch] = propagated_cartesian_state - state_history[epoch]
 
     return keplerian_solution_difference
-

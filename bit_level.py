@@ -274,9 +274,9 @@ def bit_level(LCT,
         #plt.show()
 
 
-    waterfall_plot()
+    #waterfall_plot()
     # plot_bit_level_time_series()
-    plot_coding_errors()
+    #plot_coding_errors()
 
 
 

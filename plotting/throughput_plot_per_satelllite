@@ -1,0 +1,21 @@
+
+#Plot visible satellites
+#Applicable_links_instance.plot_satellite_visibility_scatter_update()
+
+
+satellite_model_corrected = SatelliteThroughputCorrected(time)
+satellite_model_corrected.calculate_throughput()
+throughput_data_corrected = satellite_model_corrected.get_throughput()
+
+
+# Plotting with corrected data
+plt.figure(figsize=(14, 7))
+timestamps = list(range(len(satellite_model_corrected.time)))
+plt.plot(timestamps, throughput_data_corrected[0], label='Satellite 1', color='blue')
+plt.plot(timestamps, throughput_data_corrected[1], label='Satellite 2', color='red', linestyle='--')
+plt.title('Satellite throughput over time - limit case')
+plt.xlabel('Timestamp')
+plt.ylabel('Throughput [bits/s]')
+plt.legend()
+plt.grid(True)
+plt.show()

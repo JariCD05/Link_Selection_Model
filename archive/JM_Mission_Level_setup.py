@@ -13,7 +13,7 @@ from LCT import terminal_properties
 from Link_budget import link_budget
 from bit_level import bit_level
 from channel_level import channel_level
-from JM_Link_Propagation import link_propagation_test
+from archive.JM_Link_Propagation import link_propagation_test
 
 
 # In the old model, the geometrical data was put into the Routing_network(), which creates the routing output. So in that scenario the choice which link was selected before its performance was calculated.

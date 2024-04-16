@@ -44,9 +44,6 @@ class Cost_performance():
 
         return self.cost_performance
 
-
-
-
     def calculate_normalized_cost_performance(self, cost_performance):
         # Calculate the denominator for normalization based on maximum costs
         normalization_factor = max(constellation_variable_link_cost) + max(constellation_fixed_link_cost)
