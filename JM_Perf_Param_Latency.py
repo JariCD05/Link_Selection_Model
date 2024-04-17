@@ -44,27 +44,6 @@ class Latency_performance():
                     self.propagation_latency[sat_index, time_index] = latency_propagation
 
         return self.propagation_latency
-    
-    def calculate_latency_performance_averaged(self):
-        # Extract ranges for all satellites over time from the applicable_output
-        ranges = self.applicable_output['ranges']
-
-        # Initialize the latency_performance array
-        self.latency_performance = np.zeros((num_satellites, len(self.time)))
-
-        # Calculate the average future latency for each satellite at each time index
-        for sat_index in range(num_satellites):
-            for time_index in range(len(self.time)):
-                # Ensure there's a valid range value before calculating latency
-                if ranges[sat_index][time_index] is not None:
-                    future_latencies = [ranges[sat_index][t] / self.speed_of_light for t in range(time_index, len(self.time)) if ranges[sat_index][t] is not None]
-                    # Only calculate the average if there are valid future latency values
-                    if future_latencies:
-                        self.latency_performance[sat_index][time_index] = sum(future_latencies) / len(future_latencies)
-                # If the current range is None, latency remains zero and we don't calculate the average
-
-        return self.latency_performance
-
 
     def distance_normalization_min(self, propagation_latency):
         self.normalized_latency_performance = np.zeros_like(propagation_latency)

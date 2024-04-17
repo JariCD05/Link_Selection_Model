@@ -32,6 +32,7 @@ from JM_Perf_Param_BER import ber_performance
 from JM_Perf_Param_Latency import Latency_performance
 from JM_Perf_Param_Throughput import Throughput_performance
 from JM_Perf_Param_Cost import Cost_performance
+from JM_Perf_Param_latency_data_transfer import Latency_data_transfer_performance
 from throughput_test import SatelliteThroughputCorrected
 
 print('')
@@ -337,7 +338,8 @@ Availability_performance_instance = Availability_performance(time, link_geometry
 BER_performance_instance = ber_performance(time, link_geometry, throughput)
 Cost_performance_instance = Cost_performance(time, link_geometry)
 Latency_performance_instance = Latency_performance(time, link_geometry)
-Throughput_performance_instance = Throughput_performance(time, link_geometry, throughput)#NORMAL CASE THIS SHOULD BE througphut
+Latency_data_transfer_performance_instance = Latency_data_transfer_performance(time, link_geometry)
+Throughput_performance_instance = Throughput_performance(time, link_geometry, throughput) #NORMAL CASE THIS SHOULD BE througphut
  
 
 
@@ -371,8 +373,12 @@ normalized_cost_performance_including_penalty = Cost_performance_instance.calcul
 propagation_latency = Latency_performance_instance.calculate_latency_performance()                                          # NORMAL EQUATION IS calculate_latency_performance OPTIONAL: calculate_latency_performance_averaged
 normalized_latency_performance = Latency_performance_instance.distance_normalization_min(propagation_latency)
 
+# Latency Data transfer
+latency_data_transfer = Latency_data_transfer_performance_instance.calculate_latency_data_transfer_performance()                                          
+normalized_latency_data_transfer_performance = Latency_data_transfer_performance_instance.distance_normalization_data_transfer(latency_data_transfer)
+
 #Throughput
-throughput_performance = Throughput_performance_instance.calculate_throughput_performance()             # NORMAL EQUATION IS calculate_throughput_performance OPTIONAL: calculate_throughput_performance_including_decay
+throughput_performance = Throughput_performance_instance.calculate_throughput_performance_including_decay(decay_rate=decay_rate)             # NORMAL EQUATION IS calculate_throughput_performance OPTIONAL: calculate_throughput_performance_including_decay
 normalized_throughput_performance = Throughput_performance_instance.calculate_normalized_throughput_performance(data = throughput_performance, data_rate_ac=data_rate_ac)
 #print(throughput_performance)
 #print(normalized_throughput_performance)
@@ -390,12 +396,13 @@ Num_opt_head = 1  # Number of optical heads
 
 # define input weights per performance parameter
 client_input_availability = 0.2
-client_input_BER = 0.3
+client_input_BER = 0.2
 client_input_cost = 0.1
 client_input_latency = 0.1
+client_input_latency_data_transfer = 0.1
 client_input_throughput = 0.3
 
-weights = [client_input_availability, client_input_BER, client_input_cost, client_input_latency, client_input_throughput]
+weights = [client_input_availability, client_input_BER, client_input_cost, client_input_latency, client_input_latency_data_transfer, client_input_throughput]
 
 
 
@@ -458,67 +465,66 @@ weights = [client_input_availability, client_input_BER, client_input_cost, clien
 #print("----------------------------------------------------------------------------------------")
 
 
-performance_matrices = [normalized_availability_performance, normalized_BER_performance, normalized_cost_performance, normalized_latency_performance, normalized_throughput_performance]
-performance_matrices_including_penalty = [normalized_availability_performance_including_penalty, normalized_BER_performance_including_penalty, normalized_cost_performance_including_penalty, normalized_latency_performance, normalized_throughput_performance]
+performance_matrices = [normalized_availability_performance, normalized_BER_performance, normalized_cost_performance, normalized_latency_performance, normalized_latency_data_transfer_performance, normalized_throughput_performance]
+performance_matrices_including_penalty = [normalized_availability_performance_including_penalty, normalized_BER_performance_including_penalty, normalized_cost_performance_including_penalty, normalized_latency_performance, normalized_latency_data_transfer_performance, normalized_throughput_performance]
 
 
-def find_and_track_active_satellites(weights, sats_applicable, performance_matrices, performance_matrices_including_penalty):
-    sats_applicable = np.array(sats_applicable)
-
-    if len(weights) != len(performance_matrices):
-        raise ValueError("Mismatch in number of weights and matrices")
-
-    active_satellites = []
-    performance_over_time = []
-    performance_parameters_over_time = {i: [] for i in range(len(performance_matrices))}
-
-    prev_active_satellite = None  # Start with no previous active satellite
-
-    for time_step in range(sats_applicable.shape[1]):
-        applicable_at_time_step = sats_applicable[:, time_step]
-        print(f"Time step {time_step}: Applicable satellites - {applicable_at_time_step}")
-
-        current_matrices = []
-        for matrix_idx, matrix in enumerate(performance_matrices_including_penalty):
-            if prev_active_satellite is not None and applicable_at_time_step[prev_active_satellite]:
-                matrix_copy = np.array(matrix[:, time_step])
-                matrix_copy[prev_active_satellite] = performance_matrices[matrix_idx][:, time_step][prev_active_satellite]
-            else:
-                matrix_copy = matrix[:, time_step]
-            current_matrices.append(matrix_copy)
-
-        weighted_sum = np.zeros_like(applicable_at_time_step, dtype=float)
-        for weight, matrix in zip(weights, current_matrices):
-            weighted_sum += weight * matrix * applicable_at_time_step
-        print(f"Weighted sum at time step {time_step}: {weighted_sum}")
-
-        performance_over_time.append(weighted_sum)
-
-        for param_index, matrix in enumerate(current_matrices):
-            performance_parameters_over_time[param_index].append(matrix)
-
-        if np.any(np.isfinite(weighted_sum)) and np.nanmax(weighted_sum) > 0:
-            active_satellite = np.nanargmax(weighted_sum)
-            active_satellites.append(active_satellite)
-            prev_active_satellite = active_satellite
-            print(f"Therefore, at time step {time_step} it was chosen to make satellite {active_satellite+1} active")
-        else:
-            active_satellites.append("No link")
-            prev_active_satellite = None
-            print(f"No active satellite at this time step due to all values being NaN or zero.")
-
-    return active_satellites, performance_over_time, performance_parameters_over_time
+#def find_and_track_active_satellites(weights, sats_applicable, performance_matrices, performance_matrices_including_penalty):
+#    sats_applicable = np.array(sats_applicable)
+#
+#    if len(weights) != len(performance_matrices):
+#        raise ValueError("Mismatch in number of weights and matrices")
+#
+#    active_satellites = []
+#    performance_over_time = []
+#    performance_parameters_over_time = {i: [] for i in range(len(performance_matrices))}
+#
+#    prev_active_satellite = None  # Start with no previous active satellite
+#
+#    for time_step in range(sats_applicable.shape[1]):
+#        applicable_at_time_step = sats_applicable[:, time_step]
+#        print(f"Time step {time_step}: Applicable satellites - {applicable_at_time_step}")
+#
+#        current_matrices = []
+#        for matrix_idx, matrix in enumerate(performance_matrices_including_penalty):
+#            if prev_active_satellite is not None and applicable_at_time_step[prev_active_satellite]:
+#                matrix_copy = np.array(matrix[:, time_step])
+#                matrix_copy[prev_active_satellite] = performance_matrices[matrix_idx][:, time_step][prev_active_satellite]
+#            else:
+#                matrix_copy = matrix[:, time_step]
+#            current_matrices.append(matrix_copy)
+#
+#        weighted_sum = np.zeros_like(applicable_at_time_step, dtype=float)
+#        for weight, matrix in zip(weights, current_matrices):
+#            weighted_sum += weight * matrix * applicable_at_time_step
+#        print(f"Weighted sum at time step {time_step}: {weighted_sum}")
+#
+#        performance_over_time.append(weighted_sum)
+#
+#        for param_index, matrix in enumerate(current_matrices):
+#            performance_parameters_over_time[param_index].append(matrix)
+#
+#        if np.any(np.isfinite(weighted_sum)) and np.nanmax(weighted_sum) > 0:
+#            active_satellite = np.nanargmax(weighted_sum)
+#            active_satellites.append(active_satellite)
+#            prev_active_satellite = active_satellite
+#            print(f"Therefore, at time step {time_step} it was chosen to make satellite {active_satellite+1} active")
+#        else:
+#            active_satellites.append("No link")
+#            prev_active_satellite = None
+#            print(f"No active satellite at this time step due to all values being NaN or zero.")
+#
+#    return active_satellites, performance_over_time, performance_parameters_over_time
 
 
 #active_satellites, performance_over_time, performance_parameters_over_time = find_and_track_active_satellites(weights, sats_applicable, performance_matrices, performance_matrices_including_penalty)
 #print(active_satellites)
 
 
-import numpy as np
-import pandas as pd
 
-def find_and_track_active_satellites_with_pandas(weights, sats_applicable, performance_matrices, performance_matrices_including_penalty):
+def find_and_track_active_satellites_with_pandas(weights, sats_applicable, performance_matrices, performance_matrices_including_penalty, availability_vector):
     sats_applicable = np.array(sats_applicable)
+    availability_vector = np.array(availability_vector)  # Ensure this is a numpy array as well
 
     if len(weights) != len(performance_matrices):
         raise ValueError("Mismatch in number of weights and matrices")
@@ -527,8 +533,8 @@ def find_and_track_active_satellites_with_pandas(weights, sats_applicable, perfo
     performance_over_time = []
     performance_parameters_over_time = {i: [] for i in range(len(performance_matrices))}
 
-    # Initialize a DataFrame to store all data
-    data_columns = ['Time Step', 'Satellite Index', 'Satellite Visible', 'Active Satellite', 'Weighted Values', 'Unweighted Values', 'Availability', 'BER', 'Cost', 'Latency', 'Throughput']
+    # Update data columns to include Satellite Available
+    data_columns = ['Time Step', 'Satellite Index', 'Satellite Visible', 'Satellite Available', 'Active Satellite', 'Weighted Values', 'Unweighted Values', 'Availability', 'BER', 'Cost', 'Latency', 'Throughput']
     data_records = []
 
     for time_step in range(sats_applicable.shape[1]):
@@ -557,18 +563,20 @@ def find_and_track_active_satellites_with_pandas(weights, sats_applicable, perfo
         if np.any(np.isfinite(weighted_sum)) and np.nanmax(weighted_sum) > 0:
             active_satellite = np.nanargmax(weighted_sum)
             active_satellites.append(active_satellite)
-            print(f"Therefore, at time step {time_step} it was chosen to make satellite {active_satellite+1} active")
+            #print(f"Therefore, at time step {time_step} it was chosen to make satellite {active_satellite+1} active")
         else:
             active_satellites.append("No link")
-            print(f"No active satellite at this time step due to all values being NaN or zero.")
+            #print(f"No active satellite at this time step due to all values being NaN or zero.")
 
         # Store detailed information for this time step
         for sat_idx in range(len(weighted_sum)):
             satellite_visible = 'Yes' if applicable_at_time_step[sat_idx] == 1 else 'No'
+            satellite_available = 'Yes' if availability_vector[sat_idx, time_step] == 1 else 'No'
             data_records.append({
                 'Time Step': time_step,
                 'Satellite Index': sat_idx + 1,
                 'Satellite Visible': satellite_visible,
+                'Satellite Available': satellite_available,
                 'Active Satellite': 'Yes' if sat_idx == active_satellite else 'No',
                 'Weighted Values': weighted_sum[sat_idx],
                 'Unweighted Values': unweighted_sum[sat_idx],
@@ -576,15 +584,17 @@ def find_and_track_active_satellites_with_pandas(weights, sats_applicable, perfo
                 'BER': current_unweighted_matrices[1][sat_idx],
                 'Cost': current_unweighted_matrices[2][sat_idx],
                 'Latency': current_unweighted_matrices[3][sat_idx],
-                'Throughput': current_unweighted_matrices[4][sat_idx],
+                'Latency data transfer': current_unweighted_matrices[4][sat_idx],
+                'Throughput': current_unweighted_matrices[5][sat_idx],
             })
 
     # Convert list of records to DataFrame
     data_frame = pd.DataFrame(data_records, columns=data_columns)
     return active_satellites, performance_over_time, performance_parameters_over_time, data_frame
 
+
 # Example usage and CSV export
-active_satellites, performance_over_time, performance_parameters_over_time, data_frame = find_and_track_active_satellites_with_pandas(weights, sats_applicable, performance_matrices, performance_matrices_including_penalty)
+active_satellites, performance_over_time, performance_parameters_over_time, data_frame = find_and_track_active_satellites_with_pandas(weights, sats_applicable, performance_matrices, performance_matrices_including_penalty, availability_vector)
 export_dataframe_to_csv(data_frame, 'CSV', 'satellite_performance.csv')
 
 
@@ -684,7 +694,10 @@ ani.save(full_path, writer='ffmpeg', fps=2.5)  # Ensure ffmpeg is installed or u
 #BER_performance_instance.BER_visualization(BER_performance, normalized_BER_performance, BER_performance_including_penalty, normalized_BER_performance_including_penalty)
 
 #plot Latency
-Latency_performance_instance.latency_visualization(propagation_latency, normalized_latency_performance)
+#Latency_performance_instance.latency_visualization(propagation_latency, normalized_latency_performance)
+
+#plot Latency data trasnfer
+Latency_data_transfer_performance_instance.latency_data_transfer_visualization(latency_data_transfer, normalized_latency_data_transfer_performance)
 
 #plot throughput
 #Throughput_performance_instance.throughput_visualization(throughput_performance, normalized_throughput_performance)
@@ -697,7 +710,7 @@ Latency_performance_instance.latency_visualization(propagation_latency, normaliz
 
 #plot_individual_satellite_performance_update(active_satellites, performance_over_time, num_satellites, time_steps, sats_applicable)
 
-print_link_handovers(active_satellites)
+#print_link_handovers(active_satellites)
 
 
 

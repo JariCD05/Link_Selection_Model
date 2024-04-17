@@ -109,11 +109,11 @@ def print_link_handovers(active_satellites):
         if previous_link != current_link:
             # Handle the 'No link' case
             if previous_link == 'No link':
-                print(f"At timestamp {i+1} the link is established to sat {current_link}.")
+                print(f"At timestamp {i} the link is established to sat {current_link+1}.")
             elif current_link == 'No link':
-                print(f"At timestamp {i+1} the link from sat {previous_link} is lost.")
+                print(f"At timestamp {i} the link from sat {previous_link+1} is lost.")
             else:
-                print(f"At timestamp {i+1} the link is handed over from sat {previous_link} to sat {current_link}.")
+                print(f"At timestamp {i} the link is handed over from sat {previous_link+1} to sat {current_link+1}.")
 
 
                 import numpy as np
