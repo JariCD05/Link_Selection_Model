@@ -498,7 +498,7 @@ def find_and_track_active_satellites_with_pandas(weights, sats_applicable, perfo
 
 # Example usage and CSV export
 active_satellites, data_frame = find_and_track_active_satellites_with_pandas(weights, sats_applicable, performance_matrices, performance_matrices_including_penalty, availability_vector)
-data_frame.to_csv('satellite_performance_detailed.csv', index=False)
+data_frame.to_csv('CSV/satellite_performance_detailed.csv', index=False)
 
 
 # Use this
@@ -515,7 +515,7 @@ num_columns = len(active_satellites)  # Based on the length of your 'active_sate
 time_steps = np.arange(num_columns)  # Create an array for the time steps
 
 # Load and prepare the satellite image
-satellite_img = Image.open("satellite.png")  # Adjust path if necessary
+satellite_img = Image.open("images/satellite.png")  # Adjust path if necessary
 satellite_img = satellite_img.resize((200, 2000))  # Resize image for visibility in plot
 
 # Prepare for plotting

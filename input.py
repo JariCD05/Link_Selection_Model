@@ -330,3 +330,7 @@ slew_rate_zenith = np.rad2deg(v_zenith / (h_SC - h_AC))
 
 #-------perf param--------
 decay_rate = 0.5
+
+
+#--------visualization----------------
+folder_path = "animations"

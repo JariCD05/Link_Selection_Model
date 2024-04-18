@@ -37,8 +37,11 @@ from throughput_test import SatelliteThroughputCorrected
 
 
 #import link selection
-from JM_link_selection import link_selection
+from JM_Link_Selection import link_selection
 
+
+#import dynamic visualisation
+from JM_Dynamic_Link_Selection_visualization import Dynamic_link_selection_visualization
 print('')
 print('------------------END-TO-END-LASER-SATCOM-MODEL-------------------------')
 #------------------------------------------------------------------------
@@ -391,11 +394,6 @@ normalized_throughput_performance = Throughput_performance_instance.calculate_no
 # --------------------------client Input---------------------------
 # ------------------------------------------------------------------------
 
-# Configuration parameters
-T_acq = 20  # Acquisition time in seconds
-mission_time = 3600  # Total mission time in seconds
-Num_opt_head = 1  # Number of optical heads
-
 
 
 # define input weights per performance parameter
@@ -417,84 +415,18 @@ link_selection_instance = link_selection()
 
 # Example usage and CSV export
 active_satellites, data_frame = link_selection_instance.find_and_track_active_satellites_with_pandas(weights, sats_applicable, performance_matrices, performance_matrices_including_penalty, availability_vector)
-data_frame.to_csv('satellite_performance_detailed.csv', index=False)
-
-
-
-
-# Now call the function with the actual parameters
-#plot_active_satellites(time_steps, active_satellites, num_satellites)
-from matplotlib.animation import FuncAnimation
-from PIL import Image
-# Configuration and data setup
-num_columns = len(active_satellites)  # Based on the length of your 'active_satellites' array
-time_steps = np.arange(num_columns)  # Create an array for the time steps
-
-# Load and prepare the satellite image
-satellite_img = Image.open("satellite.png")  # Adjust path if necessary
-satellite_img = satellite_img.resize((200, 2000))  # Resize image for visibility in plot
-
-# Prepare for plotting
-fig, ax = plt.subplots(figsize = (15,10))
-ax.set_xlim(0, num_columns)
-ax.set_ylim(-1, num_satellites)  # -1 to include "No link" below the first satellite index
-line, = ax.plot([], [], lw=2)
-satellite_icon = ax.imshow(satellite_img, extent=(0, 1, -1, 0))  # Initial placement
-
-# Function to initialize the animation
-def init():
-    line.set_data([], [])
-    satellite_icon.set_extent((0, 0, -1, -1))  # Hide icon initially
-    return line, satellite_icon,
-
-fps = 2.5  # For example, if your animation runs at 2.5 frames per second
-shift_per_second = 0.1  # Shift the window 5 timesteps to the right every second
-
-# Determine the number of frames after which to shift the window
-frames_per_shift = fps  # Assuming you want to shift every second
-window_width = 100
-
-# Function to update the animation at each frame
-def update(frame):
-    xdata = time_steps[:frame]  # Time steps up to the current frame
-    # Ensure ydata contains elements up to the current frame, handle "No link" properly
-    ydata = [-1 if i >= len(active_satellites) or active_satellites[i] == "No link" else int(active_satellites[i]) for i in range(frame)]
-    # Update the line data
-    line.set_data(xdata, ydata)
-    # Only update the satellite position if there is corresponding ydata for the frame
-    if ydata:  # Check if ydata is not empty
-        satellite_position = ydata[-1]  # Get the last item safely since we now know ydata is not empty
-        # Update the satellite icon's position, adjusting if frame is within bounds
-        if frame < num_columns:
-            satellite_icon.set_extent((frame - 0.5, frame + 0.5, satellite_position - 0.5, satellite_position + 0.5))
-    else:
-        # Optionally, hide the satellite icon if there's no valid position
-        satellite_icon.set_extent((0, 0, 0, 0))  # This hides the icon by setting its extent to zero area
-    return line, satellite_icon
-
-
-
-# Create the animation
-ani = FuncAnimation(fig, update, frames=num_columns, init_func=init, blit=True, repeat=False, interval=400)
-
-
-plt.title('Link selection')
-plt.xlabel('Time Step')
-plt.ylabel('Link selected')
-plt.yticks(range(-1, num_satellites), ['No link'] + [f'Sat {i+1}' for i in range(num_satellites)])
-plt.grid(True)
-folder_path = 'animations'  # Adjust path if the folder is not in the current working directory
-filename = 'link_selection.mp4'
-full_path = f"{folder_path}/{filename}"
-
-# Save the animation
-ani.save(full_path, writer='ffmpeg', fps=2.5)  # Ensure ffmpeg is installed or use an available writer
-
-# Show the plot
-plt.show()
+data_frame.to_csv('CSV/satellite_performance.csv', index=False)
 
 
 #-------------- visualizations -----------------------------------------------------------
+
+#Dynamic visualisation
+dynamic_link_selection_visualization_instance = Dynamic_link_selection_visualization(
+    active_satellites=active_satellites,
+    num_satellites=num_satellites
+)
+
+dynamic_link_selection_visualization_instance.run()
 
 
 #Links_applicable.plot_satellite_visibility_scatter(time=time)
