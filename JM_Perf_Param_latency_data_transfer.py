@@ -50,10 +50,6 @@ class Latency_data_transfer_performance():
 
         return self.latency_data_transfer
 
-
-
-
-
     def distance_normalization_data_transfer(self, latency_data_transfer):
         # Convert input latency array to a numpy array for easier manipulation
         latency_data_transfer_performance = np.array(latency_data_transfer)
@@ -110,7 +106,6 @@ class Latency_data_transfer_performance():
         plt.show()
 
 
-        print("Normalized latencies:", self.normalized_latency_data_transfer_performance)
 
 
 
