@@ -29,11 +29,13 @@ class link_selection():
         if len(weights) != len(performance_matrices):
             raise ValueError("Mismatch in number of weights and matrices")
 
-        data_columns = ['Time Step', 'Satellite Index', 'Satellite Visible', 'Satellite Available', 
-                        'Active Satellite', 'Weighted Values', 'Unweighted Values', 'Availability', 
-                        'BER', 'Cost', 'Latency', 'Data Transfer Latency', 'Throughput', 
-                        'Weighted Availability', 'Weighted BER', 'Weighted Cost', 'Weighted Latency', 
-                        'Weighted Data Transfer Latency', 'Weighted Throughput', 'Values Used']
+        data_columns = [
+            'Time Step', 'Satellite Index', 'Satellite Visible', 'Satellite Available', 
+            'Active Satellite', 'Weighted Values', 'Unweighted Values', 'Availability', 
+            'BER', 'Cost', 'Latency', 'Data Transfer Latency', 'Throughput', 
+            'Weighted Availability', 'Weighted BER', 'Weighted Cost', 'Weighted Latency', 
+            'Weighted Data Transfer Latency', 'Weighted Throughput', 'Values Used'
+        ]
         data_records = []
         active_satellites = []
 
@@ -60,6 +62,7 @@ class link_selection():
 
                 current_matrices.append(matrix_copy)
                 current_unweighted_matrices.append(performance_matrices[matrix_idx][:, time_step])
+                #print(f"Matrix {matrix_idx} at time step {time_step}: {current_unweighted_matrices[-1]}")
 
             weighted_sum = np.zeros_like(applicable_at_time_step, dtype=float)
             unweighted_sum = np.zeros_like(applicable_at_time_step, dtype=float)
@@ -71,13 +74,17 @@ class link_selection():
                 weighted_parameters[idx] = weighted_matrix * applicable_at_time_step
                 weighted_sum += weighted_parameters[idx]
                 unweighted_sum += unweighted_matrix * applicable_at_time_step
+                #print(f"Weighted sum for index {idx} at time step {time_step}: {weighted_sum}")
+                #print(f"Unweighted sum for index {idx} at time step {time_step}: {unweighted_sum}")
 
             if np.any(np.isfinite(weighted_sum)) and np.nanmax(weighted_sum) > 0:
                 active_satellite = np.nanargmax(weighted_sum)
             else:
                 active_satellite = "No link"
             active_satellites.append(active_satellite)
-
+            print(f"Weighted availaiblity at timestemp{time_step}: {weighted_parameters[0]}")
+            print(f"Weighted BER at timestemp{time_step}: {weighted_parameters[1]}")
+            print(f"Weighted cost at timestemp{time_step}: {weighted_parameters[2]}")
             # Store detailed information for this time step
             for sat_idx in range(len(weighted_sum)):
                 satellite_visible = 'Yes' if applicable_at_time_step[sat_idx] == 1 else 'No'
@@ -94,7 +101,7 @@ class link_selection():
                     'BER': current_unweighted_matrices[1][sat_idx],
                     'Cost': current_unweighted_matrices[2][sat_idx],
                     'Latency': current_unweighted_matrices[3][sat_idx],
-                    'Latency data transfer': current_unweighted_matrices[4][sat_idx],
+                    'Data Transfer Latency': current_unweighted_matrices[4][sat_idx],
                     'Throughput': current_unweighted_matrices[5][sat_idx],
                     'Weighted Availability': weighted_parameters[0][sat_idx],
                     'Weighted BER': weighted_parameters[1][sat_idx],
@@ -102,7 +109,7 @@ class link_selection():
                     'Weighted Latency': weighted_parameters[3][sat_idx],
                     'Weighted Data Transfer Latency': weighted_parameters[4][sat_idx],
                     'Weighted Throughput': weighted_parameters[5][sat_idx],
-                    'Values Used': "Normal" if sat_idx == active_satellite and active_satellite != "No link" else "Penalty"
+                   
                 }
                 data_records.append(record)
 

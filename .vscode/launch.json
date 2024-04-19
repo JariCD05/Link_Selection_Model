@@ -11,6 +11,14 @@
             "program": "${file}",
             "console": "integratedTerminal",
             "justMyCode": false
+        },
+        {
+            "name": "Debug JM_mission_level",
+            "type": "python",
+            "request": "launch",
+            "program": "${cwd}/JM_Mission_level_simulation",
+            "console": "integratedTerminal",
+            "justMyCode": false
         }
     ]
 }

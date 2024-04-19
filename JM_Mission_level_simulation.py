@@ -383,7 +383,7 @@ normalized_latency_performance = Latency_performance_instance.distance_normaliza
 # Latency Data transfer
 latency_data_transfer = Latency_data_transfer_performance_instance.calculate_latency_data_transfer_performance()                                          
 normalized_latency_data_transfer_performance = Latency_data_transfer_performance_instance.distance_normalization_data_transfer(latency_data_transfer)
-
+#print(normalized_latency_data_transfer_performance)
 #Throughput
 throughput_performance = Throughput_performance_instance.calculate_throughput_performance_including_decay(decay_rate=decay_rate)             # NORMAL EQUATION IS calculate_throughput_performance OPTIONAL: calculate_throughput_performance_including_decay
 normalized_throughput_performance = Throughput_performance_instance.calculate_normalized_throughput_performance(data = throughput_performance, data_rate_ac=data_rate_ac)
@@ -426,7 +426,7 @@ dynamic_link_selection_visualization_instance = Dynamic_link_selection_visualiza
     num_satellites=num_satellites
 )
 
-dynamic_link_selection_visualization_instance.run()
+#dynamic_link_selection_visualization_instance.run()
 
 
 #Links_applicable.plot_satellite_visibility_scatter(time=time)
