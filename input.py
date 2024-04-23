@@ -128,6 +128,7 @@ delta_wavelength_sc = 5.0E-9                    # Optical filter at spacecraft L
 R_L_sc = 50.0                                   # Load resistor of aircraft LCT (in case of PIN detection)
 sensitivity_acquisition_sc = 3.16227766016e-10  # Sensitivity of acquisition system of spacecraft LCT
 
+num_opt_head = 1
 
 
 #----------------------------------------------------------------------------------------------------
@@ -163,8 +164,8 @@ SC_filename_save  = r'/Users/jaristensen/Desktop/Visual_Studio/Thesis/Link_Selec
 constellation_type = "LEO_cons"                 # Type of constellation (1 sat in LEO, 1 sat in GEO, LEO constellation)
 h_SC = 1200.0E3 #(SDA) or 550.0E3 (Starlink)       # Initial altitude of the satellite(s)
 inc_SC = 85.0 #55.98 (Starlink) or 0.0 (GEO) or 80.0 (SDA)  # Initial inclination of the satellite(s)
-number_of_planes = 2                         # Number of planes within the constellation (if 1 sat: number_of_planes = 1)
-number_sats_per_plane = 2          # Number of satellites per plane within the constellation (if 1 sat: number_sats_per_plane = 1)
+number_of_planes = 2                    # Number of planes within the constellation (if 1 sat: number_of_planes = 1)
+number_sats_per_plane = 4        # Number of satellites per plane within the constellation (if 1 sat: number_sats_per_plane = 1)
 num_satellites = number_of_planes*number_sats_per_plane #defined to make sure this is the leading value while propagating the links
 variable_link_cost_const1 = 1.667                           # 100 EUR per minute, thus 1.6667 per second, for constellation x
 fixed_link_cost_const1 = 100                                # 100 EUR per acquisition, , for constellation x
@@ -329,7 +330,17 @@ slew_rate_zenith = np.rad2deg(v_zenith / (h_SC - h_AC))
 
 
 #-------perf param--------
-decay_rate = 0.5
+
+# define input weights per performance parameter
+client_input_availability = 0.2
+client_input_BER = 0.2
+client_input_cost = 0.1
+client_input_latency = 0.1
+client_input_latency_data_transfer = 0.1
+client_input_throughput = 0.3
+
+#-----throughput decay rate ----------
+decay_rate = 0.0
 
 
 #--------visualization----------------

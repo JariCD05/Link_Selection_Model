@@ -419,5 +419,3 @@ else:
 # save_to_file([geometrical_output, performance_output])
 
 
-print(performance_output['throughput'])
-

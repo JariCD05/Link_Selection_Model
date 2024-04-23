@@ -45,28 +45,26 @@ class Latency_performance():
 
         return self.propagation_latency
 
+   
+
     def distance_normalization_min(self, propagation_latency):
+        # Initialize the array for storing normalized latencies
         self.normalized_latency_performance = np.zeros_like(propagation_latency)
 
+        # Find the overall minimum nonzero latency from all satellites
+        min_latency = np.min(propagation_latency[propagation_latency > 0]) if np.any(propagation_latency > 0) else 1
+
         for sat_index in range(num_satellites):
-            # Filter out zero values and find the minimum nonzero latency
-            non_zero_latencies = propagation_latency[sat_index, propagation_latency[sat_index, :] > 0]
-            if len(non_zero_latencies) > 0:
-                min_latency = np.min(non_zero_latencies)
-                # Normalize the latency values for the current satellite based on the minimum nonzero latency
-                for time_index in range(propagation_latency.shape[1]):
-                    if propagation_latency[sat_index, time_index] > 0:
-                        self.normalized_latency_performance[sat_index, time_index] = min_latency/(propagation_latency[sat_index, time_index])
-                    else:
-                        # If original latency is zero, it remains zero in the normalized array
-                        self.normalized_latency_performance[sat_index, time_index] = 0
-            else:
-                # If there are no nonzero latencies (which might be unusual), handle as needed
-                # This scenario would imply all latencies for this satellite are zero
-                # You might choose to set the normalized latency to a specific value, or leave it as zero
-                pass
+            for time_index in range(propagation_latency.shape[1]):
+                if propagation_latency[sat_index, time_index] > 0:
+                    # Normalize the latency values for the current satellite based on the global minimum latency
+                    self.normalized_latency_performance[sat_index, time_index] = min_latency / propagation_latency[sat_index, time_index]
+                else:
+                    # If original latency is zero, it remains zero in the normalized array
+                    self.normalized_latency_performance[sat_index, time_index] = 0
 
         return self.normalized_latency_performance
+
 
     def latency_visualization(self, propagation_latency, normalized_latency_performance):    
         # Converting the latency visualization plots to scatter plots and removing all zero values

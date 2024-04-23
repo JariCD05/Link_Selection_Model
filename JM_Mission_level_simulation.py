@@ -244,7 +244,7 @@ else:
 
 #throughput = np.array_split(throughput, num_satellites)
 throughput = np.array_split(throughput, num_satellites)
-
+print(throughput)
 
 # ----------------------------FADE-STATISTICS-----------------------------
 
@@ -365,9 +365,9 @@ normalized_availability_performance_including_penalty = Availability_performance
 
 #BER
 BER_performance = BER_performance_instance.calculate_BER_performance()
-normalized_BER_performance = BER_performance_instance.calculate_normalized_BER_performance(data = BER_performance, availability_performance=availability_performance)
+normalized_BER_performance = BER_performance_instance.calculate_normalized_BER_performance(data = BER_performance, availability_vector=availability_vector)
 BER_performance_including_penalty = BER_performance_instance.calculate_BER_performance_including_penalty(T_acq = 20, step_size_link = 5)
-normalized_BER_performance_including_penalty = BER_performance_instance.calculate_normalized_BER_performance_including_penalty(data = BER_performance_including_penalty, sats_applicable=sats_applicable)
+normalized_BER_performance_including_penalty = BER_performance_instance.calculate_normalized_BER_performance_including_penalty(data = BER_performance_including_penalty,  availability_vector=availability_vector)
 
 
 # Cost
@@ -396,13 +396,7 @@ normalized_throughput_performance = Throughput_performance_instance.calculate_no
 
 
 
-# define input weights per performance parameter
-client_input_availability = 0.2
-client_input_BER = 0.2
-client_input_cost = 0.1
-client_input_latency = 0.1
-client_input_latency_data_transfer = 0.1
-client_input_throughput = 0.3
+
 
 weights = [client_input_availability, client_input_BER, client_input_cost, client_input_latency, client_input_latency_data_transfer, client_input_throughput]
 performance_matrices = [normalized_availability_performance, normalized_BER_performance, normalized_cost_performance, normalized_latency_performance, normalized_latency_data_transfer_performance, normalized_throughput_performance]
@@ -416,7 +410,7 @@ link_selection_instance = link_selection()
 # Example usage and CSV export
 active_satellites, data_frame = link_selection_instance.find_and_track_active_satellites_with_pandas(weights, sats_applicable, performance_matrices, performance_matrices_including_penalty, availability_vector)
 data_frame.to_csv('CSV/satellite_performance.csv', index=False)
-
+print(active_satellites)
 
 #-------------- visualizations -----------------------------------------------------------
 
@@ -449,7 +443,7 @@ dynamic_link_selection_visualization_instance = Dynamic_link_selection_visualiza
 #Latency_data_transfer_performance_instance.latency_data_transfer_visualization(latency_data_transfer, normalized_latency_data_transfer_performance)
 
 #plot throughput
-#Throughput_performance_instance.throughput_visualization(throughput_performance, normalized_throughput_performance)
+Throughput_performance_instance.throughput_visualization(throughput_performance, normalized_throughput_performance)
 
 #plot Cost
 #Cost_performance_instance.cost_visualization(cost_performance, normalized_cost_performance, cost_performance_including_penalty, normalized_cost_performance_including_penalty)
@@ -462,4 +456,58 @@ dynamic_link_selection_visualization_instance = Dynamic_link_selection_visualiza
 #print_link_handovers(active_satellites)
 
 
+# Let's assume we have a mapping of satellite link numbers to their data indices
+# For example, satellite 2 data is at index positions in the data arrays specified by some mechanism (e.g., satellite_index_map[2] gives us the correct indices)
 
+# Assuming 'num_satellites' is defined and is the number of satellites you are dealing with
+# Let's define a performance dictionary to store all satellite data
+#performance_output = {
+#    'time': [],
+#    'throughput': [],
+#    'Pr 0': [],
+#    'Pr mean': [],
+#    'Pr penalty': [],
+#    'BER mean': [],
+#    'fractional fade time': [],
+#    'mean fade time': [],
+#    'number of fades': [],
+#    'link margin': [],
+#    'latency': [],
+#    'Pr mean (perfect pointing)': [],
+#    'Pr penalty (perfect pointing)': [],
+#    'Pr coded': [],
+#    'BER coded': [],
+#    'throughput coded': [],
+#}
+
+# We need a mechanism to relate each satellite number to specific indices in your data arrays, assuming this mapping exists
+# This would depend on how your data is structured. Adjust this example to fit your data organization
+
+#for i in range(1, num_satellites + 1):  # Loop through each satellite number
+#    if i in active_satellites:  # Check if the satellite is currently active
+#        index = active_satellites.index(i)  # Find the index of the satellite number in the list
+#        
+#        # Append data for the active satellite
+#        # Note: This assumes you have data arrays like time_links, throughput, etc., indexed by these indices
+#        performance_output['time'].append(time_links[index])
+#        performance_output['throughput'].append(throughput[index])
+#        performance_output['Pr 0'].append(P_r_0[index])
+#        performance_output['Pr mean'].append(P_r.mean(axis=1)[index])
+#        performance_output['Pr penalty'].append(link.P_r[index])
+#        performance_output['fractional fade time'].append(fractional_fade_time[index])
+#        performance_output['mean fade time'].append(mean_fade_time[index])
+#        performance_output['number of fades'].append(number_of_fades[index])
+#        performance_output['BER mean'].append(BER.mean(axis=1)[index])
+#        performance_output['link margin'].append(link.LM_comm_BER6[index])
+#        performance_output['latency'].append(propagation_latency[index])
+#        performance_output['Pr mean (perfect pointing)'].append(P_r_perfect_pointing.mean(axis=1)[index])
+#        performance_output['Pr penalty (perfect pointing)'].append(P_r_penalty_perfect_pointing[index])
+#
+#        if coding == 'yes':
+#            performance_output['Pr coded'].append(P_r_coded[index])
+#            performance_output['BER coded'].append(BER_coded.mean(axis=1)[index])
+#            performance_output['throughput coded'].append(throughput_coded[index])
+#
+## Note: Ensure 'coding' variable is defined, and data arrays (time_links, throughput, etc.) are correctly indexed as assumed
+
+#

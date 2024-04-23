@@ -62,9 +62,10 @@ class ber_performance():
 
         return self.BER_performance
     
-    def calculate_normalized_BER_performance(self, data, availability_performance):
-        max_time = np.max(availability_performance, axis=1)
-        self.normalized_BER_performance = data / max_time[:, np.newaxis]
+    def calculate_normalized_BER_performance(self, data, availability_vector):
+        max_time = np.nansum(availability_vector, axis=1)
+        max_time_max = np.nanmax(max_time)
+        self.normalized_BER_performance = data / max_time_max
 
         return self.normalized_BER_performance
     
@@ -112,12 +113,13 @@ class ber_performance():
         return self.BER_performance_including_penalty
 
 
-    def calculate_normalized_BER_performance_including_penalty(self, data, sats_applicable):
+    def calculate_normalized_BER_performance_including_penalty(self, data, availability_vector):
         # Calculate the maximum time a satellite is applicable to normalize against it
-        max_time = np.nansum(sats_applicable, axis=1)  # Using sum to accommodate for delay in applicability
-        # Prevent division by zero by replacing zeros with NaN or another suitable value
-        max_time[max_time == 0] = np.nan
-        self.normalized_BER_performance_including_penalty = data / max_time[:, np.newaxis]
+        max_time_seperate = np.nansum(availability_vector, axis=1)
+        max_time_combined = np.nanmax(max_time_seperate)
+        print(max_time_combined)
+        self.normalized_BER_performance_including_penalty = data / max_time_combined
+        
 
         return self.normalized_BER_performance_including_penalty
 

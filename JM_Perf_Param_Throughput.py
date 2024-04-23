@@ -33,8 +33,9 @@ class Throughput_performance:
         self.weighted_values_record = []
 
 
-    def calculate_throughput_performance_including_decay(self, decay_rate=0.0):
+    def calculate_throughput_performance_including_decay(self, decay_rate):
         # Initialize throughput_performance with zeros
+        
         self.throughput_performance = [[0 for _ in range(len(self.time))] for _ in range(num_satellites)]
         weights_records = []
         weighted_values_records = []

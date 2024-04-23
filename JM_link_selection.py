@@ -82,9 +82,9 @@ class link_selection():
             else:
                 active_satellite = "No link"
             active_satellites.append(active_satellite)
-            print(f"Weighted availaiblity at timestemp{time_step}: {weighted_parameters[0]}")
-            print(f"Weighted BER at timestemp{time_step}: {weighted_parameters[1]}")
-            print(f"Weighted cost at timestemp{time_step}: {weighted_parameters[2]}")
+            #print(f"Weighted availaiblity at timestemp{time_step}: {weighted_parameters[0]}")
+            #print(f"Weighted BER at timestemp{time_step}: {weighted_parameters[1]}")
+            #print(f"Weighted cost at timestemp{time_step}: {weighted_parameters[2]}")
             # Store detailed information for this time step
             for sat_idx in range(len(weighted_sum)):
                 satellite_visible = 'Yes' if applicable_at_time_step[sat_idx] == 1 else 'No'

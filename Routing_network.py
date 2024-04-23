@@ -147,6 +147,7 @@ class routing_network():
 
                 index += 1
 
+
         if self.number_of_links == 0:
             print('No links available, choose another combination of aircraft and constellation, or choose another link selection')
             exit()

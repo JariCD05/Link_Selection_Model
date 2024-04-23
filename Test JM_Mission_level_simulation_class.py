@@ -1,24 +1,47 @@
+# Import standard required tools
+import random
+from itertools import chain
 import numpy as np
 from matplotlib import pyplot as plt
+import pandas as pd
+import os
 
 # Import input parameters and helper functions
 from input import *
 from helper_functions import *
+from JM_Visualisations_mission_level import *
 
 # Import classes from other files
 from Link_geometry import link_geometry
-from Routing_network import routing_network
 from Atmosphere import attenuation, turbulence
+#from JM_Atmosphere import JM_attenuation, JM_turbulence
 from LCT import terminal_properties
 from Link_budget import link_budget
 from bit_level import bit_level
 from channel_level import channel_level
 
 
-# Process to activate tudatpy 
-# 1. within command line "conda activate tudat-space"
-# 2. change python version on bottom right to 3.10.13{'tudat-space':conda}
+#import link applicabality
+from JM_applicable_links import applicable_links
 
+
+
+#import performance paramaters 
+from JM_Perf_Param_Availability import Availability_performance
+from JM_Perf_Param_BER import ber_performance
+from JM_Perf_Param_Latency import Latency_performance
+from JM_Perf_Param_Throughput import Throughput_performance
+from JM_Perf_Param_Cost import Cost_performance
+from JM_Perf_Param_latency_data_transfer import Latency_data_transfer_performance
+from throughput_test import SatelliteThroughputCorrected
+
+
+#import link selection
+from JM_Link_Selection import link_selection
+
+
+#import dynamic visualisation
+from JM_Dynamic_Link_Selection_visualization import Dynamic_link_selection_visualization
 print('')
 print('------------------END-TO-END-LASER-SATCOM-MODEL-------------------------')
 #------------------------------------------------------------------------
@@ -65,70 +88,37 @@ mission_duration = time[-1] - time[0]
 # Update the samples/steps at mission level
 samples_mission_level = number_sats_per_plane * number_of_planes * len(link_geometry.geometrical_output['elevation'])
 
-#------------------------------------------------------------------------
-#---------------------------ROUTING-OF-LINKS-----------------------------
-#------------------------------------------------------------------------
-# The routing_network class takes the relative geometrical state between AIRCRAFT and all SATELLITES and
-# Performs optimization to select a number of links, with 'routing_network.routing'
-# Cost variables are:
-#   (1) Maximum link time
-#   (2) maximum elevation during one link
-# Constraints are:
-#   (1) Minimum elevation angle: 10 degrees
-#   (2) Positive elevation rate at start of link
-routing_network = routing_network(time=time)
-routing_output, routing_total_output, mask = routing_network.routing(link_geometry.geometrical_output, time, step_size_link)
+Links_applicable = applicable_links(time=time)
+applicable_output, sats_applicable = Links_applicable.applicability(link_geometry.geometrical_output, time, step_size_link)
 
-total_time = len(time)*step_size_link
-comm_time = len(flatten(routing_output['time']))*step_size_link
-acq_time = routing_network.total_acquisition_time
-
-
-
-# Options are to analyse 1 link or analyse 'all' links
-#   (1) link_number == 'all'   : Creates 1 vector for each geometric variable for each selected link & creates a flat vector
-#   (2) link_number == 1 number: Creates 1 vector for each geometric variable
-if link_number == 'all':
-    time_links  = flatten(routing_output['time'     ])
-    time_links_hrs = time_links / 3600.0
-    ranges     = flatten(routing_output['ranges'    ])
-    elevation  = flatten(routing_output['elevation' ])
-    zenith     = flatten(routing_output['zenith'    ])
-    slew_rates = flatten(routing_output['slew rates'])
-    heights_SC = flatten(routing_output['heights SC'])
-    heights_AC = flatten(routing_output['heights AC'])
-    speeds_AC  = flatten(routing_output['speeds AC'])
-
-    time_per_link       = routing_output['time'      ]
-    time_per_link_hrs   = time_links / 3600.0
-    ranges_per_link     = routing_output['ranges'    ]
-    elevation_per_link  = routing_output['elevation' ]
-    zenith_per_link     = routing_output['zenith'    ]
-    slew_rates_per_link = routing_output['slew rates']
-    heights_SC_per_link = routing_output['heights SC']
-    heights_AC_per_link = routing_output['heights AC']
-    speeds_AC_per_link  = routing_output['speeds AC' ]
-
-else:
-    time_links     = routing_output['time'      ][link_number]
-    time_links_hrs = time_links / 3600.0
-    ranges         = routing_output['ranges'    ][link_number]
-    elevation      = routing_output['elevation' ][link_number]
-    zenith         = routing_output['zenith'    ][link_number]
-    slew_rates     = routing_output['slew rates'][link_number]
-    heights_SC     = routing_output['heights SC'][link_number]
-    heights_AC     = routing_output['heights AC'][link_number]
-    speeds_AC      = routing_output['speeds AC' ][link_number]
-
-elevation[elevation<0] = 0 
-print(elevation)
-print(len(elevation))
-print(len(elevation_per_link))
 
 # Define cross-section of macro-scale simulation based on the elevation angles.
 # These cross-sections are used for micro-scale plots.
 elevation_cross_section = [2.0, 20.0, 40.0]
 index_elevation = 1
+
+# Retrieve data for all links directly
+time_links = flatten(applicable_output['time'])
+time_links_hrs = [t / 3600.0 for t in time_links]
+ranges = flatten(applicable_output['ranges'])
+elevation = flatten(applicable_output['elevation'])
+zenith = flatten(applicable_output['zenith'])
+slew_rates = flatten(applicable_output['slew rates'])
+heights_SC = flatten(applicable_output['heights SC'])
+heights_AC = flatten(applicable_output['heights AC'])
+speeds_AC = flatten(applicable_output['speeds AC'])
+
+
+time_per_link       = applicable_output['time']
+time_per_link_hrs   = time_links / 3600.0
+ranges_per_link     = applicable_output['ranges'    ]
+elevation_per_link  = applicable_output['elevation' ]
+zenith_per_link     = applicable_output['zenith'    ]
+slew_rates_per_link = applicable_output['slew rates']
+heights_SC_per_link = applicable_output['heights SC']
+heights_AC_per_link = applicable_output['heights AC']
+speeds_AC_per_link  = applicable_output['speeds AC' ]
+
 indices, time_cross_section = cross_section(elevation_cross_section, elevation, time_links)
 
 print('')
@@ -148,6 +138,8 @@ att.print()
 # The turbulence class is initiated here. Inside the turbulence class, there are multiple methods that are run directly.
 # Firstly, a windspeed profile is calculated, which is used for the Cn^2 model. This will then be used for the r0 profile.
 # With Cn^2 and r0, the variances for scintillation and beam wander are computed
+
+
 
 
 turb = turbulence(ranges=ranges,
@@ -193,6 +185,8 @@ SNR_0, Q_0 = LCT.SNR_func(P_r=P_r_0, detection=detection,
                                   noise_sh=noise_sh, noise_th=noise_th, noise_bg=noise_bg, noise_beat=noise_beat)
 BER_0 = LCT.BER_func(Q=Q_0, modulation=modulation)
 
+
+
 # ------------------------------------------------------------------------
 # ----------------------------MICRO-SCALE-MODEL---------------------------
 # Here, the channel level is simulated, losses and Pr as output
@@ -219,6 +213,10 @@ h_tot_no_pointing_errors = losses[-1]
 r_TX = angles[0] * ranges[:, None]
 r_RX = angles[1] * ranges[:, None]
 
+
+
+
+
 # Here, the bit level is simulated, SNR, BER and throughput as output
 if coding == 'yes':
     SNR, BER, throughput, BER_coded, throughput_coded, P_r_coded, G_coding = \
@@ -241,6 +239,11 @@ else:
                   P_r=P_r,
                   elevation_angles=elevation,
                   h_tot=h_tot)
+
+
+
+#throughput = np.array_split(throughput, num_satellites)
+throughput = np.array_split(throughput, num_satellites)
 
 
 # ----------------------------FADE-STATISTICS-----------------------------
@@ -304,120 +307,194 @@ link.tracking()
 link.link_margin()
 
 
+
+# No reliability is assumed below link margin threshold
+reliability_BER = BER.mean(axis=1)
+
+
+# ------------------------------------------------------------------------
+# --------------------------PERFORMANCE-METRICS-SETUP---------------------------
+# ------------------------------------------------------------------------
+
+
+availability_vector = (link.LM_comm_BER6 >= 1.0).astype(int)
+availability_vector = np.array_split(availability_vector, num_satellites)
+#print(availability_vector)
+
+
+
+###-------------------------Visibility------------------------------------
+
+Applicable_links_instance = applicable_links(time)
+applicable_output, sats_applicable = Applicable_links_instance.applicability(link_geometry.geometrical_output, time, step_size_link)
+
+
+
+# ------------------------------------------------------------------------
+# --------------------------Throughput Test Setup-------------------------
+# ------------------------------------------------------------------------
+
+#throughput_test_instance = SatelliteThroughputCorrected(time)
+#throughput_test = throughput_test_instance.get_throughput()
+
 # ------------------------------------------------------------------------
 # --------------------------PERFORMANCE-METRICS---------------------------
 # ------------------------------------------------------------------------
 
-# Availability
-# No availability is assumed below link margin threshold
-availability_vector = mask.astype(int)
-find_lm = np.where(link.LM_comm_BER6 < 1.0)[0]
-time_link_fail = time_links[find_lm]
-find_time = np.where(np.in1d(time, time_link_fail))[0]
-availability_vector[find_time] = 0.0
+Availability_performance_instance = Availability_performance(time, link_geometry, availability_vector) #NORMAL CASE THIS SHOULD BE availability_vector
+BER_performance_instance = ber_performance(time, link_geometry, throughput)
+Cost_performance_instance = Cost_performance(time, link_geometry)
+Latency_performance_instance = Latency_performance(time, link_geometry)
+Latency_data_transfer_performance_instance = Latency_data_transfer_performance(time, link_geometry)
+Throughput_performance_instance = Throughput_performance(time, link_geometry, throughput) #NORMAL CASE THIS SHOULD BE througphut
+ 
 
-# Reliability
-# No reliability is assumed below link margin threshold
-reliability_BER = BER.mean(axis=1)
-reliability_BER[find_lm] = 0.0
 
-# Actual throughput
-# No throughput is assumed below link margin threshold
-throughput[find_lm] = 0.0
-# Potential throughput with the Shannon-Hartley theorem
-noise_sh, noise_th, noise_bg, noise_beat = LCT.noise(P_r=link.P_r, I_sun=I_sun, index=indices[index_elevation])
-SNR_penalty, Q_penalty = LCT.SNR_func(link.P_r, detection=detection,
-                                  noise_sh=noise_sh, noise_th=noise_th, noise_bg=noise_bg, noise_beat=noise_beat)
-C = BW * np.log2(1 + SNR_penalty)
+# Now call the method on the instance and initiliaze the four matrices
 
-# Latency is computed as a macro-scale time-series
-# The only assumed contributions are geometrical latency and interleaving latency.
-# Latency due to coding/detection/modulation/data processing can be optionally added.
-latency_propagation = ranges / speed_of_light
-latency_transmission = 1 / data_rate
-latency_qeue = 5.0e-3
-latency_processing = 3.0e-3
-latency = latency_propagation + latency_transmission + latency_qeue + latency_processing
+#Availability
+availability_performance = Availability_performance_instance.calculate_availability_performance()
+normalized_availability_performance = Availability_performance_instance.calculate_normalized_availability_performance(data = availability_performance, sats_applicable=sats_applicable)
+availability_performance_including_penalty = Availability_performance_instance.calculate_availability_performance_including_penalty(T_acq = 20, step_size_link = 5)
+normalized_availability_performance_including_penalty = Availability_performance_instance.calculate_normalized_availability_performance_including_penalty(data = availability_performance_including_penalty, sats_applicable=sats_applicable)
 
-#------- extra performance parameters ---------
 
-# availabaility 
+#print(availability_performance)
+#print(normalized_availability_performance)
+
+
+#BER
+BER_performance = BER_performance_instance.calculate_BER_performance()
+normalized_BER_performance = BER_performance_instance.calculate_normalized_BER_performance(data = BER_performance, availability_performance=availability_performance)
+BER_performance_including_penalty = BER_performance_instance.calculate_BER_performance_including_penalty(T_acq = 20, step_size_link = 5)
+normalized_BER_performance_including_penalty = BER_performance_instance.calculate_normalized_BER_performance_including_penalty(data = BER_performance_including_penalty, sats_applicable=sats_applicable)
+
+
+# Cost
+cost_performance = Cost_performance_instance.calculate_cost_performance()
+normalized_cost_performance = Cost_performance_instance.calculate_normalized_cost_performance(cost_performance)
+cost_performance_including_penalty = Cost_performance_instance.calculate_cost_performance_including_penalty()
+normalized_cost_performance_including_penalty = Cost_performance_instance.calculate_normalized_cost_performance_including_penalty(cost_performance_including_penalty)
+
+# Latency 
+propagation_latency = Latency_performance_instance.calculate_latency_performance()                                          # NORMAL EQUATION IS calculate_latency_performance OPTIONAL: calculate_latency_performance_averaged
+normalized_latency_performance = Latency_performance_instance.distance_normalization_min(propagation_latency)
+
+# Latency Data transfer
+latency_data_transfer = Latency_data_transfer_performance_instance.calculate_latency_data_transfer_performance()                                          
+normalized_latency_data_transfer_performance = Latency_data_transfer_performance_instance.distance_normalization_data_transfer(latency_data_transfer)
+#print(normalized_latency_data_transfer_performance)
+#Throughput
+throughput_performance = Throughput_performance_instance.calculate_throughput_performance_including_decay(decay_rate=decay_rate)             # NORMAL EQUATION IS calculate_throughput_performance OPTIONAL: calculate_throughput_performance_including_decay
+normalized_throughput_performance = Throughput_performance_instance.calculate_normalized_throughput_performance(data = throughput_performance, data_rate_ac=data_rate_ac)
+#print(throughput_performance)
+#print(normalized_throughput_performance)
 
 # ------------------------------------------------------------------------
-# ---------------------------------OUTPUT---------------------------------
-
-performance_output = {
-        'time'                : [],
-        'throughput'          : [],
-        'link number'         : [],
-        'Pr 0'                : [],
-        'Pr mean'             : [],
-        'Pr penalty'          : [],
-        'BER mean'            : [],
-        'fractional fade time': [],
-        'mean fade time'      : [],
-        'number of fades'     : [],
-        'link margin'         : [],
-        'latency'             : [],
-        'Pr mean (perfect pointing)'   : [],
-        'Pr penalty (perfect pointing)': [],
-        'Pr coded'            : [],
-        'BER coded'           : [],
-        'throughput coded'    : [],
-
-    }
-
-if link_number == 'all':
-    performance_output['link number'] = routing_output['link number']
-
-    for i in range(len(routing_output['link number'])):
-        condition_1 = time[mask] >= routing_output['time'][i][0]
-        condition_2 = time[mask] <= routing_output['time'][i][-1]
-        conditions = [condition_1, condition_2]
-        full_condition = [all(condition) for condition in zip(*conditions)]
-
-        performance_output['time'].append(time_links[full_condition])
-        performance_output['throughput'].append(throughput[full_condition])
-        performance_output['Pr 0'].append(P_r_0[full_condition])
-        performance_output['Pr mean'].append(P_r.mean(axis=1)[full_condition])
-        performance_output['Pr penalty'].append(link.P_r[full_condition])
-        performance_output['fractional fade time'].append(fractional_fade_time[full_condition])
-        performance_output['mean fade time'].append(mean_fade_time[full_condition])
-        performance_output['number of fades'].append(number_of_fades[full_condition])
-        performance_output['BER mean'].append(BER.mean(axis=1)[full_condition])
-        performance_output['link margin'].append(link.LM_comm_BER6[full_condition])
-        performance_output['latency'].append(latency[full_condition])
-        performance_output['Pr mean (perfect pointing)'   ].append(P_r_perfect_pointing.mean(axis=1)[full_condition])
-        performance_output['Pr penalty (perfect pointing)'].append(P_r_penalty_perfect_pointing[full_condition])
-
-        if coding == 'yes':
-            performance_output['Pr coded'].append(P_r_coded[full_condition])
-            performance_output['BER coded'].append(BER_coded.mean(axis=1)[full_condition])
-            performance_output['throughput coded'].append(throughput_coded[full_condition])
-
-else:
-    performance_output['time']                 = time_links
-    performance_output['throughput']           = throughput
-    performance_output['Pr 0']                 = P_r_0
-    performance_output['Pr mean']              = P_r.mean(axis=1)
-    performance_output['Pr penalty']           = link.P_r
-    performance_output['fractional fade time'] = fractional_fade_time
-    performance_output['mean fade time']       = mean_fade_time
-    performance_output['number of fades']      = number_of_fades
-    performance_output['BER mean']             = BER.mean(axis=1)
-    performance_output['link margin']          = margin
-    performance_output['latency']              = latency
-    performance_output['Pr mean (perfect pointing)'] = P_r_perfect_pointing.mean(axis=1)
-    performance_output['Pr penalty (perfect pointing)'] = P_r_penalty_perfect_pointing
-    if coding == 'yes':
-        performance_output['Pr coded'].append(P_r_coded)
-        performance_output['BER coded'].append(BER_coded.mean(axis=1))
-        performance_output['throughput coded'].append(throughput_coded)
+# --------------------------client Input---------------------------
+# ------------------------------------------------------------------------
 
 
-# Save all data to csv file: First merge geometrical output and performance output dictionaries. Then save to csv file.
-# save_to_file([geometrical_output, performance_output])
+
+# define input weights per performance parameter
+client_input_availability = 0.2
+client_input_BER = 0.2
+client_input_cost = 0.1
+client_input_latency = 0.1
+client_input_latency_data_transfer = 0.1
+client_input_throughput = 0.3
+
+weights = [client_input_availability, client_input_BER, client_input_cost, client_input_latency, client_input_latency_data_transfer, client_input_throughput]
+performance_matrices = [normalized_availability_performance, normalized_BER_performance, normalized_cost_performance, normalized_latency_performance, normalized_latency_data_transfer_performance, normalized_throughput_performance]
+performance_matrices_including_penalty = [normalized_availability_performance_including_penalty, normalized_BER_performance_including_penalty, normalized_cost_performance_including_penalty, normalized_latency_performance, normalized_latency_data_transfer_performance, normalized_throughput_performance]
 
 
-print(performance_output['throughput'])
+#call on link selection
+link_selection_instance = link_selection()
 
+
+# Example usage and CSV export
+active_satellites, data_frame = link_selection_instance.find_and_track_active_satellites_with_pandas(weights, sats_applicable, performance_matrices, performance_matrices_including_penalty, availability_vector)
+data_frame.to_csv('CSV/satellite_performance.csv', index=False)
+print(active_satellites)
+
+#-------------- visualizations -----------------------------------------------------------
+
+#Dynamic visualisation
+dynamic_link_selection_visualization_instance = Dynamic_link_selection_visualization(
+    active_satellites=active_satellites,
+    num_satellites=num_satellites
+)
+
+
+#dynamic_link_selection_visualization_instance.run()
+
+
+#Links_applicable.plot_satellite_visibility_scatter(time=time)
+#Links_applicable.plot_satellite_visibility(time = time)
+
+#plot BER vs availability
+#BER_performance_instance.BER_performance_vs_availability_visualization(throughput, availability_vector)
+
+#plot availability
+#Availability_performance_instance.availability_visualization(availability_performance, normalized_availability_performance, availability_performance_including_penalty, normalized_availability_performance_including_penalty)
+
+
+#plot BER
+#BER_performance_instance.BER_visualization(BER_performance, normalized_BER_performance, BER_performance_including_penalty, normalized_BER_performance_including_penalty)
+
+#plot Latency
+#Latency_performance_instance.latency_visualization(propagation_latency, normalized_latency_performance)
+
+#plot Latency data trasnfer
+#Latency_data_transfer_performance_instance.latency_data_transfer_visualization(latency_data_transfer, normalized_latency_data_transfer_performance)
+
+#plot throughput
+#Throughput_performance_instance.throughput_visualization(throughput_performance, normalized_throughput_performance)
+
+#plot Cost
+#Cost_performance_instance.cost_visualization(cost_performance, normalized_cost_performance, cost_performance_including_penalty, normalized_cost_performance_including_penalty)
+
+#plot performance of each individual satellite, stating which one is active and which one is not
+#Applicable_links_instance.plot_satellite_visibility_scatter_update()
+
+#plot_individual_satellite_performance_update(active_satellites, performance_over_time, num_satellites, time_steps, sats_applicable)
+
+#print_link_handovers(active_satellites)
+
+
+
+#-------------------------------- get geometrical ooutput of chosen staellites ------------------
+
+active_satellites_geo_data = {
+            'link number': [],
+            'time': [],
+            'pos AC': [],
+            'lon AC': [],
+            'lat AC': [],
+            'heights AC': [],
+            'speeds AC': [],
+            'pos SC': [],
+            'lon SC': [],
+            'lat SC': [],
+            'vel SC': [],
+            'heights SC': [],
+            'ranges': [],
+            'elevation': [],
+            'azimuth': [],
+            'zenith': [],
+            'radial': [],
+            'slew rates': [],
+            'elevation rates': [],
+            'azimuth rates': [],
+            'doppler shift': []
+        }
+
+active_satellites_total_geo_data = {}
+
+index_start_window = index
+
+
+for satidx in active_satellites:
+    active_satellites_geo_data['link number'].append(number_of_links)
+    active_satellites_geo_data['time'].append(np.array(time))

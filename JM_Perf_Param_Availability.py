@@ -61,7 +61,8 @@ class Availability_performance():
 
     def calculate_normalized_availability_performance(self, data, sats_applicable):
         max_time = np.nansum(sats_applicable, axis=1)
-        self.normalized_availability_performance = data / max_time[:, np.newaxis]
+        max_time_max = np.nanmax(max_time)
+        self.normalized_availability_performance = data / max_time_max
         #print(len(max_time))
         #print(max_time)
         return self.normalized_availability_performance
@@ -103,9 +104,9 @@ class Availability_performance():
 
     def calculate_normalized_availability_performance_including_penalty(self, data, sats_applicable):
         max_time = np.nansum(sats_applicable, axis=1)
-        self.normalized_availability_performance_including_penalty = data / max_time[:, np.newaxis]
-        #print(len(max_time))
-        #print(max_time)
+        max_time_max = np.nanmax(max_time)
+        self.normalized_availability_performance_including_penalty = data / max_time_max
+        
         return self.normalized_availability_performance_including_penalty
     
     def availability_visualization(self, availability_performance, normalized_availability_performance, availability_performance_including_penalty, normalized_availability_performance_including_penalty):
