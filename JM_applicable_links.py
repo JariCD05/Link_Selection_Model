@@ -1,4 +1,5 @@
 import numpy as np
+import pandas as pd
 from matplotlib import pyplot as plt
 
 # Import input parameters and helper functions
@@ -22,6 +23,11 @@ class applicable_links():
         self.total_handover_time = 0 # seconds
         self.total_acquisition_time = 0 # seconds
         self.acquisition = np.zeros(len(time))
+
+        self.bitmap = pd.read_csv('CSV/mapping.csv').values  # .values converts it to a numpy array
+
+        self.x_positions = [[0 for _ in range(len(time))] for _ in range(num_satellites)]
+        self.y_positions = [[0 for _ in range(len(time))] for _ in range(num_satellites)]
 
     # ------------------------------------------------------------------------
     # -----------------------------FUNCTIONS----------------------------------
@@ -59,20 +65,43 @@ class applicable_links():
         elevation_angles = geometrical_output['elevation']
         # Initialize the lists with the shape of 'elevation_angles', filled with 0s
        
-        self.sats_applicable = [[0 for _ in range(len(time))] for _ in range(len(elevation_angles))]
+        self.sats_applicable = [[0 for _ in range(len(time))] for _ in range(num_satellites)]
 
         # Iterate through each time instance
         for index in range(len(time)):
-            # Then iterate through each satellite
             for s in range(len(elevation_angles)):
                 elev = elevation_angles[s][index]
 
-                # Directly set the value in 'sats_applicable'; no need for 'sats_visibility' in this context
-                # since it seems to be unused based on your provided code
-                if elev > elevation_min:
-                    self.sats_applicable[s][index] = 1
-                else:
+
+                while geometrical_output['zenith'][s][index] < -1/2*np.pi:
+                        geometrical_output['zenith'][s][index] +=  np.pi
+                        geometrical_output['azimuth'][s][index] +=  np.pi
+                while geometrical_output['zenith'][s][index] > 1/2*np.pi:
+                        geometrical_output['zenith'][s][index] -=  np.pi
+                        geometrical_output['azimuth'][s][index] -=  np.pi
+
+                while geometrical_output['azimuth'][s][index] < -np.pi:
+                        geometrical_output['azimuth'][s][index] += 2 * np.pi
+                while geometrical_output['azimuth'][s][index] > np.pi:
+                        geometrical_output['azimuth'][s][index] -= 2 * np.pi
+
+                if np.isnan(geometrical_output['azimuth'][s][index]) or np.isnan(geometrical_output['zenith'][s][index]):
                     self.sats_applicable[s][index] = np.nan
+                else:
+                    x = int(np.floor(((geometrical_output['azimuth'][s][index] + np.pi) * 36) / (2 * np.pi+0.001000001)))
+                    y = int(np.floor(((geometrical_output['zenith'][s][index] + 0.5*np.pi) * 18) / (np.pi+0.001000001)))
+
+                    
+                    # Store x and y in the respective arrays
+                    self.x_positions[s][index] = x
+                    self.y_positions[s][index] = y
+                    print(f"satellite={s}, timestamp={index}, x={x}, y={y}, bitmap_shape={self.bitmap.shape}")
+
+                    # check bitmap and elevation angle
+                    if self.bitmap[y][x] and elev > elevation_min:
+                        self.sats_applicable[s][index] = 1
+                    else:
+                        self.sats_applicable[s][index] = np.nan
 
         for s in range(len(self.sats_applicable)):
             # Initialize lists to collect data for each satellite
@@ -224,6 +253,43 @@ class applicable_links():
 
 
 
-  
 
 
+    def plot_satellite_applicability(self):
+        # Convert applicable satellites to NumPy array for easier manipulation
+        sats_applicable_np = np.array(self.sats_applicable)
+        num_satellites = sats_applicable_np.shape[0]
+
+        # Prepare figure for plotting
+        fig, ax = plt.subplots(figsize=(15, 8))
+
+        # Colors for different conditions
+        colors = ['red', 'orange', 'blue', 'green']
+
+        # Iterate through each satellite and plot the data
+        for s in range(num_satellites):
+            times = np.arange(len(self.time))  # Assuming time is linear and continuous
+            satellite_visibility = sats_applicable_np[s, :]
+
+            # Determine conditions
+            # Condition 1: Both requirements met
+            both_met = (satellite_visibility == 1)
+            # Condition 2: Only elevation met (assuming you have a separate tracking of this)
+            only_elevation = (satellite_visibility == 2)
+            # Condition 3: Only bit-mapping met (assuming separate tracking)
+            only_bitmap = (satellite_visibility == 3)
+            # Condition 4: Neither met
+            neither_met = (satellite_visibility == 0)
+
+            # Plotting all conditions
+            ax.scatter(times[both_met], np.full(times[both_met].shape, s + 1), color=colors[3], label='Both Met' if s == 0 else "")
+            ax.scatter(times[only_elevation], np.full(times[only_elevation].shape, s + 1), color=colors[1], label='Only Elevation Met' if s == 0 else "")
+            ax.scatter(times[only_bitmap], np.full(times[only_bitmap].shape, s + 1), color=colors[2], label='Only Bit-mapping Met' if s == 0 else "")
+            ax.scatter(times[neither_met], np.full(times[neither_met].shape, s + 1), color=colors[0], label='Neither Met' if s == 0 else "")
+
+        ax.set_xlabel("Time Index")
+        ax.set_ylabel("Satellite Number")
+        ax.set_title("Satellite Applicability Over Time")
+        ax.legend()
+
+        plt.show()

@@ -74,7 +74,8 @@ def bit_level(LCT,
     errors_acc = np.cumsum(max_throughput / samples * BER, axis=1)
     total_errors = errors_acc[:, -1] * (step_size_link / interval_channel_level)
 
-    throughput = ((max_throughput - total_errors) / step_size_link)*(step_size_link / interval_channel_level)
+    throughput = ((max_throughput - total_errors) / step_size_link)  * (step_size_link / interval_channel_level) # to correct for offset within throughput calculation
+
 
 
     if coding == 'yes':

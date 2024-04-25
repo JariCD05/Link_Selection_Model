@@ -345,3 +345,7 @@ decay_rate = 0.0
 
 #--------visualization----------------
 folder_path = "animations"
+
+
+#-------acquisition
+T_acq = 20 #sec

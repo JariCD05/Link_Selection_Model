@@ -49,31 +49,56 @@ class link_selection():
             # Track the usage of penalty or normal values
             values_used = []
 
-            for matrix_idx, matrix in enumerate(performance_matrices_including_penalty):
-                if active_satellite is not None and applicable_at_time_step[active_satellite]:
-                    # Active satellite uses normal values
-                    matrix_copy = np.array(matrix[:, time_step])
-                    matrix_copy[active_satellite] = performance_matrices[matrix_idx][:, time_step][active_satellite]
-                    values_used.append("Normal" if matrix_idx == active_satellite else "Penalty")
-                else:
-                    # All others use penalty values
-                    matrix_copy = matrix[:, time_step]
-                    values_used.extend(["Penalty"] * len(matrix_copy))
 
-                current_matrices.append(matrix_copy)
-                current_unweighted_matrices.append(performance_matrices[matrix_idx][:, time_step])
-                #print(f"Matrix {matrix_idx} at time step {time_step}: {current_unweighted_matrices[-1]}")
+        # Assuming sats_applicable and other necessary data are already defined
+        for time_step in range(sats_applicable.shape[1]):
+            applicable_at_time_step = sats_applicable[:, time_step]
 
-            weighted_sum = np.zeros_like(applicable_at_time_step, dtype=float)
-            unweighted_sum = np.zeros_like(applicable_at_time_step, dtype=float)
-            weighted_parameters = {i: [] for i in range(len(weights))}
+            current_matrices = []
+            current_unweighted_matrices = []
+            active_satellite = None  # Initialize active_satellite to None each iteration
 
-            # Calculating weighted and unweighted sums
-            for idx, (weight, matrix, unweighted_matrix) in enumerate(zip(weights, current_matrices, current_unweighted_matrices)):
-                weighted_matrix = weight * matrix
-                weighted_parameters[idx] = weighted_matrix * applicable_at_time_step
-                weighted_sum += weighted_parameters[idx]
-                unweighted_sum += unweighted_matrix * applicable_at_time_step
+            # Open a CSV file to write
+            with open('CSV/penalty_check.csv', 'a', newline='') as file:
+                writer = csv.writer(file)
+
+                # Write headers if it's the first time step
+                if time_step == 0:
+                    writer.writerow(["Time Step", "Matrix Index", "Satellite Index", "Value Type", "Numerical Value"])
+
+                # Track the usage of penalty or normal values
+                values_used = []
+
+                for matrix_idx, matrix in enumerate(performance_matrices_including_penalty):
+                    if active_satellite is not None and applicable_at_time_step[active_satellite]:
+                        # Active satellite uses normal values
+                        matrix_copy = np.array(matrix[:, time_step])
+                        matrix_copy[active_satellite] = performance_matrices[matrix_idx][:, time_step][active_satellite]
+                        values_used.append(("Normal", matrix_copy[active_satellite]))
+                    else:
+                        # All others use penalty values
+                        matrix_copy = matrix[:, time_step]
+                        values_used.extend([("Penalty", val) for val in matrix_copy])
+
+                    current_matrices.append(matrix_copy)
+                    current_unweighted_matrices.append(performance_matrices[matrix_idx][:, time_step])
+
+                    # Store values and their types for each satellite to CSV
+                    for sat_index, (type_value, num_value) in enumerate(values_used):
+                        writer.writerow([time_step, matrix_idx, sat_index, type_value, num_value])
+
+                weighted_sum = np.zeros_like(applicable_at_time_step, dtype=float)
+                unweighted_sum = np.zeros_like(applicable_at_time_step, dtype=float)
+                weighted_parameters = {i: [] for i in range(len(weights))}
+
+                # Calculating weighted and unweighted sums
+                for idx, (weight, matrix, unweighted_matrix) in enumerate(zip(weights, current_matrices, current_unweighted_matrices)):
+                    weighted_matrix = weight * matrix
+                    weighted_parameters[idx] = weighted_matrix * applicable_at_time_step
+                    weighted_sum += weighted_parameters[idx]
+                    unweighted_sum += unweighted_matrix * applicable_at_time_step
+
+
                 #print(f"Weighted sum for index {idx} at time step {time_step}: {weighted_sum}")
                 #print(f"Unweighted sum for index {idx} at time step {time_step}: {unweighted_sum}")
 
@@ -109,7 +134,7 @@ class link_selection():
                     'Weighted Latency': weighted_parameters[3][sat_idx],
                     'Weighted Data Transfer Latency': weighted_parameters[4][sat_idx],
                     'Weighted Throughput': weighted_parameters[5][sat_idx],
-                   
+                    'Values Used': values_used[sat_idx],
                 }
                 data_records.append(record)
 

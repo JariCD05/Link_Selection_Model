@@ -244,7 +244,7 @@ else:
 
 #throughput = np.array_split(throughput, num_satellites)
 throughput = np.array_split(throughput, num_satellites)
-print(throughput)
+
 
 # ----------------------------FADE-STATISTICS-----------------------------
 
@@ -307,7 +307,7 @@ link.tracking()
 link.link_margin()
 
 
-
+print(BER.shape)
 # No reliability is assumed below link margin threshold
 reliability_BER = BER.mean(axis=1)
 
@@ -443,7 +443,7 @@ dynamic_link_selection_visualization_instance = Dynamic_link_selection_visualiza
 #Latency_data_transfer_performance_instance.latency_data_transfer_visualization(latency_data_transfer, normalized_latency_data_transfer_performance)
 
 #plot throughput
-Throughput_performance_instance.throughput_visualization(throughput_performance, normalized_throughput_performance)
+#Throughput_performance_instance.throughput_visualization(throughput_performance, normalized_throughput_performance)
 
 #plot Cost
 #Cost_performance_instance.cost_visualization(cost_performance, normalized_cost_performance, cost_performance_including_penalty, normalized_cost_performance_including_penalty)
@@ -454,6 +454,10 @@ Throughput_performance_instance.throughput_visualization(throughput_performance,
 #plot_individual_satellite_performance_update(active_satellites, performance_over_time, num_satellites, time_steps, sats_applicable)
 
 #print_link_handovers(active_satellites)
+
+# show satellite apllicability with bit mapping
+
+Links_applicable.plot_satellite_applicability()
 
 
 # Let's assume we have a mapping of satellite link numbers to their data indices
@@ -511,3 +515,56 @@ Throughput_performance_instance.throughput_visualization(throughput_performance,
 ## Note: Ensure 'coding' variable is defined, and data arrays (time_links, throughput, etc.) are correctly indexed as assumed
 
 #
+
+
+#print('ROUTING MODEL')
+#print('------------------------------------------------')
+#print('Optimization of max. link time and max. elevation')
+#print('Number of links             : ' + str(self.number_of_links))
+#print('Average link time           : ' + str(np.round(self.comm_time/self.number_of_links/60, 3))+' min')
+#print('Total acquisition time      : ' + str(self.total_acquisition_time/60)+' min')
+#print('Fraction of total link time : ' + str(self.frac_comm_time))
+#print('------------------------------------------------'
+        
+
+
+# Initialize variables
+link_times = {}
+total_service_time = 0
+last_satellite = None
+current_link_time = 0
+
+# Loop through active_satellites to calculate durations and count links
+for satellite in active_satellites:
+    if satellite != 'No link':
+        if satellite == last_satellite:
+            current_link_time += 1
+        else:
+            if last_satellite is not None:
+                if last_satellite in link_times:
+                    link_times[last_satellite].append(current_link_time)
+                else:
+                    link_times[last_satellite] = [current_link_time]
+            current_link_time = 1
+            last_satellite = satellite
+        total_service_time += 1
+
+# Don't forget to add the last satellite's link time
+if last_satellite and current_link_time:
+    if last_satellite in link_times:
+        link_times[last_satellite].append(current_link_time)
+    else:
+        link_times[last_satellite] = [current_link_time]
+
+# Calculate number of links and average link time
+number_of_links = len(link_times)
+average_link_time = sum(sum(times) for times in link_times.values()) / sum(len(times) for times in link_times.values()) * step_size_link
+total_acquisition_time = number_of_links * (T_acq / 60)
+
+# Print calculated metrics
+print('------------------------------------------------')
+print(f"Number of links: {number_of_links}")
+print(f"Average link time: {average_link_time/60} min")
+print(f"Total acquisition time: {total_acquisition_time} min")
+print(f"Service time: {(total_service_time - total_acquisition_time) / len(active_satellites)} %")
+#print('------------------------------------------------')

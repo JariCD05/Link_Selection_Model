@@ -51,7 +51,7 @@ class Dynamic_link_selection_visualization:
 
         full_path = f"{self.folder_path}/{self.filename}"
         ani.save(full_path, writer='ffmpeg', fps=2.5)
-        #plt.show()
+        plt.show()
 
 # Example usage:
 # visualization = DynamicLinkSelectionVisualisation(active_satellites=array_of_active_satellites, num_satellites=10, satellite_image_path="satellite.png")

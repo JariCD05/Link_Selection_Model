@@ -35,14 +35,14 @@ class ber_performance():
             # Convert the throughput list for the current satellite to a NumPy array if not already
             throughput_array = np.array(self.throughput[s])
 
-            # Find indices where throughput equals 250,000,000
-            qualifying_indices = np.where(throughput_array == 250000000)[0]
+            # Find indices where throughput equals 2,500,000,000
+            qualifying_indices = np.where(throughput_array == 2500000000)[0]
 
             if len(qualifying_indices) == 0:
                 # If no instance of 250,000,000 is found, skip this satellite
                 continue
 
-            # Get the index of the first occurrence of 250,000,000
+            # Get the index of the first occurrence of 2,500,000,000
             first_qualifying_index = qualifying_indices[0]
 
             # Initialize the running sum to 0 initially
@@ -51,7 +51,7 @@ class ber_performance():
             # Loop through time in reverse order starting from the first qualifying index
             for index in range(len(self.time)-1, first_qualifying_index-1, -1):
                 # Increment running_sum if the condition is met
-                if throughput_array[index] == 250000000:
+                if throughput_array[index] == 2500000000:
                     running_sum += 1
                 # Update throughput performance with the current running sum
                 self.BER_performance[s][index] = running_sum
@@ -81,14 +81,14 @@ class ber_performance():
             # Convert the throughput list for the current satellite to a NumPy array if not already
             throughput_array = np.array(self.throughput[s])
 
-            # Find indices where throughput equals 250,000,000
-            qualifying_indices = np.where(throughput_array == 250000000)[0]
+            # Find indices where throughput equals 2,500,000,000
+            qualifying_indices = np.where(throughput_array == 2500000000)[0]
 
             if len(qualifying_indices) == 0:
                 # If no instance of 250,000,000 is found, skip this satellite
                 continue
 
-            # Get the index of the first occurrence of 250,000,000
+            # Get the index of the first occurrence of 2,500,000,000
             first_qualifying_index = qualifying_indices[0]
 
             # Adjust the starting index for calculating BER performance by adding the delay
@@ -101,7 +101,7 @@ class ber_performance():
             # Update the BER performance list starting from the adjusted index after considering the delay
             for index in range(len(self.time)-1, adjusted_start_index-1, -1):
                 # Increment running_sum if the condition is met
-                if throughput_array[index] == 250000000:
+                if throughput_array[index] == 2500000000:
                     running_sum += 1
                 self.BER_performance_including_penalty[s][index] = running_sum
 
