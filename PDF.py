@@ -5,7 +5,8 @@ import numpy as np
 from matplotlib import pyplot as plt
 
 from helper_functions import *
-from input import *
+#from input_old import *
+from JM_INPUT_CONFIG_FILE import *
 
 class distributions:
     def __init__(self):

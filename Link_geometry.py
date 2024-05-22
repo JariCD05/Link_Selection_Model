@@ -1,4 +1,5 @@
-
+#from input_old import *
+from JM_INPUT_CONFIG_FILE import *
 import Constellation as SC
 import Aircraft as AC
 from helper_functions import *

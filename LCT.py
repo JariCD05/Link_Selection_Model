@@ -1,7 +1,8 @@
 # Load other modules
 from helper_functions import *
 from PDF import dist
-
+#from input_old import *
+from JM_INPUT_CONFIG_FILE import *
 # Load packages
 import numpy as np
 
@@ -61,16 +62,16 @@ class terminal_properties:
         # REF: BASICS OF INCOHERENT AND COHERENT OPTICAL COMMUNICATIONS, P.GALLION, EQ.3.98
         noise_beat = 2 * self.m * R**2 * self.Sn**2 * (BW - Be/2) * Be                                                  
 
-        if micro_scale == 'yes':
-            print('NOISE MODEL')
-            print('------------------------------------------------')
-            print('4 Noise contributions       : Shot noise, background radiation, noise-against-noise beating, thermal noise')
-            print('Solar irradiance            : ' + str(I_sun) + ' W/cm^2/um^2/steradian')
-            print('Shot noise for Pr='+str(np.round(W2dBm(P_r[index].mean()),1))+' dBm : '+str(np.round(W2dBm(noise_sh[0].mean()), 1))+' dBm')
-            print('Background noise            : ' + str(np.round(W2dBm(noise_bg), 1)) + ' dBm')
-            print('Noise-against-noise beating : ' + str(np.round(W2dBm(noise_beat), 1)) + ' dBm')
-            print('Thermal noise               : ' + str(np.round(W2dBm(noise_th), 1)) + ' dBm')
-            print('------------------------------------------------')
+        #if micro_scale == 'yes':
+            #print('NOISE MODEL')
+            #print('------------------------------------------------')
+            #print('4 Noise contributions       : Shot noise, background radiation, noise-against-noise beating, thermal noise')
+            #print('Solar irradiance            : ' + str(I_sun) + ' W/cm^2/um^2/steradian')
+            #print('Shot noise for Pr='+str(np.round(W2dBm(P_r[index].mean()),1))+' dBm : '+str(np.round(W2dBm(noise_sh[0].mean()), 1))+' dBm')
+            #print('Background noise            : ' + str(np.round(W2dBm(noise_bg), 1)) + ' dBm')
+            #print('Noise-against-noise beating : ' + str(np.round(W2dBm(noise_beat), 1)) + ' dBm')
+            #print('Thermal noise               : ' + str(np.round(W2dBm(noise_th), 1)) + ' dBm')
+            #print('------------------------------------------------')
         return noise_sh, noise_th, noise_bg, noise_beat
 
     # ------------------------------------------------------------------------
@@ -187,21 +188,21 @@ class terminal_properties:
             # REF: A SURVEY ON PERFORMANCE ..., D.ANANDKUMAR, 2021, EQ.52
             BER = erfc( Q )
 
-        if micro_scale == 'yes':
-            print('DETECTION & MODULATION SCHEME')
-            print('------------------------------------------------')
-            print('Detection scheme        :' , detection)
-            print('Pre-amp gain RX         : ', M)
-            print('Pre-ampnoise-factor RX  : ', noise_factor)
-            print('Optical  bandwidth RX   : ', BW*1.0E-9,'GHz')
-            print('Electrical bandwidth RX : ', Be*1.0E-9,'GHz')
-            print('Modulation scheme       :', modulation)
-            print('Coding                  :', coding)
-            if coding == 'yes':
-                print('Symbol length            :', symbol_length)
-                print('N, K                     :', N, K)
-                print('Interleaving latency     :', latency_interleaving)
-            print('------------------------------------------------')
+        #if micro_scale == 'yes':
+            #print('DETECTION & MODULATION SCHEME')
+            #print('------------------------------------------------')
+            #print('Detection scheme        :' , detection)
+            #print('Pre-amp gain RX         : ', M)
+            #print('Pre-ampnoise-factor RX  : ', noise_factor)
+            #print('Optical  bandwidth RX   : ', BW*1.0E-9,'GHz')
+            #print('Electrical bandwidth RX : ', Be*1.0E-9,'GHz')
+            #print('Modulation scheme       :', modulation)
+            #print('Coding                  :', coding)
+            #if coding == 'yes':
+            #    print('Symbol length            :', symbol_length)
+            #    print('N, K                     :', N, K)
+            #    print('Interleaving latency     :', latency_interleaving)
+            #print('------------------------------------------------')
 
         return BER
 

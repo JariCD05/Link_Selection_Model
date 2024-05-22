@@ -2,14 +2,17 @@ import numpy as np
 
 from helper_functions import *
 
+#from input_old import *
+from JM_INPUT_CONFIG_FILE import *
+
 def bit_level(LCT,
               t,
               plot_indices: list,
               samples: float,
               P_r_0, P_r, elevation_angles, h_tot):
-    print('')
-    print('-------------------------------------BIT-LEVEL-------------------------------------------')
-    print('')
+    #print('')
+    #print('-------------------------------------BIT-LEVEL-------------------------------------------')
+    #print('')
     plot_index = plot_indices[0]
     #------------------------------------------------------------------------
     #--------------------------COMPUTING-SNR-&-BER---------------------------
@@ -74,7 +77,8 @@ def bit_level(LCT,
     errors_acc = np.cumsum(max_throughput / samples * BER, axis=1)
     total_errors = errors_acc[:, -1] * (step_size_link / interval_channel_level)
 
-    throughput = ((max_throughput - total_errors) / step_size_link)*(step_size_link / interval_channel_level)
+    throughput = ((max_throughput - total_errors) / step_size_link)  * (step_size_link / interval_channel_level) # to correct for offset within throughput calculation
+
 
 
     if coding == 'yes':

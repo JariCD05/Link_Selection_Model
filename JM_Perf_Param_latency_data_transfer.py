@@ -5,7 +5,8 @@ import numpy as np
 from matplotlib import pyplot as plt
 
 # Import input parameters and helper functions
-from input import *
+#from input_old import *
+from JM_INPUT_CONFIG_FILE import *
 from helper_functions import *
 
 # Import classes from other files
@@ -15,66 +16,91 @@ from LCT import terminal_properties
 from Link_budget import link_budget
 from bit_level import bit_level
 from channel_level import channel_level
-from JM_applicable_links import applicable_links
+from JM_Sat_Applicable_links import applicable_satellites
 
 
 
 
 class Latency_data_transfer_performance():
-    def __init__(self, time, link_geometry):
+    def __init__(self, time, ranges, lenghts, num_satellites, smallest_latency, acquisition_time_steps):
         # Assuming link_geometry.geometrical_output and step_size_link are defined elsewhere
-        self.Links_applicable = applicable_links(time=time)
-        self.applicable_output, self.sats_applicable = self.Links_applicable.applicability(link_geometry.geometrical_output, time, step_size_link)
         self.time = time
+        self.ranges = ranges
+        self.lenghts = lenghts
+        self.num_satellites = num_satellites
+        self.smallest_latency = smallest_latency
         self.speed_of_light = speed_of_light
+        self.acquisition_time_steps = acquisition_time_steps
 
-    
-    
+        self.latency_data_transfer_performance = [0] * self.num_satellites
+        self.normalized_latency_data_transfer_performance = [0] * self.num_satellites
+        self.penalized_latency_data_transfer_performance = [0] * self.num_satellites
+        self.normalized_penalized_latency_data_transfer_performance = [0] * self.num_satellites
+
     def calculate_latency_data_transfer_performance(self):
         # Extract ranges for all satellites over time from the applicable_output
-        ranges = self.applicable_output['ranges']
+ 
        
-        # Initialize the latency_data_transfer_performance array
-        self.latency_data_transfer = np.zeros((num_satellites, len(self.time)))
+        # Calculate latency performance for each satellite
+        for s in range(self.num_satellites):
+            future_latencies_values = self.ranges[s] / self.speed_of_light
+            self.latency_data_transfer_performance[s] = np.average(future_latencies_values)
+        
+        #print("Data Latency Performance",self.latency_data_transfer_performance)
+        
+        return self.latency_data_transfer_performance
 
-        # Calculate the average future latency for each satellite at each time index
-        for sat_index in range(num_satellites):
-            for time_index in range(len(self.time)):
-                # Ensure there's a valid range value before calculating latency
-                if ranges[sat_index][time_index]>0:
-                    future_latencies = [ranges[sat_index][t] / self.speed_of_light for t in range(time_index, len(self.time)) if ranges[sat_index][t] >0]
-                    # Only calculate the average if there are valid future latency values
-                    if future_latencies:
-                        self.latency_data_transfer[sat_index][time_index] = sum(future_latencies) / len(future_latencies)
-            
+    def calculate_normalized_latency_data_transfer_performance(self):
 
-        return self.latency_data_transfer
+        for s in range(self.num_satellites):
+            self.normalized_latency_data_transfer_performance[s] = self.smallest_latency /self.latency_data_transfer_performance[s] 
 
-    def distance_normalization_data_transfer(self, latency_data_transfer):
-        # Convert input latency array to a numpy array for easier manipulation
-        latency_data_transfer_performance = np.array(latency_data_transfer)
+        #print("normalized data transfer latency", self.normalized_latency_data_transfer_performance)
+        
+        return self.normalized_latency_data_transfer_performance
 
-        # Find the global minimum nonzero latency across all satellites
-        global_min_latency = np.min(latency_data_transfer_performance[latency_data_transfer_performance > 0])
+    def calculate_penalized_latency_data_transfer_performance(self):
+        # Extract ranges for all satellites over time from the applicable_output
+ 
+       
+        # Calculate latency performance for each satellite
+        for s in range(self.num_satellites):
+            future_latencies_values = self.ranges[s] / self.speed_of_light
+            self.penalized_latency_data_transfer_performance[s] = np.average(future_latencies_values[self.acquisition_time_steps:])
+        
 
-        # Initialize normalized latency performance array
-        normalized_latency_data_transfer_performance = np.zeros(latency_data_transfer_performance.shape)
+        
+        return self.penalized_latency_data_transfer_performance
 
-        # Normalize the latency values for each satellite based on the global minimum latency
-        for sat_index in range(latency_data_transfer_performance.shape[0]):
-            for time_index in range(latency_data_transfer_performance.shape[1]):
-                if latency_data_transfer_performance[sat_index, time_index] > 0:
-                    normalized_latency_data_transfer_performance[sat_index, time_index] =  global_min_latency /latency_data_transfer_performance[sat_index, time_index]
-                else:
-                    # If original latency is zero, it remains zero in the normalized array
-                    normalized_latency_data_transfer_performance[sat_index, time_index] = 0
+    def calculate_normalized_penalized_latency_data_transfer_performance(self):
 
-        return normalized_latency_data_transfer_performance
+        for s in range(self.num_satellites):
+            self.normalized_penalized_latency_data_transfer_performance[s] = self.smallest_latency /self.penalized_latency_data_transfer_performance[s] 
+
+        #print("normalized data transfer latency", self.normalized_latency_data_transfer_performance)
+        
+        return self.normalized_penalized_latency_data_transfer_performance
 
 
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+#------------------------------------------------------------------------------------------------------------------------------------------------------------
 
     def latency_data_transfer_visualization(self, latency_data_transfer, normalized_latency_data_transfer_performance):    
         # Converting the latency visualization plots to scatter plots and removing all zero values

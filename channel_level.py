@@ -1,4 +1,5 @@
-
+#from input_old import *
+from JM_INPUT_CONFIG_FILE import *
 from helper_functions import *
 
 def channel_level(LCT,
@@ -139,11 +140,11 @@ def channel_level(LCT,
     losses = [h_tot, h_scint, h_RX, h_TX, h_bw, h_aoa, h_pj_t, h_pj_r, h_tot_no_pointing_errors]
 
 
-    print('BEAM PROPAGATION MODEL')
-    print('------------------------------------------------')
-    print('Signal through channel: Gaussian beam profile')
-    print('Signal at RX fiber coupling: Airy disk')
-    print('------------------------------------------------')
+    #print('BEAM PROPAGATION MODEL')
+    #print('------------------------------------------------')
+    #print('Signal through channel: Gaussian beam profile')
+    #print('Signal at RX fiber coupling: Airy disk')
+    #print('------------------------------------------------')
     #------------------------------------------------------------------------
     #------------------------------COMPUTING-P_r-----------------------------
     #------------------------------------------------------------------------
@@ -155,17 +156,17 @@ def channel_level(LCT,
     pdf_P_r, cdf_P_r, x_P_r, std_P_r, mean_P_r = distribution_function(W2dBm(P_r), len(P_r_0), min=-60.0, max=-10.0, steps=100)
 
 
-    print('MONTE CARLO  POWER VECTOR TOOL')
-    print('------------------------------------------------')
-    print('3 Dynamic turbulence effects used  : Scintillation, Beam wander, Angle of arrival (AoA)')
-    print('2 Platform jitter effects used     : TX platform & RX platform microvibrations')
-    print('Population size sampling           : ' + str(samples))
-    print('Low-pass frequency turbulence (at '+str(np.round(np.rad2deg(elevation_angles[plot_index]),0))+') : ' + str(turb.freq[plot_index])+' Hz')
-    print('Low-pass frequency jitter          : ' + str(jitter_freq_lowpass)+' Hz')
-    print('Band-pass frequencies jitter       : ' + str(jitter_freq1)+' Hz, '+str(jitter_freq2)+' Hz')
-    print('Distribution for scintillation     : ' + dist_scintillation)
-    print('Distribution for beam wander & AoA : ' + dist_beam_wander)
-    print('Distribution for platform jitter   : ' + dist_pointing)
+    #print('MONTE CARLO  POWER VECTOR TOOL')
+    #print('------------------------------------------------')
+    #print('3 Dynamic turbulence effects used  : Scintillation, Beam wander, Angle of arrival (AoA)')
+    #print('2 Platform jitter effects used     : TX platform & RX platform microvibrations')
+    #print('Population size sampling           : ' + str(samples))
+    #print('Low-pass frequency turbulence (at '+str(np.round(np.rad2deg(elevation_angles[plot_index]),0))+') : ' + str(turb.freq[plot_index])+' Hz')
+    #print('Low-pass frequency jitter          : ' + str(jitter_freq_lowpass)+' Hz')
+    #print('Band-pass frequencies jitter       : ' + str(jitter_freq1)+' Hz, '+str(jitter_freq2)+' Hz')
+    #print('Distribution for scintillation     : ' + dist_scintillation)
+    #print('Distribution for beam wander & AoA : ' + dist_beam_wander)
+    #print('Distribution for platform jitter   : ' + dist_pointing)
 
     #------------------------------------------------------------------------
     #-------------------------PLOT-RESULTS-(OPTIONAL)------------------------

@@ -5,7 +5,8 @@ import numpy as np
 from matplotlib import pyplot as plt
 
 # Import input parameters and helper functions
-from input import *
+#from input_old import *
+from JM_INPUT_CONFIG_FILE import *
 from helper_functions import *
 
 # Import classes from other files
@@ -16,56 +17,73 @@ from LCT import terminal_properties
 from Link_budget import link_budget
 from bit_level import bit_level
 from channel_level import channel_level
-from JM_applicable_links import applicable_links
+from JM_Sat_Applicable_links import applicable_satellites
+
+
+
+import numpy as np
 
 
 
 class Availability_performance():
-    def __init__(self, time, link_geometry, availability_vector):
-        # Assuming link_geometry.geometrical_output and step_size_link are defined elsewhere
-        self.Links_applicable = applicable_links(time=time)
-        self.applicable_output, self.sats_applicable = self.Links_applicable.applicability(link_geometry.geometrical_output, time, step_size_link)
+    def __init__(self, time, availability_vector, lengths, num_satellites, max_length_applicability, acquisition_time_steps):
         self.time = time
-        self.speed_of_light = speed_of_light
         self.availability_vector = availability_vector
-
+        self.lengths = lengths
+        self.num_satellites = num_satellites
+        self.max_length_applicability = max_length_applicability
+        self.acquisition_time_steps = acquisition_time_steps
+        
+        
+        self.availability_performance = [0] * self.num_satellites
+        self.normalized_availability_performance = [0] * self.num_satellites
+        self.penalized_availability_performance = [0] * self.num_satellites
+        self.normalized_penalized_availability_performance = [0] * self.num_satellites
+        
     def calculate_availability_performance(self):
-
-        self.availability_performance = [[0 for _ in range(len(self.time))] for _ in range(num_satellites)]
-
-        for s in range(num_satellites):
-            # Use np.where to find indices where the condition is True (i.e., value is 1)
-            one_indices = np.where(self.availability_vector[s] == 1)[0]
-
-            if len(one_indices) == 0:
-                # If no '1' is found in the array, skip this satellite
-                continue
-            
-            # Get the index of the first '1'
-            first_one_index = one_indices[0]
-
-            # Count the total number of '1's starting from the first_one_index
-            total_ones = len(one_indices)
-
-            # Initialize the running sum to the total number of ones initially
-            running_sum = total_ones
-
-            # Update the performance list from the point of the first '1'
-            for index in range(first_one_index, len(self.time)):
-                if self.availability_vector[s][index] == 1:
-                    self.availability_performance[s][index] = running_sum
-                    running_sum -= 1  # Decrement the running sum for each '1' encountered
-
+      
+        for s in range(self.num_satellites):
+            # Count the number of '1's in the current satellite's availability vector
+            self.availability_performance[s] = np.sum(self.availability_vector[s] == 1)
+        
+        #print(self.availability_performance)
+        
         return self.availability_performance
-       
 
-    def calculate_normalized_availability_performance(self, data, sats_applicable):
-        max_time = np.nansum(sats_applicable, axis=1)
-        max_time_max = np.nanmax(max_time)
-        self.normalized_availability_performance = data / max_time_max
-        #print(len(max_time))
-        #print(max_time)
+
+    def calculate_normalized_availability_performance(self):
+
+        for s in range(self.num_satellites):
+            self.normalized_availability_performance[s] = self.availability_performance[s]/self.max_length_applicability
+        
         return self.normalized_availability_performance
+    
+
+    def calculate_penalized_availability_performance(self):
+
+        for s in range(self.num_satellites):
+            self.penalized_availability_performance[s] =np.sum(self.availability_vector[s][self.acquisition_time_steps:] == 1)
+        
+        return self.penalized_availability_performance
+    
+    def calculate_normalized_penalized_availability_performance(self):
+        
+        for s in range(self.num_satellites):
+            self.normalized_penalized_availability_performance[s] = self.penalized_availability_performance[s]/self.max_length_applicability
+        
+        return self.normalized_penalized_availability_performance
+
+
+
+
+
+
+
+
+#-------------------------------------------------------------------------------------------------------------------------------
+
+
+    
     
     def calculate_availability_performance_including_penalty(self, T_acq, step_size_link):
         # Convert T_acq to the number of time steps

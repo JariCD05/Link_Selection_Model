@@ -6,7 +6,8 @@ from blume.table import table
 import pandas as pd
 from IPython.display import display
 
-from input import *
+#from input_old import *
+from JM_INPUT_CONFIG_FILE import *
 from helper_functions import *
 
 

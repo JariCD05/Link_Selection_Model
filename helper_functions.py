@@ -2,7 +2,7 @@ import sqlite3
 
 import numpy as np
 import scipy.signal
-from input import *
+from input_old import *
 import os
 
 import random
@@ -17,6 +17,13 @@ from tudatpy.kernel.astro import two_body_dynamics
 from tudatpy.kernel.astro import element_conversion
 from tudatpy.util import result2array
 import csv
+
+#from input_old import *
+from JM_INPUT_CONFIG_FILE import *
+def remove_nan_values(input_array):
+    """Remove all NaN values from a numpy array and return the filtered array."""
+    filtered_array = input_array[~np.isnan(input_array)]
+    return filtered_array
 
 def W2dB(x):
     return 10 * np.log10(x)
@@ -334,6 +341,28 @@ def flatten(l):
     new_data = [item for sublist in l for item in sublist]
     return np.array(new_data)
 
+def flatten_update(data):
+    if all(isinstance(item, list) for item in data):
+        # Flatten a list of lists, even if they have different lengths, by concatenating them
+        flat_list = [element for sublist in data for element in (sublist if isinstance(sublist, list) else [sublist])]
+        return np.array(flat_list)
+    else:
+        # Handle the case where data is already flat or non-list items are present
+        return np.array(data)
+
+
+
+def recursively_flatten(lst):
+    for item in lst:
+        if isinstance(item, list):
+            # Recurse into the sublist
+            yield from recursively_flatten(item)
+        else:
+            # Yield the item directly if it's not a list
+            yield item
+
+
+
 def autocorr(x):
     x = np.array(x)
     result_tot = []
@@ -524,3 +553,118 @@ def get_difference_wrt_kepler_orbit(
         keplerian_solution_difference[epoch] = propagated_cartesian_state - state_history[epoch]
 
     return keplerian_solution_difference
+
+def collect_data_until_nan(start_indices, data_list, status_list):
+    results = []
+    for start_idx in start_indices:
+        temp_data = []
+        for i in range(start_idx, len(data_list)):
+            if i >= len(status_list) or np.isnan(status_list[i]):
+                break
+            temp_data.append(data_list[i])
+        results.append(temp_data)
+    return results
+
+
+def collect_data_old(start_indices, data_list, status_list):
+    results = []
+    for start_idx in start_indices:
+        # Create a temporary collection for the current starting index
+        temp_data = []
+        i = start_idx
+        # Collect data until the end or until a NaN is found after a 1
+        while i < len(status_list) and not (i > start_idx and np.isnan(status_list[i]) and status_list[i - 1] == 1):
+            if not np.isnan(status_list[i]):
+                temp_data.append(data_list[i])
+            i += 1
+        results.append(temp_data)
+    return results
+
+
+
+def collect_data(start_indices, data_list, status_list):
+    results = []
+    for start_idx in start_indices:
+        temp_data = []
+        i = start_idx
+        # Collect data until the end or until a NaN is found after a 1
+        while i < len(status_list) and not (i > start_idx and np.isnan(status_list[i]) and status_list[i - 1] == 1):
+            if not np.isnan(status_list[i]):
+                temp_data.append(data_list[i])
+            i += 1
+        results.append(temp_data)        
+    return results
+
+def split_throughput(data, lengths):
+    split_data = []
+    start = 0
+    for length in lengths:
+        end = start + length
+        split_data.append(data[start:end])
+        start = end
+    return split_data
+
+def collect_data_and_lengths(start_indices, data_list, status_list):
+    segments = []
+    lengths = []
+    for start_idx in start_indices:
+        segment = []
+        i = start_idx
+        while i < len(status_list) and not (i > start_idx and np.isnan(status_list[i]) and status_list[i - 1] == 1):
+            if not np.isnan(status_list[i]):
+                segment.append(data_list[i])
+            i += 1
+        segments.append(segment)
+        lengths.append(len(segment))
+    return segments, lengths
+
+def split_data_by_lengths_old(data, lengths):
+    segmented_data = []
+    start_index = 0
+    for length in lengths:
+        end_index = start_index + length
+        segmented_data.append(data[start_index:end_index])
+        start_index = end_index
+    return segmented_data
+
+import numpy as np
+
+def split_data_by_lengths(data, lengths):
+    segmented_data = []
+    start_index = 0
+    for length in lengths:
+        end_index = start_index + length
+        segment = data[start_index:end_index]
+        # Ensure the segment is handled correctly if data is a masked array
+        if isinstance(segment, np.ma.MaskedArray):
+            # If you want to convert to regular array with NaNs where data was masked:
+            regular_array = np.where(segment.mask, np.nan, segment.data)
+            segmented_data.append(regular_array)
+        else:
+            segmented_data.append(segment)
+        start_index = end_index
+    return segmented_data
+
+import numpy as np
+
+def max_consecutive_ones(data):
+    max_ones = []
+    for satellite_data in data:
+        # Convert data to NumPy array to handle natively NaNs and counting easily
+        satellite_array = np.array(satellite_data)
+        # Replace NaN with 0s for convenience
+        clean_array = np.nan_to_num(satellite_array, nan=0)
+        # Convert array elements to strings and join them to form a single string
+        binary_string = ''.join(clean_array.astype(int).astype(str))
+        # Split string by '0' to find groups of consecutive '1's
+        groups_of_ones = binary_string.split('0')
+        # Find the maximum length of groups of '1's
+        max_length = max(len(group) for group in groups_of_ones)
+        max_ones.append(max_length)
+    
+    return max_ones
+
+
+def has_two_consecutive_decreases(scores):
+    # Check for at least three elements and two consecutive decreases
+    return any(scores[i-2] > scores[i-1] > scores[i] for i in range(2, len(scores)))

@@ -5,7 +5,8 @@ import numpy as np
 from matplotlib import pyplot as plt
 
 # Import input parameters and helper functions
-from input import *
+#from input_old import *
+from JM_INPUT_CONFIG_FILE import *
 from helper_functions import *
 
 # Import classes from other files
@@ -15,61 +16,91 @@ from LCT import terminal_properties
 from Link_budget import link_budget
 from bit_level import bit_level
 from channel_level import channel_level
-from JM_applicable_links import applicable_links
+from JM_Sat_Applicable_links import applicable_satellites
 
 
 
 class ber_performance():
-    def __init__(self, time, link_geometry, throughput):
-        # Assuming link_geometry.geometrical_output and step_size_link are defined elsewhere
-        self.Links_applicable = applicable_links(time=time)
-        self.applicable_output, self.sats_applicable = self.Links_applicable.applicability(link_geometry.geometrical_output, time, step_size_link)
+    def __init__(self, time, throughput, lenghts,  num_satellites, max_length_applicability, acquisition_time_steps):
         self.time = time
-        self.speed_of_light = speed_of_light
         self.throughput = throughput
+        self.lenghts =lenghts
+        self.num_satellites = num_satellites
+        self.max_length_applicability = max_length_applicability
+        self.acquisition_time_steps = acquisition_time_steps
+
+        self.BER_performance = [0] * self.num_satellites
+        self.normalized_BER_performance = [0] * self.num_satellites
+        self.penalized_BER_performance = [0] * self.num_satellites
+        self.normalized_penalized_BER_performance = [0] * self.num_satellites
+
 
     def calculate_BER_performance(self):
-        self.BER_performance = [[0 for _ in range(len(self.time))] for _ in range(num_satellites)]
+        # Initialize BER performance count for each satellite
 
-        for s in range(num_satellites):
+
+        # Calculate BER performance for each satellite
+        for s in range(self.num_satellites):
             # Convert the throughput list for the current satellite to a NumPy array if not already
             throughput_array = np.array(self.throughput[s])
 
-            # Find indices where throughput equals 250,000,000
-            qualifying_indices = np.where(throughput_array == 250000000)[0]
-
-            if len(qualifying_indices) == 0:
-                # If no instance of 250,000,000 is found, skip this satellite
-                continue
-
-            # Get the index of the first occurrence of 250,000,000
-            first_qualifying_index = qualifying_indices[0]
-
-            # Initialize the running sum to 0 initially
-            running_sum = 0
-
-            # Loop through time in reverse order starting from the first qualifying index
-            for index in range(len(self.time)-1, first_qualifying_index-1, -1):
-                # Increment running_sum if the condition is met
-                if throughput_array[index] == 250000000:
-                    running_sum += 1
-                # Update throughput performance with the current running sum
-                self.BER_performance[s][index] = running_sum
-
-            # Ensure all values before the first qualifying index are set to 0
-            for index in range(first_qualifying_index):
-                self.BER_performance[s][index] = 0
-
+            # Count instances where throughput equals exactly 2.5e09
+            count = np.sum(throughput_array == data_rate_ac)
+            self.BER_performance[s] = count
+        
+        #print("BER Performance", self.BER_performance)
+        
         return self.BER_performance
-    
-    def calculate_normalized_BER_performance(self, data, availability_vector):
-        max_time = np.nansum(availability_vector, axis=1)
-        max_time_max = np.nanmax(max_time)
-        self.normalized_BER_performance = data / max_time_max
+
+
+    def calculate_normalized_BER_performance(self):
+        for s in range(self.num_satellites):
+            self.normalized_BER_performance[s] = self.BER_performance[s]/self.max_length_applicability
+        
+        #print("Normalized BER Performance", self.normalized_BER_performance)
 
         return self.normalized_BER_performance
     
+    
+    def calculate_penalized_BER_performance(self):
+        # Calculate BER performance for each satellite
+        for s in range(self.num_satellites):
+            # Convert the throughput list for the current satellite to a NumPy array if not already
+            throughput_array = np.array(self.throughput[s])
 
+            # Count instances where throughput equals exactly data_rate_ac
+            count = np.sum(throughput_array[self.acquisition_time_steps:] == data_rate_ac)
+            self.penalized_BER_performance[s] = count
+        
+        #print("BER Performance", self.BER_performance)
+        
+        return self.penalized_BER_performance   
+
+
+    def calculate_normalized_penalized_BER_performance(self):
+        for s in range(self.num_satellites):
+            self.normalized_penalized_BER_performance[s] = self.penalized_BER_performance[s]/self.max_length_applicability
+        
+        #print("Normalized BER Performance", self.normalized_BER_performance)
+
+        return self.normalized_penalized_BER_performance
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+#-----------------------------------------------------------------------------------------------------------
 
     def calculate_BER_performance_including_penalty(self, T_acq, step_size_link):
         # Convert T_acq to the number of time steps
@@ -81,14 +112,14 @@ class ber_performance():
             # Convert the throughput list for the current satellite to a NumPy array if not already
             throughput_array = np.array(self.throughput[s])
 
-            # Find indices where throughput equals 250,000,000
-            qualifying_indices = np.where(throughput_array == 250000000)[0]
+            # Find indices where throughput equals 2,500,000,000
+            qualifying_indices = np.where(throughput_array == 2500000000)[0]
 
             if len(qualifying_indices) == 0:
                 # If no instance of 250,000,000 is found, skip this satellite
                 continue
 
-            # Get the index of the first occurrence of 250,000,000
+            # Get the index of the first occurrence of 2,500,000,000
             first_qualifying_index = qualifying_indices[0]
 
             # Adjust the starting index for calculating BER performance by adding the delay
@@ -101,7 +132,7 @@ class ber_performance():
             # Update the BER performance list starting from the adjusted index after considering the delay
             for index in range(len(self.time)-1, adjusted_start_index-1, -1):
                 # Increment running_sum if the condition is met
-                if throughput_array[index] == 250000000:
+                if throughput_array[index] == 2500000000:
                     running_sum += 1
                 self.BER_performance_including_penalty[s][index] = running_sum
 

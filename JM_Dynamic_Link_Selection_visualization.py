@@ -4,9 +4,9 @@ from matplotlib.animation import FuncAnimation
 from PIL import Image
 
 class Dynamic_link_selection_visualization:
-    def __init__(self, active_satellites, num_satellites, satellite_image_path = 'images/satellite.png', folder_path='animations' , filename='link_selection.mp4'):
+    def __init__(self, active_satellites, max_satellites, satellite_image_path = 'images/satellite.png', folder_path='animations' , filename='link_selection.mp4'):
         self.active_satellites = active_satellites
-        self.num_satellites = num_satellites
+        self.num_satellites = max_satellites
         self.satellite_image_path = satellite_image_path
         self.folder_path = folder_path
         self.filename = filename
@@ -30,7 +30,7 @@ class Dynamic_link_selection_visualization:
 
     def update_animation(self, frame):
         xdata = self.time_steps[:frame]
-        ydata = [-1 if i >= len(self.active_satellites) or self.active_satellites[i] == "No link" else int(self.active_satellites[i]) for i in range(frame)]
+        ydata = [-1 if i >= len(self.active_satellites) or self.active_satellites[i] == "No Link" else int(self.active_satellites[i]) for i in range(frame)]
         self.line.set_data(xdata, ydata)
 
         if ydata:
@@ -51,7 +51,7 @@ class Dynamic_link_selection_visualization:
 
         full_path = f"{self.folder_path}/{self.filename}"
         ani.save(full_path, writer='ffmpeg', fps=2.5)
-        #plt.show()
+        plt.show()
 
 # Example usage:
 # visualization = DynamicLinkSelectionVisualisation(active_satellites=array_of_active_satellites, num_satellites=10, satellite_image_path="satellite.png")

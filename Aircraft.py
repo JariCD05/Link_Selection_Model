@@ -9,7 +9,8 @@ from tudatpy.kernel import constants
 from tudatpy.kernel.math import interpolators
 from tudatpy.util import result2array
 
-from input import *
+#from input_old import *
+from JM_INPUT_CONFIG_FILE import *
 from helper_functions import *
 
 class aircraft:

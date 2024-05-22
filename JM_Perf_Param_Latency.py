@@ -5,7 +5,8 @@ import numpy as np
 from matplotlib import pyplot as plt
 
 # Import input parameters and helper functions
-from input import *
+#from input_old import *
+from JM_INPUT_CONFIG_FILE import *
 from helper_functions import *
 
 # Import classes from other files
@@ -15,53 +16,43 @@ from LCT import terminal_properties
 from Link_budget import link_budget
 from bit_level import bit_level
 from channel_level import channel_level
-from JM_applicable_links import applicable_links
+from JM_Sat_Applicable_links import applicable_satellites
 
 
 
 
 class Latency_performance():
-    def __init__(self, time, link_geometry):
+    def __init__(self, time, ranges, lenghts, num_satellites, smallest_latency):
         # Assuming link_geometry.geometrical_output and step_size_link are defined elsewhere
-        self.Links_applicable = applicable_links(time=time)
-        self.applicable_output, self.sats_applicable = self.Links_applicable.applicability(link_geometry.geometrical_output, time, step_size_link)
         self.time = time
+        self.ranges = ranges
+        self.lenghts = lenghts
+        self.num_satellites = num_satellites
+        self.smallest_latency = smallest_latency
         self.speed_of_light = speed_of_light
+        self.latency_performance = [0] * self.num_satellites
+        self.normalized_latency_performance = [0] * self.num_satellites
 
     def calculate_latency_performance(self):
         # Extract ranges for all satellites over time from the applicable_output
-        ranges = self.applicable_output['ranges']
         
-        # Initialize the propagation_latency array
-        self.propagation_latency = np.zeros((num_satellites, len(self.time)))
 
-        # Calculate propagation latency for each satellite at each time index
-        for sat_index in range(num_satellites):
-            for time_index in range(len(self.time)):
-                # Ensure there's a valid range value before calculating latency
-                if ranges[sat_index][time_index] is not None:
-                    latency_propagation = ranges[sat_index][time_index] / self.speed_of_light
-                    self.propagation_latency[sat_index, time_index] = latency_propagation
-
-        return self.propagation_latency
+        # Calculate latency performance for each satellite
+        for s in range(self.num_satellites):
+            self.latency_performance[s] = self.ranges[s][0] / self.speed_of_light
+        
+        #print("Latency Performance",self.latency_performance)
+        
+        return self.latency_performance
 
    
 
-    def distance_normalization_min(self, propagation_latency):
-        # Initialize the array for storing normalized latencies
-        self.normalized_latency_performance = np.zeros_like(propagation_latency)
+    def calculate_normalized_latency_performance(self):
 
-        # Find the overall minimum nonzero latency from all satellites
-        min_latency = np.min(propagation_latency[propagation_latency > 0]) if np.any(propagation_latency > 0) else 1
-
-        for sat_index in range(num_satellites):
-            for time_index in range(propagation_latency.shape[1]):
-                if propagation_latency[sat_index, time_index] > 0:
-                    # Normalize the latency values for the current satellite based on the global minimum latency
-                    self.normalized_latency_performance[sat_index, time_index] = min_latency / propagation_latency[sat_index, time_index]
-                else:
-                    # If original latency is zero, it remains zero in the normalized array
-                    self.normalized_latency_performance[sat_index, time_index] = 0
+        for s in range(self.num_satellites):
+            self.normalized_latency_performance[s] = self.smallest_latency/self.latency_performance[s]
+            
+        #print("Normalized Latency", self.normalized_latency_performance)
 
         return self.normalized_latency_performance
 

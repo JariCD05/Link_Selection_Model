@@ -8,7 +8,8 @@ import csv
 import pandas as pd
 
 # Import input parameters and helper functions
-from input import *
+#from input_old import *
+from JM_INPUT_CONFIG_FILE import *
 from helper_functions import *
 
 # Import classes from other files
@@ -18,21 +19,101 @@ from LCT import terminal_properties
 from Link_budget import link_budget
 from bit_level import bit_level
 from channel_level import channel_level
-from JM_applicable_links import applicable_links
+from JM_Sat_Applicable_links import applicable_satellites
 from JM_Perf_Param_Availability import Availability_performance
 
 
 
 class Throughput_performance:
-    def __init__(self, time, link_geometry, throughput):
-        self.Links_applicable = applicable_links(time=time)
-        self.applicable_output, self.sats_applicable = self.Links_applicable.applicability(link_geometry.geometrical_output, time, step_size_link)
+    def __init__(self, time, throughput, lengths, num_satellites, acquisition_time_steps):
         self.time = time
         self.throughput = throughput
+        self.lengths = lengths
+        self.num_satellites = num_satellites
         self.weights_record = []
         self.weighted_values_record = []
+        self.acquisition_time_steps = acquisition_time_steps
+
+        self.throughput_performance = [0] * self.num_satellites
+        self.normalized_throughput_performance = [0] * self.num_satellites
+        self.penalized_throughput_performance = [0] * self.num_satellites
+        self.normalized_penalized_throughput_performance = [0] * self.num_satellites
+
+    def calculate_throughput_performance(self):
+        # Initialize throughput_performance with zeros
+        
+    
+        for s in range(self.num_satellites):
+            # Access throughput values for satellite 's'
+            future_throughput_values = self.throughput[s]
+            
+            # Filter out negative values but calculate the average as if they were zero
+            non_negative_values = np.where(future_throughput_values >= 0, future_throughput_values, 0)
+            
+            # Calculate the average including zeros for negative values
+            if len(future_throughput_values) > 0:  # Ensure there are elements to avoid division by zero
+                average_throughput = np.sum(non_negative_values) / len(future_throughput_values)
+            else:
+                average_throughput = 0
+            
+            # Assign calculated average to throughput performance; check if it's non-positive
+            self.throughput_performance[s] = max(0, average_throughput)
+        
+        #print("Throughput performance", self.throughput_performance)
+
+        return self.throughput_performance
 
 
+    def calculate_normalized_throughput_performance(self):
+
+        for s in range(self.num_satellites):
+            self.normalized_throughput_performance[s] = self.throughput_performance[s] / data_rate_ac
+            
+        #print("Normalized throughput performance",self.normalized_throughput_performance)
+
+        return self.normalized_throughput_performance
+
+    def calculate_penalized_throughput_performance(self):
+
+        
+        for s in range(self.num_satellites):
+            # Access throughput values for satellite 's'
+            future_throughput_values = self.throughput[s][self.acquisition_time_steps:]
+            
+            # Filter out negative values but calculate the average as if they were zero
+            non_negative_values = np.where(future_throughput_values >= 0, future_throughput_values, 0)
+            
+            # Calculate the average including zeros for negative values
+            if len(future_throughput_values) > 0:  # Ensure there are elements to avoid division by zero
+                average_throughput = np.sum(non_negative_values) / len(future_throughput_values)
+            else:
+                average_throughput = 0
+            
+            # Assign calculated average to throughput performance; check if it's non-positive
+            self.penalized_throughput_performance[s] = max(0, average_throughput)
+        
+        #print("Throughput performance", self.throughput_performance)
+
+        return self.penalized_throughput_performance    
+
+
+    def calculate_normalized_penalized_throughput_performance(self):
+
+        for s in range(self.num_satellites):
+            self.normalized_penalized_throughput_performance[s] = self.penalized_throughput_performance[s] / data_rate_ac
+            
+
+        return self.normalized_penalized_throughput_performance
+
+
+
+
+
+
+
+
+
+#-----------------------------------------------------------------------------------------------------------------
     def calculate_throughput_performance_including_decay(self, decay_rate):
         # Initialize throughput_performance with zeros
         
@@ -66,48 +147,7 @@ class Throughput_performance:
         throughput_performance_df.to_csv(f'{folder_path}/decay_included_throughput_performance.csv', index=False)
 
         return self.throughput_performance
-
-    def calculate_throughput_performance(self):
-        # Initialize throughput_performance with zeros
-        self.throughput_performance = [[0 for _ in range(len(self.time))] for _ in range(num_satellites)]
-        simple_throughput_values_record = []
     
-        for s in range(num_satellites):
-            for t in range(len(self.time)):
-                if self.throughput[s][t] > 0:
-                    future_values = [self.throughput[s][index] for index in range(t, len(self.time)) if self.throughput[s][index] > 0]
-                    if future_values:
-                        self.throughput_performance[s][t] = sum(future_values) / len(future_values)
-                        simple_throughput_values_record.append({'Time Step': t, 'Performance Values': self.throughput_performance})
-    
-        # Save to CSV
-        simple_throughput_df = pd.DataFrame(simple_throughput_values_record)
-        folder_path = 'CSV'
-        os.makedirs(folder_path, exist_ok=True)
-        simple_throughput_df.to_csv(f'{folder_path}/Throughput_performance_record.csv', index=False)
-    
-        return self.throughput_performance
-
-    def get_weights(self):
-        return self.weights_record
-
-    def get_weighted_values(self):
-        return self.weighted_values_record
-
-
-    def calculate_normalized_throughput_performance(self, data, data_rate_ac):
-        # Convert data to a NumPy array to make sure we're working with NumPy functionality
-        data_array = np.array(data)
-        
-        # Create a normalized_throughput_performance array filled with zeros
-        # with the same shape as data_array
-        self.normalized_throughput_performance = np.zeros(data_array.shape)
-        
-        # Perform element-wise division
-        self.normalized_throughput_performance = data_array / data_rate_ac
-
-        return self.normalized_throughput_performance
-
 
     def throughput_visualization(self, throughput_performance, normalized_throughput_performance):
         # Converting the throughput visualization plots to scatter plots and removing all zero values
@@ -137,63 +177,5 @@ class Throughput_performance:
 
         plt.tight_layout()
         plt.show()
-
-
-## ------------------------------------------------------------------------
-## --------------------------PERFORMANCE-METRICS---------------------------
-## ------------------------------------------------------------------------
-#
-#
-#availability_vector = (link.LM_comm_BER6 >= 1.0).astype(int)
-##HERE THE VISUALIZATION OF BOTH THE AVAILABILITY AND THROUGHPUT CAN BE FOUND!
-#print("throughput of four links", throughput[56:85])
-#print("Availability of link 1", availability_vector[56:85])
-#
-## Adjust the plotting code to avoid normalization and to display throughput in Gb/s
-## Time points (assuming equal spacing)
-#time_points = np.arange(len(throughput))
-## Convert throughput to Gb/s for visualization
-#throughput_gbps = throughput / 1e8
-#
-## Convert availability to integers (1 or 0), with NaN values handled appropriately
-#availability_int = np.where(np.isnan(availability_vector), np.nan, availability_vector)
-#
-#plt.figure(figsize=(14, 7))
-#
-## Plot throughput in Gb/s, ensuring to handle NaN values appropriately
-#plt.plot(time_points, throughput_gbps, label='Throughput (Gb/s)', marker='o', linestyle='-', color='blue')
-#
-## For availability, plot directly as 0 or 1, without scaling. This avoids the issue with NaN values.
-## Since availability is already 0 or 1, we can plot it directly.
-## Plotting availability using a secondary y-axis for clarity
-#ax2 = plt.gca().twinx()
-#ax2.plot(time_points, availability_int, label='Availability', marker='x', linestyle='--', color='red', alpha=0.6)
-#
-## Mark unavailable periods more clearly (no change needed here, but no need for scaling or special handling of NaNs)
-#for i, available in enumerate(availability_vector):
-#    if not np.isnan(available) and available == 0:
-#        plt.axvspan(i-0.5, i+0.5, color='grey', alpha=0.3, zorder=0)
-#
-#plt.title('Throughput and Availability of four links')
-#plt.xlabel('Time Point')
-#plt.ylabel('Throughput (Gb/s)')
-#ax2.set_ylabel('Availability', color='red')
-#plt.legend(loc='upper left')
-#ax2.legend(loc='upper right')
-#plt.grid(True)
-##plt.show()
-
-
-#---------- Weights for adjusted throughput ---------
-#weights = Throughput_performance_instance.get_weights()
-#weighted_values = Throughput_performance_instance.get_weighted_values()
-#
-## Example to print out weights and weighted values for analysis
-#for weight in weights:
-#    print("Satellite:", weight[0], "Timestamp:", weight[1], "Weights:", weight[2])
-#
-#for weighted_value in weighted_values:
-#    print("Satellite:", weighted_value[0], "Timestamp:", weighted_value[1], "Weighted Values:", weighted_value[2])
-
 
 

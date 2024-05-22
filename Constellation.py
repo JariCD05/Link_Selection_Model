@@ -18,7 +18,8 @@ from tudatpy.kernel import constants
 from tudatpy.util import result2array
 from datetime import datetime, timedelta
 
-from input import *
+#from input_old import *
+from JM_INPUT_CONFIG_FILE import *
 from helper_functions import *
 
 # Load spice kernels

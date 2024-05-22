@@ -1,0 +1,167 @@
+{
+    "constants": {
+        "R_earth": 6367000.0,
+        "speed_of_light": 299792458.0,
+        "q": 1.602176634e-19,
+        "h": 6.62607015e-34,
+        "k": 1.38e-23,
+        "mu_earth": 3.986004418e14,
+        "t_day": 24.0,
+        "Omega_t": 6.283185307179586,
+        "omega_earth": 7.27220521664304e-05
+    },
+    "numerical_simulation_setup": {
+        "start_time": 0.0,
+        "end_time": 21600.0,
+        "step_size_link": 5.0,
+        "step_size_SC": 7.0,
+        "integrator": "Runge Kutta 4",
+        "step_size_channel_level": 0.0001,
+        "interval_channel_level": 5.0,
+        "frequency_filter_order": 2
+    },
+    "link_analysis_parameters": {
+        "analysis": "total",
+        "link_number": "all",
+        "ac_LCT": "general",
+        "link": "up"
+    },
+    "LCT_laser_parameters": {
+        "ac_LCT_general": {
+            "wavelength_ac": 1.553e-06,
+            "data_rate_ac": 2500000000.0,
+            "P_ac": 20.0,
+            "D_ac": 0.08,
+            "clipping_ratio_ac": 2.0,
+            "obscuration_ratio_ac": 0.1,
+            "M2_defocus_ac": 1.0,
+            "M2_defocus_acquisition_ac": 11.66,
+            "angle_div_ac_acquisition": 0.0003,
+            "focal_length_ac": 0.12,
+            "angle_pe_ac": 4.0e-06,
+            "std_pj_ac": 3.4e-06,
+            "std_pj_spot_ac": 2.5e-05,
+            "eff_quantum_ac": 1.0,
+            "T_s_ac": 300,
+            "FOV_ac": 1.0e-08,
+            "FOV_ac_acquisition": 0.0065,
+            "eff_transmission_ac": 0.8,
+            "WFE_static_ac": 1.0e-07,
+            "WFE_static_acquisition_ac": 1.5e-07,
+            "h_splitting_ac": 0.9,
+            "detection_ac": "Preamp",
+            "mod_ac": "OOK-NRZ",
+            "M_ac": 150.0,
+            "F_ac": 4.0,
+            "delta_wavelength_ac": 5.0e-09,
+            "R_L_ac": 50.0,
+            "sensitivity_acquisition_ac": 3.16227766016e-10
+        },
+        "sc_LCT": {
+            "wavelength_sc": 1.553e-06,
+            "data_rate_sc": 2500000000.0,
+            "P_sc": 20.0,
+            "D_sc": 0.08,
+            "clipping_ratio_sc": 2.0,
+            "obscuration_ratio_sc": 0.1,
+            "M2_defocus_sc": 1.0,
+            "M2_defocus_acquisition_sc": 11.66,
+            "angle_div_sc": 2.5e-05,
+            "angle_div_sc_acquisition": 0.0003,
+            "focal_length_sc": 0.12,
+            "angle_pe_sc": 3.6e-06,
+            "std_pj_sc": 3.3e-06,
+            "std_pj_spot_sc": 2.5e-05,
+            "eff_quantum_sc": 0.7,
+            "T_s_sc": 300,
+            "FOV_sc": 1.0e-08,
+            "FOV_sc_acquisition": 0.0065,
+            "eff_transmission_sc": 0.8,
+            "WFE_static_sc": 1.0e-07,
+            "h_splitting_sc": 0.9,
+            "detection_sc": "Preamp",
+            "mod_sc": "BPSK",
+            "M_sc": 285.0,
+            "F_sc": 2.0,
+            "BW_sc": 2500000000.0,
+            "delta_wavelength_sc": 5.0e-09,
+            "R_L_sc": 50.0,
+            "sensitivity_acquisition_sc": 3.16227766016e-10
+        },
+        "num_opt_head": 2
+    },
+    "aircraft_parameters": {
+        "method_AC": "opensky",
+        "h_AC": 10000.0,
+        "vel_AC": [0.0, 220.0, 0.0],
+        "lat_init_AC": 78.5094,
+        "lon_init_AC": 60.54131,
+        "aircraft_filename_load": "/Users/jaristensen/Desktop/Visual_Studio/Thesis/Link_Selection_Simulation_version2.1/ac_trajectories/OSL_ENEV.csv",
+        "aircraft_filename_save": "/Users/jaristensen/Desktop/Visual_Studio/Thesis/Link_Selection_Simulation_version2.1/sc_trajectories/SDA.json"
+    },
+    "constellation_parameters": {
+        "constellation_data": "NONE",
+        "method_SC": "tudat",
+        "SC_filename_load": "/Users/jaristensen/Desktop/Visual_Studio/Thesis/Link_Selection_Simulation_version2.1/sc_trajectories/SDA.json",
+        "SC_filename_save": "/Users/jaristensen/Desktop/Visual_Studio/Thesis/Link_Selection_Simulation_version2.1/sc_trajectories/SDA.json",
+        "constellation_type": "LEO_cons",
+        "h_SC": 1200000.0,
+        "inc_SC": 85,
+        "number_of_planes": 2,
+        "number_sats_per_plane": 14,
+        "variable_link_cost_const1": 1.667,
+        "fixed_link_cost_const1": 100,
+        "TLE_filename_load": "C:\\Users\\wiege\\Documents\\TUDelft_Spaceflight\\Thesis\\ac_sc_data\\constellation_TLE_data\\oneweb_tle.json"
+    },
+    "link_selection_parameters": {
+        "elevation_min_angle": 0.0,
+        "elevation_threshold": 5.0,
+        "acquisition_time": 20
+    },
+    "atmospheric_parameters": {
+        "scale_height": 6600.0,
+        "att_coeff": 0.005,
+        "I_sun": 0.5,
+        "I_sky": 0.0,
+        "n_index": 1.002
+    },
+    "methods_choices": {
+        "margin_buffer": 3.0,
+        "desired_frac_fade_time": 0.01,
+        "BER_thres": [1.0e-09, 1.0e-06, 1.0e-03],
+        "coding": "no",
+        "latency_interleaving": 0.1,
+        "N": 255,
+        "K": 223,
+        "symbol_length": 8,
+        "turbulence_model": "Hufnagel-Valley",
+        "wind_model_type": "Bufton",
+        "turbulence_freq_lowpass": 1000.0,
+        "jitter_freq_lowpass": 100.0,
+        "jitter_freq2": [100.0, 300.0],
+        "jitter_freq1": [900.0, 1100.0],
+        "method_att": "ISA profile",
+        "method_clouds": "static",
+        "dist_scintillation": "lognormal",
+        "dist_beam_wander": "rayleigh",
+        "dist_AoA": "rayleigh",
+        "dist_pointing": "rayleigh"
+    },
+    "performance_parameters": {
+        "client_input_availability": 0,
+        "client_input_BER": 0,
+        "client_input_cost": 1,
+        "client_input_data_transfer_latency": 0,
+        "client_input_propagation_latency": 0,
+        "client_input_throughput": 0
+    },
+    "throughput_decay_rate": {
+        "decay_rate": 0.0
+    },
+    "visualization": {
+        "folder_path": "animations"
+    },
+    "acquisition": {
+        "T_acq": 20
+    }
+}

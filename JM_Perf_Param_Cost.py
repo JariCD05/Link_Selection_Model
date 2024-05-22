@@ -5,7 +5,8 @@ import numpy as np
 from matplotlib import pyplot as plt
 
 # Import input parameters and helper functions
-from input import *
+#from input_old import *
+from JM_INPUT_CONFIG_FILE import *
 from helper_functions import *
 
 # Import classes from other files
@@ -15,65 +16,63 @@ from LCT import terminal_properties
 from Link_budget import link_budget
 from bit_level import bit_level
 from channel_level import channel_level
-from JM_applicable_links import applicable_links
+from JM_Sat_Applicable_links import applicable_satellites
 
 
 
 
 class Cost_performance():
-    def __init__(self, time, link_geometry):
+    def __init__(self, time, lenghts, num_satellites):
         # Assuming link_geometry.geometrical_output and step_size_link are defined elsewhere
-        self.Links_applicable = applicable_links(time=time)
-        self.applicable_output, self.sats_applicable = self.Links_applicable.applicability(link_geometry.geometrical_output, time, step_size_link)
+        self.num_satellites = num_satellites
         self.time = time
-        self.speed_of_light = speed_of_light
+        self.lenghts = lenghts
+
+        self.cost_performance =[0] * self.num_satellites
+        self.normalized_cost_performance =[0] * self.num_satellites
+        self.penalized_cost_performance =[0] * self.num_satellites
+        self.normalized_penalized_cost_performance =[0] * self.num_satellites
 
    
     def calculate_cost_performance(self):
 
-        # Initialize the cost_performance array
-        self.cost_performance = np.zeros((num_satellites, len(self.time)))
-
         # Set cost performance for each satellite at each time index
-        for sat_index in range(num_satellites):
-            for time_index in range(len(self.time)):
-                self.cost_performance[sat_index, time_index] = variable_link_cost_const1
-
-        # Multiply by sats_applicable to zero out non-applicable instances
-        self.cost_performance *= self.sats_applicable
-
+        for s in range(self.num_satellites):
+                self.cost_performance[s] = variable_link_cost_const1
+        #print("Cost Performance", self.cost_performance)
+        
         return self.cost_performance
 
-    def calculate_normalized_cost_performance(self, cost_performance):
+    def calculate_normalized_cost_performance(self):
         # Calculate the denominator for normalization based on maximum costs
-        normalization_factor = max(constellation_variable_link_cost) + max(constellation_fixed_link_cost)
+        normalization_factor_variable = max(constellation_variable_link_cost) 
         
-        # Normalize the cost_performance array
-        self.normalized_cost_performance = 1 - (cost_performance / normalization_factor)
+        for s in range(self.num_satellites):
+            self.normalized_cost_performance[s] = 1 - (self.cost_performance[s] / normalization_factor_variable)
+
+        #print("Normalized cost Performance", self.normalized_cost_performance)
         
         return self.normalized_cost_performance
 
-    def calculate_cost_performance_including_penalty(self):
+    def calculate_penalized_cost_performance(self):
         
         # Initialize the cost_performance array
-        self.cost_performance_including_penalty = np.zeros((num_satellites, len(self.time)))
+        
+        for s in range(self.num_satellites):
+            self.penalized_cost_performance[s] = fixed_link_cost_const1 + variable_link_cost_const1
 
-        for sat_index in range(num_satellites):
-            for time_index in range(len(self.time)):
-                    self.cost_performance_including_penalty[sat_index, time_index] = fixed_link_cost_const1 + variable_link_cost_const1
+        return self.penalized_cost_performance
 
-        self.cost_performance_including_penalty *= self.sats_applicable
-
-        return self.cost_performance_including_penalty
-
-    def calculate_normalized_cost_performance_including_penalty(self, cost_performance_including_penalty):
+    def calculate_normalized_penalized_cost_performance(self):
         # Calculate the normalization factor
-        normalization_factor = max(constellation_variable_link_cost)+ max(constellation_fixed_link_cost)
+        normalization_factor_variable = max(constellation_variable_link_cost)
+        normalization_factor_fixed = max(constellation_fixed_link_cost)
 
         # Normalize the cost_performance array
-        self.normalized_cost_performance_including_penalty = 1 - (cost_performance_including_penalty / normalization_factor)
+        for s in range(self.num_satellites):
+            self.normalized_penalized_cost_performance[s] = (1 - (fixed_link_cost_const1 / normalization_factor_fixed)) +  (1 - (variable_link_cost_const1 / normalization_factor_variable))
     
-        return self.normalized_cost_performance_including_penalty
+        return self.normalized_penalized_cost_performance
     
 
 
